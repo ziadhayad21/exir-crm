@@ -296,9 +296,9 @@ async function runInstagramTestSuite() {
       body: msgPayload,
     });
     const msgJson = await msgRes.json();
-    const { data: regMsg } = await admin.from('messages').select('*').eq('id', msgJson.message_id || '').maybeSingle();
+    const { data: regConv } = await admin.from('conversations').select('*').eq('id', msgJson.conversation_id || '').maybeSingle();
 
-    recordTest('Messenger Regression', 'Facebook Messenger inbound payload still processes HTTP 200 with channel="messenger"', msgRes.status === 200 && regMsg?.channel === 'messenger');
+    recordTest('Messenger Regression', 'Facebook Messenger inbound payload still processes HTTP 200 with channel="messenger"', msgRes.status === 200 && regConv?.channel === 'messenger');
 
   } catch (err) {
     console.error('CRITICAL UNHANDLED ERROR IN TEST SUITE:', err);
