@@ -208,7 +208,9 @@ async function runMessengerTestSuite() {
     await idemRes2.json();
     recordTest('Idempotency', 'Duplicate delivery handled idempotently without error or duplicate records', idemRes2.status === 200);
 
-    const { data: idemLeads } = await admin.from('leads').select('id').eq('full_name', 'PSID_IDEM_1');
+    const { data: idemIdent } = await admin.from('channel_identities').select('id').eq('external_id', 'PSID_IDEM_1').maybeSingle();
+    const { data: idemConv } = await admin.from('conversations').select('lead_id').eq('channel_identity_id', idemIdent?.id || '').maybeSingle();
+    const { data: idemLeads } = idemConv?.lead_id ? await admin.from('leads').select('id').eq('id', idemConv.lead_id) : { data: [] };
     const { data: idemMessages } = await admin.from('messages').select('id').eq('external_message_id', midIdempotent);
     recordTest('Idempotency', 'Exactly 1 Lead and 1 Message created for duplicate webhook', idemLeads?.length === 1 && idemMessages?.length === 1, `Leads: ${idemLeads?.length}, Messages: ${idemMessages?.length}`);
 
@@ -328,7 +330,9 @@ async function runMessengerTestSuite() {
     );
 
     await Promise.all(burstPromises);
-    const { data: burstLeads } = await admin.from('leads').select('id').eq('full_name', 'PSID_BURST_5X');
+    const { data: burstIdent } = await admin.from('channel_identities').select('id').eq('external_id', 'PSID_BURST_5X').maybeSingle();
+    const { data: burstConv } = await admin.from('conversations').select('lead_id').eq('channel_identity_id', burstIdent?.id || '').maybeSingle();
+    const { data: burstLeads } = burstConv?.lead_id ? await admin.from('leads').select('id').eq('id', burstConv.lead_id) : { data: [] };
     const { data: burstMessages } = await admin.from('messages').select('id').eq('external_message_id', burstMid);
 
     recordTest(

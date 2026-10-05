@@ -529,6 +529,7 @@ async function run() {
   assert('5. Heartbeat', mohamedOfflineCheck?.is_online === false, 'Explicit Offline sets is_online=false immediately');
 
   // 5.4 Recovery: Employee becomes eligible again after coming Online with valid heartbeat
+  await admin.from('leads').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   await admin
     .from('employees')
     .update({ is_online: true, last_heartbeat: new Date().toISOString() })
