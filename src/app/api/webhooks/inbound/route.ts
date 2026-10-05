@@ -64,9 +64,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   const admin = createAdminClient();
-  const rawArrayBuffer = await req.arrayBuffer();
-  const rawBuffer = Buffer.from(rawArrayBuffer);
-  const rawBody = rawBuffer.toString('utf-8');
+  const rawBody = await req.text();
   const headers = Object.fromEntries(req.headers.entries());
 
   // 1. Signature & Authorization Verification
@@ -78,13 +76,8 @@ export async function POST(req: NextRequest) {
   const appSecret = process.env.META_APP_SECRET?.trim();
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
-  console.log('[Inbound Webhook] Secret diagnostics:', {
-    hasAppSecret: !!process.env.META_APP_SECRET,
-    appSecretLength: process.env.META_APP_SECRET?.trim().length ?? 0,
-  });
-
   console.log('[Inbound Webhook POST] Inbound request received:', {
-    bodyLength: rawBuffer.length,
+    bodyLength: rawBody.length,
     hasSig256: !!req.headers.get('x-hub-signature-256'),
     hasSigSha1: !!req.headers.get('x-hub-signature'),
     hasAppSecret: !!appSecret,
@@ -97,7 +90,7 @@ export async function POST(req: NextRequest) {
 
   if (signatureHeader && appSecret) {
     signatureVerified = verifyMetaSignature(
-      rawBuffer,
+      rawBody,
       signatureHeader,
       appSecret
     );
@@ -128,12 +121,14 @@ export async function POST(req: NextRequest) {
   }
 
   if (!isAuthorized) {
+    const sigPrefix = signatureHeader ? signatureHeader.trim().slice(0, 15) : 'none';
     console.warn('[Inbound Webhook POST] Authorization failed diagnostics:', {
       hasSig256: !!req.headers.get('x-hub-signature-256'),
       hasSigSha1: !!req.headers.get('x-hub-signature'),
       hasAppSecret: !!process.env.META_APP_SECRET,
-      appSecretLength: process.env.META_APP_SECRET?.trim().length ?? 0,
-      bodyLength: rawBuffer.length,
+      appSecretLength: appSecret?.length ?? 0,
+      bodyLength: rawBody.length,
+      sigPrefix,
       signatureVerified,
     });
 
