@@ -1,5 +1,5 @@
 // src/lib/messaging/meta-adapter.ts
-// Normalization layer for Meta Webhook payloads (Facebook Messenger)
+// Normalization layer for Meta Webhook payloads (Facebook Messenger v26.0)
 // Extracts standardized inbound events safely without spreading Meta-specific parsing throughout app logic.
 
 import crypto from 'crypto';
@@ -39,10 +39,30 @@ export interface MetaMessagingObject {
   };
 }
 
+export interface MetaWebhookChangeValue {
+  sender?: { id?: string };
+  recipient?: { id?: string };
+  timestamp?: number;
+  message?: {
+    mid?: string;
+    text?: string;
+    attachments?: MetaMessagingAttachment[];
+  };
+  mid?: string;
+  text?: string;
+  sender_id?: string;
+  recipient_id?: string;
+  attachments?: MetaMessagingAttachment[];
+}
+
 export interface MetaWebhookEntry {
   id?: string;
   time?: number;
   messaging?: MetaMessagingObject[];
+  changes?: Array<{
+    field?: string;
+    value?: MetaWebhookChangeValue;
+  }>;
 }
 
 export interface MetaWebhookPayload {
@@ -70,27 +90,41 @@ export interface GenericWebhookPayload {
 }
 
 /**
- * Validates Meta's X-Hub-Signature-256 header using constant-time HMAC-SHA256 comparison.
+ * Validates Meta's X-Hub-Signature-256 (or legacy X-Hub-Signature) header using constant-time HMAC comparison.
  */
 export function verifyMetaSignature(
   rawBody: string,
-  signatureHeader: string | null,
+  signatureHeader: string | null | undefined,
   appSecret: string
 ): boolean {
-  if (!signatureHeader || !signatureHeader.startsWith('sha256=')) {
+  if (!signatureHeader || !appSecret) {
     return false;
   }
-  const signature = signatureHeader.slice(7);
-  const hmac = crypto.createHmac('sha256', appSecret);
-  const expectedSignature = hmac.update(rawBody).digest('hex');
 
-  if (signature.length !== expectedSignature.length) {
-    return false;
+  const cleanSecret = appSecret.trim();
+  let algorithm = 'sha256';
+  let signatureHex = '';
+
+  if (signatureHeader.startsWith('sha256=')) {
+    algorithm = 'sha256';
+    signatureHex = signatureHeader.slice(7);
+  } else if (signatureHeader.startsWith('sha1=')) {
+    algorithm = 'sha1';
+    signatureHex = signatureHeader.slice(5);
+  } else {
+    signatureHex = signatureHeader;
   }
 
   try {
+    const hmac = crypto.createHmac(algorithm, cleanSecret);
+    const expectedSignature = hmac.update(rawBody).digest('hex');
+
+    if (signatureHex.length !== expectedSignature.length) {
+      return false;
+    }
+
     return crypto.timingSafeEqual(
-      Buffer.from(signature, 'hex'),
+      Buffer.from(signatureHex, 'hex'),
       Buffer.from(expectedSignature, 'hex')
     );
   } catch {
@@ -100,7 +134,7 @@ export function verifyMetaSignature(
 
 /**
  * Normalizes raw incoming webhook payloads into standardized internal events.
- * Supports Meta Messenger payloads (object === 'page') as well as mock/generic payloads.
+ * Supports Meta Messenger payloads (object === 'page', messaging array or changes array) as well as mock/generic payloads.
  */
 export function normalizeInboundPayload(
   rawPayload: Record<string, unknown> | null | undefined
@@ -114,53 +148,81 @@ export function normalizeInboundPayload(
   if (metaPayload.object === 'page' && Array.isArray(metaPayload.entry)) {
     const events: NormalizedInboundEvent[] = [];
 
+    const processMessagingObject = (messagingObj: MetaMessagingObject, entryId?: string) => {
+      if (!messagingObj.message) return;
+
+      const senderId = messagingObj.sender?.id || 'unknown_sender';
+      const recipientId = messagingObj.recipient?.id || entryId || null;
+      const mid = messagingObj.message.mid || `mid_${Date.now()}_${Math.random()}`;
+      const timestampMs = messagingObj.timestamp || Date.now();
+      const timestamp = new Date(timestampMs).toISOString();
+
+      let messageType: MessageType = 'text';
+      let content = messagingObj.message.text || '';
+      let mediaUrl: string | null = null;
+
+      // Check attachments metadata
+      if (Array.isArray(messagingObj.message.attachments) && messagingObj.message.attachments.length > 0) {
+        const att = messagingObj.message.attachments[0];
+        const attType = att.type;
+        if (attType === 'image') messageType = 'image';
+        else if (attType === 'audio') messageType = 'audio';
+        else if (attType === 'video') messageType = 'video';
+        else if (attType === 'file') messageType = 'document';
+
+        if (att.payload?.url) {
+          mediaUrl = att.payload.url;
+        }
+        if (!content && attType) {
+          content = `[${attType.toUpperCase()} Attachment]`;
+        }
+      }
+
+      events.push({
+        channel: 'messenger',
+        eventId: `messenger_${senderId}_${mid}`,
+        externalSenderId: senderId,
+        recipientPageId: recipientId,
+        senderDisplayName: null, // PSID does not provide profile name directly without Graph API lookup
+        senderPhone: null,
+        externalThreadId: senderId, // In Messenger PSID represents the conversation thread
+        externalMessageId: mid,
+        messageType,
+        content,
+        mediaUrl,
+        timestamp,
+        rawPayload: messagingObj as unknown as Record<string, unknown>,
+      });
+    };
+
     for (const entry of metaPayload.entry) {
+      // 1A. Standard Messenger messaging array
       if (Array.isArray(entry.messaging)) {
         for (const messagingObj of entry.messaging) {
-          // Process message objects
-          if (messagingObj.message) {
-            const senderId = messagingObj.sender?.id || 'unknown_sender';
-            const recipientId = messagingObj.recipient?.id || entry.id || null;
-            const mid = messagingObj.message.mid || `mid_${Date.now()}_${Math.random()}`;
-            const timestampMs = messagingObj.timestamp || entry.time || Date.now();
-            const timestamp = new Date(timestampMs).toISOString();
+          processMessagingObject(messagingObj, entry.id);
+        }
+      }
 
-            let messageType: MessageType = 'text';
-            let content = messagingObj.message.text || '';
-            let mediaUrl: string | null = null;
+      // 1B. Meta Graph API Webhooks v26.0 / Test Event changes array
+      if (Array.isArray(entry.changes)) {
+        for (const change of entry.changes) {
+          const val = change.value;
+          if (!val) continue;
 
-            // Check attachments metadata
-            if (Array.isArray(messagingObj.message.attachments) && messagingObj.message.attachments.length > 0) {
-              const att = messagingObj.message.attachments[0];
-              const attType = att.type;
-              if (attType === 'image') messageType = 'image';
-              else if (attType === 'audio') messageType = 'audio';
-              else if (attType === 'video') messageType = 'video';
-              else if (attType === 'file') messageType = 'document';
-
-              if (att.payload?.url) {
-                mediaUrl = att.payload.url;
-              }
-              if (!content && attType) {
-                content = `[${attType.toUpperCase()} Attachment]`;
-              }
-            }
-
-            events.push({
-              channel: 'messenger',
-              eventId: `messenger_${senderId}_${mid}`,
-              externalSenderId: senderId,
-              recipientPageId: recipientId,
-              senderDisplayName: null, // PSID does not provide profile name directly without Graph API lookup
-              senderPhone: null,
-              externalThreadId: senderId, // In Messenger PSID represents the conversation thread
-              externalMessageId: mid,
-              messageType,
-              content,
-              mediaUrl,
-              timestamp,
-              rawPayload: messagingObj as unknown as Record<string, unknown>,
-            });
+          if (val.message) {
+            processMessagingObject(val as MetaMessagingObject, entry.id);
+          } else if (val.mid || val.text || val.sender_id) {
+            const syntheticMessaging: MetaMessagingObject = {
+              sender: { id: val.sender_id || 'unknown_sender' },
+              recipient: { id: val.recipient_id || entry.id || undefined },
+              timestamp: val.timestamp || entry.time || Date.now(),
+              message: {
+                mid: val.mid || `mid_${Date.now()}_${Math.random()}`,
+                text: val.text || '',
+                attachments: val.attachments,
+              },
+            };
+            processMessagingObject(syntheticMessaging, entry.id);
           }
         }
       }

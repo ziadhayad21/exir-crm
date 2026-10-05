@@ -1,17 +1,12 @@
 // src/app/api/webhooks/inbound/route.ts
-
 // Inbound Webhook API Route for Facebook Messenger & Unified Messaging.
 // Implements GET Meta verification challenge, POST HMAC-SHA256 signature validation,
 // raw-first persistence, atomic DB ingestion, and 100% concurrency safety against duplicate/lost leads.
 
 import { NextRequest, NextResponse } from 'next/server';
-
 import { createAdminClient } from '@/lib/supabase/admin';
-
 import { createClient } from '@/lib/supabase/server';
-
 import { writeAuditLog } from '@/lib/audit';
-
 import {
   verifyMetaSignature,
   normalizeInboundPayload,
@@ -26,11 +21,11 @@ export async function GET(req: NextRequest) {
   const mode = searchParams.get('hub.mode');
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
-  const expectedToken = process.env.META_VERIFY_TOKEN;
+  const expectedToken = process.env.META_VERIFY_TOKEN?.trim();
 
   // Temporary safe debug logging.
   // Never logs the actual token value.
-  console.log('[Inbound Webhook] Verification debug:', {
+  console.log('[Inbound Webhook GET] Verification check:', {
     mode,
     hasReceivedToken: !!token,
     hasExpectedToken: !!expectedToken,
@@ -45,7 +40,7 @@ export async function GET(req: NextRequest) {
     expectedToken &&
     token === expectedToken
   ) {
-    console.log('[Inbound Webhook] Meta verification successful');
+    console.log('[Inbound Webhook GET] Meta verification successful');
 
     return new NextResponse(challenge || '', {
       status: 200,
@@ -53,7 +48,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  console.warn('[Inbound Webhook] Meta verification failed');
+  console.warn('[Inbound Webhook GET] Meta verification failed: Token mismatch or invalid mode');
 
   return NextResponse.json(
     { error: 'Forbidden: Invalid verification token' },
@@ -66,22 +61,26 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   const admin = createAdminClient();
-
   const rawBody = await req.text();
-
   const headers = Object.fromEntries(req.headers.entries());
 
   // 1. Signature & Authorization Verification
-
-  const signatureHeader = req.headers.get('x-hub-signature-256');
-
+  const signatureHeader =
+    req.headers.get('x-hub-signature-256') ||
+    req.headers.get('x-hub-signature');
   const authHeader = req.headers.get('authorization');
-
   const webhookSecretHeader = req.headers.get('x-webhook-secret');
+  const appSecret = process.env.META_APP_SECRET?.trim();
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
-  const appSecret = process.env.META_APP_SECRET;
-
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  console.log('[Inbound Webhook POST] Inbound request received:', {
+    bodyLength: rawBody.length,
+    hasSig256: !!req.headers.get('x-hub-signature-256'),
+    hasSigSha1: !!req.headers.get('x-hub-signature'),
+    hasAppSecret: !!appSecret,
+    hasAuthHeader: !!authHeader,
+    hasWebhookSecretHeader: !!webhookSecretHeader,
+  });
 
   let isAuthorized = false;
 
@@ -94,22 +93,18 @@ export async function POST(req: NextRequest) {
   } else if (
     authHeader &&
     serviceKey &&
-    (authHeader === `Bearer ${serviceKey}` ||
-      authHeader === serviceKey)
+    (authHeader === `Bearer ${serviceKey}` || authHeader === serviceKey)
   ) {
-    isAuthorized = true;
-    // Internal service key authorization (test scripts)
+    isAuthorized = true; // Internal service key authorization (test scripts)
   } else if (
     webhookSecretHeader &&
     process.env.WEBHOOK_SECRET &&
-    webhookSecretHeader === process.env.WEBHOOK_SECRET
+    webhookSecretHeader === process.env.WEBHOOK_SECRET.trim()
   ) {
-    isAuthorized = true;
-    // Webhook secret header authorization
+    isAuthorized = true; // Webhook secret header authorization
   } else {
     try {
       const supabase = await createClient();
-
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -121,6 +116,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (!isAuthorized) {
+    console.warn('[Inbound Webhook POST] Authorization failed: Invalid signature or missing app secret', {
+      hasSignatureHeader: !!signatureHeader,
+      hasAppSecret: !!appSecret,
+    });
+
     return NextResponse.json(
       { error: 'Unauthorized: Invalid signature or access token' },
       { status: 401 }
@@ -132,17 +132,20 @@ export async function POST(req: NextRequest) {
   try {
     rawPayload = JSON.parse(rawBody) as Record<string, unknown>;
   } catch {
+    console.error('[Inbound Webhook POST] Malformed JSON payload received');
     return NextResponse.json(
       { error: 'Bad Request: Malformed JSON body' },
       { status: 400 }
     );
   }
 
-  // 2. Normalize Payload (Meta Messenger vs Mock/Generic)
-
+  // 2. Normalize Payload (Meta Messenger v26.0 vs Mock/Generic)
   const normalizedEvents = normalizeInboundPayload(rawPayload);
 
+  console.log('[Inbound Webhook POST] Normalized events count:', normalizedEvents.length);
+
   if (!normalizedEvents || normalizedEvents.length === 0) {
+    console.warn('[Inbound Webhook POST] Webhook payload ignored: No supported messaging events found');
     return NextResponse.json({
       success: true,
       status: 'ignored',
@@ -154,7 +157,6 @@ export async function POST(req: NextRequest) {
 
   for (const event of normalizedEvents) {
     // 3. Raw-First Persistence in app.webhook_events
-
     let rawEventId: string | null = null;
 
     const { data: existingEvent } = await admin
@@ -171,7 +173,6 @@ export async function POST(req: NextRequest) {
           status: 'ignored',
           reason: 'duplicate_event',
         });
-
         continue;
       }
 
@@ -200,7 +201,7 @@ export async function POST(req: NextRequest) {
 
       if (evtErr || !newEvt) {
         console.error(
-          '[Inbound Webhook] Failed to record raw event:',
+          '[Inbound Webhook POST] Failed to record raw event in DB:',
           evtErr?.message
         );
 
@@ -214,7 +215,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Atomic Database Ingestion via PL/pgSQL RPC
-
     try {
       const { data: ingestResult, error: ingestErr } = await admin.rpc(
         'ingest_inbound_message',
@@ -238,7 +238,6 @@ export async function POST(req: NextRequest) {
       }
 
       // Write Audit Logs cleanly
-
       if (
         ingestResult?.message_id &&
         !ingestResult.is_duplicate_message
@@ -290,7 +289,7 @@ export async function POST(req: NextRequest) {
       const errorObj = err as Error;
 
       console.error(
-        '[Inbound Webhook] Processing error for event:',
+        '[Inbound Webhook POST] Processing error for event:',
         event.eventId,
         errorObj?.message
       );
