@@ -64,7 +64,6 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [replyText, setReplyText] = useState<string>('');
   const [isPending, startTransition] = useTransition();
-  const [isSending, setIsSending] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Link Customer state
@@ -162,28 +161,122 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     };
   }, [refreshConversations, selectedConvId]);
 
-  // Handle Send Reply
-  const handleSendReply = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedConvId || !replyText.trim() || isSending) return;
-
-    setIsSending(true);
-    setErrorMsg(null);
-
+  // Background Outbound Message Dispatcher (Non-blocking)
+  const dispatchOutboundMessage = useCallback(async (convId: string, content: string, tempId: string) => {
     const res = await sendOutboundReply({
-      conversation_id: selectedConvId,
-      content: replyText.trim(),
+      conversation_id: convId,
+      content,
     });
 
-    setIsSending(false);
-
     if (res.success && res.data) {
-      setMessages((prev) => [...prev, res.data!]);
-      setReplyText('');
-      refreshConversations();
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? res.data! : m))
+      );
+      setActiveConv((prev) =>
+        prev && prev.id === convId
+          ? {
+              ...prev,
+              last_message_at: res.data!.created_at,
+              last_message_preview: content.slice(0, 100),
+            }
+          : prev
+      );
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === convId
+            ? {
+                ...c,
+                last_message_at: res.data!.created_at,
+                last_message_preview: content.slice(0, 100),
+              }
+            : c
+        )
+      );
     } else {
-      setErrorMsg(res.error || 'Failed to send reply');
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempId
+            ? {
+                ...m,
+                status: 'failed',
+                error_detail: res.error || 'Failed to deliver message',
+              }
+            : m
+        )
+      );
     }
+  }, []);
+
+  // Handle Send Reply (Instant 0ms Optimistic UI)
+  const handleSendReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const content = replyText.trim();
+    if (!selectedConvId || !content) return;
+
+    const tempId = `temp_msg_${Date.now()}_${Math.random()}`;
+    const optimisticMsg: Message = {
+      id: tempId,
+      conversation_id: selectedConvId,
+      direction: 'outbound',
+      sender_type: 'employee',
+      sender_employee_id: user.employee?.id || null,
+      content,
+      media_url: null,
+      message_type: 'text',
+      status: 'sending',
+      sent_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      received_at: new Date().toISOString(),
+      error_detail: null,
+      raw_event_id: null,
+      external_message_id: null,
+    };
+
+    // 1. Instant UI update (0ms delay)
+    setMessages((prev) => [...prev, optimisticMsg]);
+    setReplyText('');
+    setErrorMsg(null);
+
+    // Update active conversation & list preview locally
+    setActiveConv((prev) =>
+      prev
+        ? {
+            ...prev,
+            last_message_at: optimisticMsg.created_at,
+            last_message_preview: content.slice(0, 100),
+          }
+        : null
+    );
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === selectedConvId
+          ? {
+              ...c,
+              last_message_at: optimisticMsg.created_at,
+              last_message_preview: content.slice(0, 100),
+            }
+          : c
+      )
+    );
+
+    // 2. Dispatch background server action without blocking UI typing
+    dispatchOutboundMessage(selectedConvId, content, tempId);
+  };
+
+  // Handle Retry Failed Outbound Message
+  const handleRetryMessage = async (msgToRetry: Message) => {
+    if (!selectedConvId || msgToRetry.direction !== 'outbound' || !msgToRetry.content) return;
+
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgToRetry.id
+          ? { ...m, status: 'sending', error_detail: null }
+          : m
+      )
+    );
+
+    dispatchOutboundMessage(selectedConvId, msgToRetry.content, msgToRetry.id);
   };
 
   // Handle Status Change
@@ -525,11 +618,39 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           )}
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px', fontSize: '10px', color: '#64748B' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', fontSize: '10px', color: '#64748B' }}>
                           <span>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           {isOutbound && (
-                            <span>
-                              {msg.status === 'read' ? <CheckCheck size={12} style={{ color: '#38BDF8' }} /> : msg.status === 'delivered' ? <CheckCheck size={12} /> : <Check size={12} />}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              {msg.status === 'sending' ? (
+                                <RefreshCw size={11} style={{ color: '#94A3B8', animation: 'spin 1s linear infinite' }} />
+                              ) : msg.status === 'failed' ? (
+                                <span style={{ color: '#EF4444', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <AlertCircle size={12} />
+                                  <span>Failed</span>
+                                  <button
+                                    onClick={() => handleRetryMessage(msg)}
+                                    style={{
+                                      background: 'rgba(239, 68, 68, 0.2)',
+                                      border: '1px solid #EF4444',
+                                      color: '#FFF',
+                                      borderRadius: '4px',
+                                      padding: '1px 6px',
+                                      fontSize: '10px',
+                                      cursor: 'pointer',
+                                      marginLeft: '4px',
+                                    }}
+                                  >
+                                    Retry
+                                  </button>
+                                </span>
+                              ) : msg.status === 'read' ? (
+                                <CheckCheck size={12} style={{ color: '#38BDF8' }} />
+                              ) : msg.status === 'delivered' ? (
+                                <CheckCheck size={12} />
+                              ) : (
+                                <Check size={12} />
+                              )}
                             </span>
                           )}
                         </div>
@@ -546,7 +667,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   placeholder="Type an outbound reply..."
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
-                  disabled={isSending || activeConv.status === 'closed'}
+                  disabled={activeConv.status === 'closed'}
                   style={{
                     flex: 1,
                     background: 'rgba(255,255,255,0.05)',
@@ -560,7 +681,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 />
                 <button
                   type="submit"
-                  disabled={isSending || !replyText.trim() || activeConv.status === 'closed'}
+                  disabled={!replyText.trim() || activeConv.status === 'closed'}
                   style={{
                     background: '#2563EB',
                     color: '#FFF',

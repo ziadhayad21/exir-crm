@@ -10,6 +10,7 @@ import { writeAuditLog } from '@/lib/audit';
 import {
   verifyMetaSignature,
   normalizeInboundPayload,
+  fetchFacebookProfileName,
 } from '@/lib/messaging/meta-adapter';
 
 export const dynamic = 'force-dynamic';
@@ -179,6 +180,22 @@ export async function POST(req: NextRequest) {
   const results = [];
 
   for (const event of normalizedEvents) {
+    // If Messenger sender name is missing, attempt to fetch Facebook Profile Name via Meta Graph API
+    if (event.channel === 'messenger' && !event.senderDisplayName && event.externalSenderId) {
+      const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
+      const apiVersion = process.env.META_API_VERSION?.trim() || 'v21.0';
+      if (pageToken) {
+        const fetchedName = await fetchFacebookProfileName(
+          event.externalSenderId,
+          pageToken,
+          apiVersion
+        );
+        event.senderDisplayName = fetchedName || 'Facebook User';
+      } else {
+        event.senderDisplayName = 'Facebook User';
+      }
+    }
+
     // 3. Raw-First Persistence in app.webhook_events
     console.log('[Inbound Webhook POST] Before webhook_events insert:', {
       channel: event.channel,

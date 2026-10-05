@@ -21,6 +21,31 @@ export interface NormalizedInboundEvent {
   rawPayload: Record<string, unknown>;
 }
 
+/**
+ * Fetches the Facebook account display name for a given PSID using Meta Graph API.
+ * Returns null if unavailable or if Graph API request fails.
+ */
+export async function fetchFacebookProfileName(
+  psid: string,
+  pageToken: string,
+  apiVersion = 'v21.0'
+): Promise<string | null> {
+  if (!psid || !pageToken) return null;
+  try {
+    const url = `https://graph.facebook.com/${apiVersion}/${psid}?fields=first_name,last_name,name&access_token=${encodeURIComponent(pageToken)}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { name?: string; first_name?: string; last_name?: string };
+    if (data.name) return data.name.trim();
+    if (data.first_name || data.last_name) {
+      return `${data.first_name || ''} ${data.last_name || ''}`.trim();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export interface MetaMessagingAttachment {
   type?: string;
   payload?: {
