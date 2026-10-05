@@ -74,13 +74,14 @@ export async function POST(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
   const webhookSecretHeader = req.headers.get('x-webhook-secret');
   const appSecret = process.env.META_APP_SECRET?.trim();
+  const igAppSecret = process.env.INSTAGRAM_APP_SECRET?.trim();
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
   console.log('[Inbound Webhook POST] Inbound request received:', {
     bodyLength: rawBody.length,
     hasSig256: !!req.headers.get('x-hub-signature-256'),
     hasSigSha1: !!req.headers.get('x-hub-signature'),
-    hasAppSecret: !!appSecret,
+    hasAppSecret: !!(appSecret || igAppSecret),
     hasAuthHeader: !!authHeader,
     hasWebhookSecretHeader: !!webhookSecretHeader,
   });
@@ -88,12 +89,21 @@ export async function POST(req: NextRequest) {
   let isAuthorized = false;
   let signatureVerified = false;
 
-  if (signatureHeader && appSecret) {
-    signatureVerified = verifyMetaSignature(
-      rawBody,
-      signatureHeader,
-      appSecret
-    );
+  if (signatureHeader && (appSecret || igAppSecret)) {
+    if (appSecret) {
+      signatureVerified = verifyMetaSignature(
+        rawBody,
+        signatureHeader,
+        appSecret
+      );
+    }
+    if (!signatureVerified && igAppSecret) {
+      signatureVerified = verifyMetaSignature(
+        rawBody,
+        signatureHeader,
+        igAppSecret
+      );
+    }
     isAuthorized = signatureVerified;
   } else if (
     authHeader &&
