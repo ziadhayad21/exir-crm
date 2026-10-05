@@ -1,36 +1,43 @@
-# El-Exir ERP — Tourism Company Management System
+# El-Exir ERP — Tourism System & Unified Inbox
 
-A production-grade CRM & Business Management System for tourism companies, built with Next.js, TypeScript, Supabase, and PostgreSQL.
-
-## Phase 1 — Foundation / Infrastructure / Auth / RBAC
-
-This is the Phase 1 implementation. It provides the foundational infrastructure that all future modules (CRM, Finance, HR, etc.) will depend on.
+A production-grade CRM, Business Management System, and Unified Messaging Inbox for tourism companies, built with **Next.js 16**, **TypeScript**, **Supabase**, and **PostgreSQL**.
 
 ---
 
-## Tech Stack
+## 🚀 Status & Completed Phases
+
+- **Phase 1 — Foundation & RBAC**: Infrastructure, authentication, fine-grained permission keys (`module.resource.action`), audit logging, and employee management.
+- **Phase 2 — CRM Core**: Customers, Leads, Deals, Tourism Services, stage transitions, financial breakdowns, soft deletion, and activity tracking.
+- **Phase 3 — Dynamic Lead Routing Engine**: Deterministic round-robin tie-breaker, daily lead counter, employee availability heartbeat, transaction advisory locks, and automated conversion to Customer/Deal.
+- **Phase 4A — Unified Inbox Foundation**: Provider-agnostic message model, channel identities, conversation threads, raw webhook persistence, unassigned pending queue, and strict multi-role RLS isolation.
+- **Phase 4B — Smart Backlog Batching**: Capacity-based backlog limits (`BACKLOG_BATCH_LIMIT = 5`), sticky assignments, automated queue drainage on employee online/heartbeat events, FIFO ordering, and overload protection.
+- **Phase 4C.1 — Facebook Messenger Inbound Integration**: Production-grade Meta webhook verification challenge (`GET`), HMAC-SHA256 signature validation (`POST`), raw-first event persistence, atomic database RPC ingestion (`ingest_inbound_message`), thread-level advisory locks, and zero-lost/zero-duplicate lead concurrency safety.
+
+---
+
+## 🛠️ Tech Stack
 
 | Technology | Purpose |
 |---|---|
-| **Next.js 16** | React framework with App Router |
-| **TypeScript** | Strict type safety |
-| **Supabase** | Auth, Database, Storage |
-| **PostgreSQL** | Database (via Supabase) |
-| **Tailwind CSS v4** | Styling |
-| **Zod** | Input validation |
-| **Lucide React** | Icons |
+| **Next.js 16** | React framework with App Router & Server Actions |
+| **TypeScript** | Strict end-to-end type safety |
+| **Supabase** | Authentication, Database Engine, Storage & Realtime RLS |
+| **PostgreSQL** | Database engine with PL/pgSQL RPCs & Advisory Locks |
+| **Tailwind CSS v4** | UI Styling & Glassmorphism Aesthetics |
+| **Zod** | Schema validation for forms, APIs, and webhooks |
+| **Lucide React** | Icon library |
 
 ---
 
-## Quick Start
+## ⚙️ Quick Start
 
 ### 1. Prerequisites
 
 - Node.js 18+
 - npm
-- A Supabase project (hosted or local)
+- A Supabase PostgreSQL database (hosted or local)
 
-### 2. Clone & Install
+### 2. Install Dependencies
 
 ```bash
 npm install
@@ -38,29 +45,34 @@ npm install
 
 ### 3. Environment Variables
 
-Copy the example env file:
+Copy `.env.local.example` to `.env.local`:
 
 ```bash
 cp .env.local.example .env.local
 ```
 
-Fill in your Supabase credentials:
+Configure your environment variables:
 
 ```env
+# Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Meta / Facebook Messenger Integration (Phase 4C.1)
+META_VERIFY_TOKEN=your_meta_webhook_verify_token
+META_APP_SECRET=your_meta_app_secret
+META_PAGE_ACCESS_TOKEN=your_facebook_page_access_token
+META_TEST_PAGE_ID=your_facebook_page_id
+META_API_VERSION=v21.0
 ```
 
-> ⚠️ **Never commit `.env.local` or expose `SUPABASE_SERVICE_ROLE_KEY` to the browser.**
+> ⚠️ **Security Warning**: `SUPABASE_SERVICE_ROLE_KEY` and `META_APP_SECRET` are strictly server-side credentials and must never be exposed to the client bundle.
 
-### 4. Run Database Migrations
+### 4. Database Migrations
 
-**Option A: Supabase Dashboard (hosted)**
-1. Go to your Supabase Dashboard → SQL Editor
-2. Run each migration file from `supabase/migrations/` in order (000001 through 000008)
+Run migrations sequentially from `supabase/migrations/` (000001 through 000028) via the Supabase Dashboard SQL Editor or using the Supabase CLI:
 
-**Option B: Supabase CLI (local)**
 ```bash
 npx supabase db push
 ```
@@ -71,7 +83,7 @@ npx supabase db push
 npx tsx scripts/seed.ts
 ```
 
-This creates 4 test users:
+This populates default roles, permissions, and test accounts:
 
 | Email | Password | Role |
 |---|---|---|
@@ -90,188 +102,103 @@ Visit [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## Project Architecture
+## 📁 Project Architecture
 
 ```
 src/
-├── app/                        # Next.js App Router pages
-│   ├── (dashboard)/            # Protected pages (requires auth)
-│   │   ├── admin/              # Admin module (requires admin.system)
-│   │   │   ├── employees/      # Employee management
-│   │   │   ├── roles/          # Role viewing
-│   │   │   └── permissions/    # Permission viewing
-│   │   └── dashboard/          # Main dashboard
-│   ├── auth/callback/          # Supabase auth callback
-│   ├── login/                  # Login page
-│   └── unauthorized/           # Permission denied page
-├── components/                 # Shared UI components
-│   ├── sidebar.tsx             # Navigation sidebar
-│   └── topbar.tsx              # Top bar with user menu
-├── lib/                        # Core libraries
-│   ├── auth/                   # Authentication & authorization
-│   │   ├── index.ts            # Server-side auth helpers
-│   │   └── client-helpers.ts   # Client-side permission checks
-│   ├── audit/                  # Audit logging
-│   ├── supabase/               # Supabase client configuration
-│   │   ├── client.ts           # Browser client
-│   │   ├── server.ts           # Server client (SSR)
-│   │   ├── admin.ts            # Admin client (service role)
-│   │   └── middleware.ts       # Session middleware
-│   ├── validations/            # Zod schemas
-│   └── utils.ts                # General utilities
-├── types/                      # TypeScript types
-│   ├── database.ts             # Database model types
-│   └── index.ts                # Central exports
-└── middleware.ts                # Route protection middleware
+├── app/                        # Next.js App Router pages & API routes
+│   ├── (dashboard)/            # Protected CRM dashboard pages
+│   │   ├── admin/              # System admin & employee management
+│   │   ├── crm/                # CRM Pages (Leads, Customers, Deals, Pipeline, Inbox)
+│   │   │   └── inbox/          # Unified Messaging Inbox client UI
+│   │   └── dashboard/          # Analytics & system overview
+│   ├── api/
+│   │   ├── heartbeat/          # Availability heartbeat ping API
+│   │   └── webhooks/
+│   │       └── inbound/        # Meta / Facebook Messenger Webhook endpoint (GET/POST)
+│   ├── auth/callback/          # Authentication OAuth/session callback
+│   ├── login/                  # Login interface
+│   └── unauthorized/           # 403 Forbidden page
+├── components/                 # Reusable UI & Layout components
+├── lib/                        # Core system modules
+│   ├── audit/                  # Audit logging service
+│   ├── auth/                   # RBAC & Server-side auth utilities
+│   ├── messaging/              # Meta payload adapter & signature verification
+│   ├── supabase/               # Supabase SSR clients (browser, server, admin)
+│   └── validations/            # Zod validation schemas
+├── types/                      # TypeScript definitions & DB interfaces
+└── middleware.ts               # Global Next.js middleware & route guards
 ```
 
 ---
 
-## Authentication Architecture
+## 🔒 Security & RBAC Architecture
 
-1. **Supabase Auth** handles email/password authentication
-2. **Middleware** (`src/middleware.ts`) refreshes sessions on every request and redirects unauthenticated users
-3. **Server-side checks** (`requireAuth()`, `requirePermission()`) enforce access in Server Components and Server Actions
-4. **Supabase SSR** (`@supabase/ssr`) manages cookies for server-side rendering
+1. **Permission Key Convention**: Dot-notation strings `module.resource.action` (e.g. `crm.leads.read_own`, `crm.inbox.read_assigned`, `admin.system`).
+2. **Deny-by-Default RLS**: All PostgreSQL tables feature strict Row-Level Security policies enforced by `app.has_permission()` and `app.get_current_employee_id()`.
+3. **Webhook Verification**: Meta POST webhooks validate `X-Hub-Signature-256` signatures against `META_APP_SECRET` using constant-time `crypto.timingSafeEqual` comparison.
+4. **Audit System**: Critical operations (lead assignment, status changes, outbound messages, customer conversions) automatically record structured audit trails in `audit.audit_logs`.
 
-### Flow:
+---
+
+## 🔄 Inbound Messaging & Lead Pipeline (Phase 4C.1)
+
 ```
-Browser → Middleware (session refresh) → Server Component → requireAuth() → Render
-                                                          → requirePermission() → Render or Redirect
+Meta Webhook POST
+  └─► Authenticate X-Hub-Signature-256
+  └─► Store Raw Payload in app.webhook_events
+  └─► Respond HTTP 200 OK
+  └─► Ingest via app.ingest_inbound_message (PL/pgSQL RPC)
+        ├─► Acquire Thread Advisory Lock (pg_advisory_xact_lock)
+        ├─► Resolve/Create app.channel_identities
+        ├─► Resolve/Create app.conversations thread
+        ├─► Insert app.messages (ON CONFLICT IGNORE by external_message_id)
+        ├─► Create/Link app.leads (with received_at timestamp)
+        └─► Execute Phase 3/4B Routing Engine (app.assign_lead_to_sales)
+              ├─► IF Online Sales Available & Active Backlog < 5: Assign immediately
+              └─► ELSE: Queue as unassigned (status='new', pending_assignment)
 ```
 
 ---
 
-## RBAC Architecture
+## 📊 Database Migrations Overview
 
-### Permission Key System
-
-Permissions use dot-notation keys: `module.resource.action`
-
-Examples:
-- `admin.system` — Full system access (superuser)
-- `crm.leads.read_own` — Read own leads
-- `finance.write` — Modify financial records
-
-### Authorization Check Flow:
-
-```
-Client UI → hasPermission(user, 'key')           # Hide/show UI elements
-Server     → requirePermission('key')            # Block access server-side
-Database   → app.has_permission('key')            # RLS policy enforcement
-```
-
-### Never do this:
-```typescript
-// ❌ Bad — hardcoded role names
-if (user.role === "admin") { ... }
-
-// ✅ Good — permission keys
-if (hasPermission(user, "admin.system")) { ... }
-```
-
----
-
-## Row Level Security (RLS)
-
-All application tables have RLS enabled with deny-by-default:
-
-| Table | Self-access | Admin access | Notes |
-|---|---|---|---|
-| `employees` | Own record only | All records | Via `auth_user_id = auth.uid()` |
-| `roles` | Read all | Read all | Reference data |
-| `permissions` | Read all | Read all | Reference data |
-| `user_roles` | Own assignments | All assignments | |
-| `audit_logs` | None | Read only | Writes via service_role only |
-
-### Database Helper Functions:
-- `app.get_current_employee_id()` — Returns current user's employee UUID
-- `app.has_permission('key')` — Checks if current user has a permission
-- `app.is_active_employee()` — Checks if current user is active
-
----
-
-## Database Migrations
-
-Migrations are in `supabase/migrations/` and numbered sequentially:
-
-| Migration | Purpose |
+| Migration | Scope / Purpose |
 |---|---|
-| `000001` | Create `app` and `audit` schemas |
-| `000002` | Create `employees` table |
-| `000003` | Create RBAC tables (roles, permissions, user_roles, role_permissions) |
-| `000004` | Create `audit_logs` table |
-| `000005` | Create authorization functions |
-| `000006` | Enable RLS policies on all tables |
-| `000007` | Seed initial roles and permissions |
-| `000008` | Create public views for Supabase API access |
+| `000001` - `000008` | Schemas, Employees, RBAC tables, Audit logs, Auth functions, RLS policies, Base views |
+| `000009` - `000012` | CRM Core: Customers, Services, Deals, and Deal Activities |
+| `000013` - `000016` | CRM Permissions, RLS Policies, Views, and RPCs |
+| `000017` - `000020` | Business model alignment, Deal statuses, Soft deletion support |
+| `000021` | Leads table, Lead Assignment Engine (`app.assign_lead_to_sales`), Availability Heartbeats |
+| `000022` - `000023` | Messaging Inbox Foundation: Webhook Events, Channel Identities, Conversations, Messages |
+| `000024` - `000026` | Smart Backlog Batching (`BACKLOG_BATCH_LIMIT = 5`), Pending Queue Drainage, RLS Hardening |
+| `000027` - `000028` | Meta Messenger Atomic Ingestion (`app.ingest_inbound_message`), Thread Locks, Contact Check fix |
 
 ---
 
-## Security
+## 🧪 Comprehensive QA & Verification Suites
 
-- ✅ `SUPABASE_SERVICE_ROLE_KEY` is server-only (never in `NEXT_PUBLIC_*`)
-- ✅ Input validated with Zod on all server actions
-- ✅ RLS enabled on all tables — deny by default
-- ✅ Server-side authorization on all protected routes
-- ✅ Middleware-level route protection
-- ✅ Audit logging for sensitive actions
-- ✅ SECURITY DEFINER functions use fixed `search_path`
+The codebase includes automated end-to-end verification scripts covering all implemented phases:
 
----
-
-## Testing Phase 1
-
-### Authentication
-- [x] Login with email/password works
-- [x] Logout works
-- [x] Session persists across page refresh
-- [x] Unauthenticated users redirect to `/login`
-- [x] Authenticated users redirect from `/login` to `/dashboard`
-
-### RBAC
-- [x] Admin has `admin.system` permission
-- [x] Sales does NOT have admin permissions
-- [x] Non-admin users cannot access `/admin/*` routes
-- [x] Permission checks work at server and database level
-
-### Admin
-- [x] View employees list
-- [x] Create new employee (creates auth user + employee record)
-- [x] Activate/deactivate employees
-- [x] Assign roles to employees
-- [x] View roles and permissions
-
-### Security
-- [x] Service role key never exposed in browser
-- [x] Protected routes cannot be bypassed via URL
-- [x] Server-side authorization enforced
-- [x] RLS prevents unauthorized data access
+| Command | Suite Description | Tests | Status |
+|---|---|:---:|:---:|
+| `npx tsx scripts/test_phase3_full.ts` | Phase 3 Lead Assignment & Fair Distribution | 69 | **PASS (100%)** |
+| `npx tsx scripts/test_phase4a_qa_full.ts` | Phase 4A Inbox Foundation & Security | 70 | **PASS (100%)** |
+| `npx tsx scripts/test_phase4b_deep_qa.ts` | Phase 4B Smart Backlog Batching & Limits | 10 | **PASS (100%)** |
+| `npx tsx scripts/test_phase4c1_messenger.ts` | Phase 4C.1 Messenger & Concurrency Safety | 13 | **PASS (100%)** |
+| `npm run type-check` | TypeScript Strict Type Checking | 1 | **PASS (0 errors)** |
+| `npm run lint` | ESLint Code Quality Standards | 1 | **PASS (0 errors)** |
+| `npm run build` | Next.js Production Build Validation | 1 | **PASS (0 errors)** |
 
 ---
 
-## What Is NOT Implemented (Phase 2+)
-
-The following are **intentionally** not built in Phase 1:
-
-- CRM (Leads, Customers, Deals, Pipeline)
-- Unified Inbox (WhatsApp, Instagram, Messenger)
-- Finance (Payments, Expenses)
-- HR (Attendance, Payroll, Salary)
-- Follow-ups & Notifications
-- Reports & Analytics
-- AI
-- Profile editing
-- Advanced role management UI
-- Complete audit log viewer UI
-
----
-
-## Scripts
+## 📜 Available Scripts
 
 | Script | Purpose |
 |---|---|
 | `npm run dev` | Start development server |
-| `npm run build` | Build for production |
-| `npm run lint` | Run ESLint |
-| `npx tsx scripts/seed.ts` | Seed test data |
+| `npm run build` | Build Next.js production bundle |
+| `npm run start` | Start production server |
+| `npm run lint` | Run ESLint static analysis |
+| `npm run type-check` | Execute TypeScript compiler check (`tsc --noEmit`) |
+| `npx tsx scripts/seed.ts` | Seed database with initial roles, permissions, and test employees |
