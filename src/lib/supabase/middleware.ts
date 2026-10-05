@@ -5,6 +5,16 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
+  // Define public routes that don't require authentication
+  const publicRoutes = ['/login', '/auth/callback', '/api/webhooks'];
+  const isPublicRoute = publicRoutes.some((route) =>
+    request.nextUrl.pathname.startsWith(route),
+  );
+
+  if (isPublicRoute) {
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });
@@ -38,24 +48,17 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Define public routes that don't require authentication
-  const publicRoutes = ['/login', '/auth/callback', '/api/webhooks'];
-  const isPublicRoute = publicRoutes.some((route) =>
-    request.nextUrl.pathname.startsWith(route),
-  );
-
   function createRedirect(pathname: string) {
     const url = request.nextUrl.clone();
     url.pathname = pathname;
     const redirectResponse = NextResponse.redirect(url);
-    // Copy any refreshed session cookies set by Supabase during getUser()
     supabaseResponse.cookies.getAll().forEach((cookie) => {
       redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
     });
     return redirectResponse;
   }
 
-  if (!user && !isPublicRoute) {
+  if (!user) {
     // Redirect to login if not authenticated and accessing protected route
     return createRedirect('/login');
   }

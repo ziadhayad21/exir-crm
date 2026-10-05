@@ -12,6 +12,8 @@ import {
   normalizeInboundPayload,
 } from '@/lib/messaging/meta-adapter';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET Handler — Meta Webhook Subscription Verification
  */
