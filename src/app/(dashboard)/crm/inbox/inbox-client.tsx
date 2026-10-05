@@ -36,6 +36,7 @@ import {
   linkConversationCustomer,
   simulateInboundMessage,
 } from '../inbox-actions';
+import { createClient } from '@/lib/supabase/client';
 
 interface InboxClientProps {
   initialConversations: ConversationWithDetails[];
@@ -113,7 +114,53 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
 
   useEffect(() => {
     refreshConversations();
-  }, [refreshConversations]);
+
+    // 1. Polling fallback interval (refreshes conversations & selected chat every 4 seconds)
+    const interval = setInterval(() => {
+      refreshConversations();
+      if (selectedConvId) {
+        getConversationDetails(selectedConvId).then((data) => {
+          if (data) {
+            setActiveConv(data);
+            setMessages(data.messages || []);
+          }
+        });
+      }
+    }, 4000);
+
+    // 2. Supabase Realtime WebSockets Subscription
+    const supabase = createClient();
+    const channel = supabase
+      .channel('inbox-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'messages' },
+        () => {
+          refreshConversations();
+          if (selectedConvId) {
+            getConversationDetails(selectedConvId).then((data) => {
+              if (data) {
+                setActiveConv(data);
+                setMessages(data.messages || []);
+              }
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'conversations' },
+        () => {
+          refreshConversations();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [refreshConversations, selectedConvId]);
 
   // Handle Send Reply
   const handleSendReply = async (e: React.FormEvent) => {
