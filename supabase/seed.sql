@@ -1,0 +1,28 @@
+-- supabase/seed.sql
+-- Development seed data for testing Phase 1.
+-- 
+-- ⚠️  IMPORTANT: This script creates AUTH USERS.
+--     In Supabase hosted projects, create test users via:
+--       1. Supabase Dashboard > Authentication > Users > Add User
+--       2. Or use the seed script below after running migrations.
+--
+--     For local development with `supabase start`, this seed runs automatically.
+--
+-- Test Users:
+--   admin@elexir.test    / Admin123!     → Admin role
+--   sales@elexir.test    / Sales123!     → Sales role
+--   finance@elexir.test  / Finance123!   → Accountant role
+--   hr@elexir.test       / Hr12345!      → HR role
+--
+-- DO NOT use these credentials in production!
+
+-- ─── Notes ──────────────────────────────────────────────────────
+-- If running against a hosted Supabase project, you need to:
+--   1. Create the 4 users in the Supabase Auth Dashboard
+--   2. Then run the employee + user_roles inserts below with the correct auth_user_ids
+--
+-- The SQL below works with Supabase local development (supabase start).
+-- For hosted projects, use the setup script: scripts/seed-hosted.ts
+
+-- Since we can't create auth users via plain SQL in hosted Supabase,
+-- see the TypeScript seed script at: scripts/seed.ts

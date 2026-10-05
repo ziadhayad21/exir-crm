@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+/* ===== CSS Custom Properties (Design Tokens) ===== */
+:root {
+  /* Primary brand colors */
+  --color-primary: 217 91% 50%;
+  --color-primary-foreground: 0 0% 100%;
+  --color-primary-hover: 217 91% 42%;
+
+  /* Secondary */
+  --color-secondary: 220 14% 96%;
+  --color-secondary-foreground: 220 13% 18%;
+
+  /* Accent */
+  --color-accent: 262 83% 58%;
+  --color-accent-foreground: 0 0% 100%;
+
+  /* Background / Surface */
+  --color-background: 0 0% 100%;
+  --color-foreground: 222 47% 11%;
+  --color-surface: 220 14% 96%;
+  --color-surface-hover: 220 13% 91%;
+
+  /* Sidebar */
+  --color-sidebar: 222 47% 11%;
+  --color-sidebar-foreground: 220 14% 80%;
+  --color-sidebar-accent: 217 91% 50%;
+  --color-sidebar-muted: 220 13% 40%;
+
+  /* Muted */
+  --color-muted: 220 14% 96%;
+  --color-muted-foreground: 220 8% 46%;
+
+  /* Border */
+  --color-border: 220 13% 91%;
+
+  /* Destructive */
+  --color-destructive: 0 72% 51%;
+  --color-destructive-foreground: 0 0% 100%;
+
+  /* Success */
+  --color-success: 142 71% 45%;
+  --color-success-foreground: 0 0% 100%;
+
+  /* Warning */
+  --color-warning: 38 92% 50%;
+  --color-warning-foreground: 0 0% 100%;
+
+  /* Card */
+  --color-card: 0 0% 100%;
+  --color-card-foreground: 222 47% 11%;
+
+  /* Input */
+  --color-input: 220 13% 91%;
+  --color-ring: 217 91% 50%;
+
+  /* Radius */
+  --radius: 0.5rem;
+}
+
+/* ===== Base Reset & Typography ===== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: hsl(var(--color-background));
+  color: hsl(var(--color-foreground));
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== Scrollbar Styling ===== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--color-muted-foreground) / 0.3);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--color-muted-foreground) / 0.5);
+}
+
+/* ===== Focus styles ===== */
+*:focus-visible {
+  outline: 2px solid hsl(var(--color-ring));
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+/* ===== Animations ===== */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.3s ease-out both;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Staggered animation delays */
+.delay-75 { animation-delay: 75ms; }
+.delay-150 { animation-delay: 150ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
