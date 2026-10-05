@@ -33,7 +33,7 @@ export async function fetchFacebookProfileName(
   if (!psid || !pageToken) return null;
   try {
     const url = `https://graph.facebook.com/${apiVersion}/${psid}?fields=first_name,last_name,name&access_token=${encodeURIComponent(pageToken)}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(1000) });
     if (!res.ok) return null;
     const data = (await res.json()) as { name?: string; first_name?: string; last_name?: string };
     if (data.name) return data.name.trim();

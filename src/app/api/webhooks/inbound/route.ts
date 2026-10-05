@@ -180,19 +180,30 @@ export async function POST(req: NextRequest) {
   const results = [];
 
   for (const event of normalizedEvents) {
-    // If Messenger sender name is missing, attempt to fetch Facebook Profile Name via Meta Graph API
+    // If Messenger sender name is missing, check channel_identities DB cache first before calling Meta Graph API
     if (event.channel === 'messenger' && !event.senderDisplayName && event.externalSenderId) {
-      const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
-      const apiVersion = process.env.META_API_VERSION?.trim() || 'v21.0';
-      if (pageToken) {
-        const fetchedName = await fetchFacebookProfileName(
-          event.externalSenderId,
-          pageToken,
-          apiVersion
-        );
-        event.senderDisplayName = fetchedName || 'Facebook User';
+      const { data: existingIdentity } = await admin
+        .from('channel_identities')
+        .select('display_name')
+        .eq('channel', 'messenger')
+        .eq('external_id', event.externalSenderId)
+        .maybeSingle();
+
+      if (existingIdentity?.display_name) {
+        event.senderDisplayName = existingIdentity.display_name;
       } else {
-        event.senderDisplayName = 'Facebook User';
+        const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
+        const apiVersion = process.env.META_API_VERSION?.trim() || 'v21.0';
+        if (pageToken) {
+          const fetchedName = await fetchFacebookProfileName(
+            event.externalSenderId,
+            pageToken,
+            apiVersion
+          );
+          event.senderDisplayName = fetchedName || 'Facebook User';
+        } else {
+          event.senderDisplayName = 'Facebook User';
+        }
       }
     }
 
@@ -308,12 +319,12 @@ export async function POST(req: NextRequest) {
         assignedTo: ingestResult?.assigned_to,
       });
 
-      // Write Audit Logs cleanly
+      // Write Audit Logs cleanly in background
       if (
         ingestResult?.message_id &&
         !ingestResult.is_duplicate_message
       ) {
-        await writeAuditLog({
+        void writeAuditLog({
           actor_id: null,
           action: 'inbox.message_received',
           module: 'crm',
@@ -326,11 +337,11 @@ export async function POST(req: NextRequest) {
             message_type: event.messageType,
             lead_id: ingestResult.lead_id,
           },
-        });
+        }).catch((err) => console.error('[Inbound Webhook POST] Audit log error:', err));
       }
 
       if (ingestResult?.assigned_to) {
-        await writeAuditLog({
+        void writeAuditLog({
           actor_id: null,
           action: 'inbox.conversation_assigned',
           module: 'crm',
@@ -345,7 +356,7 @@ export async function POST(req: NextRequest) {
             timestamp: new Date().toISOString(),
             source: 'automatic_inbound',
           },
-        });
+        }).catch((err) => console.error('[Inbound Webhook POST] Audit log error:', err));
       }
 
       results.push({
