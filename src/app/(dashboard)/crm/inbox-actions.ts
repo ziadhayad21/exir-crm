@@ -143,17 +143,17 @@ export async function getConversationDetails(
   if (error || !conv) return null;
 
   const [identityRes, customerRes, leadRes, empRes, msgRes] = await Promise.all([
-    admin.from('channel_identities').select('*').eq('id', conv.channel_identity_id).single(),
+    admin.from('channel_identities').select('*').eq('id', conv.channel_identity_id).maybeSingle(),
     conv.customer_id
-      ? admin.from('customers').select('*').eq('id', conv.customer_id).single()
+      ? admin.from('customers').select('*').eq('id', conv.customer_id).maybeSingle()
       : { data: null },
     conv.lead_id
-      ? admin.from('leads').select('*').eq('id', conv.lead_id).single()
+      ? admin.from('leads').select('*').eq('id', conv.lead_id).maybeSingle()
       : { data: null },
     conv.assigned_to
-      ? admin.from('employees').select('*').eq('id', conv.assigned_to).single()
+      ? admin.from('employees').select('*').eq('id', conv.assigned_to).maybeSingle()
       : { data: null },
-    supabase.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true }),
+    admin.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true }),
   ]);
 
   return {
