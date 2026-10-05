@@ -260,18 +260,45 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (evtErr || !newEvt) {
-        console.error('[Inbound Webhook POST] Failed to record raw event in DB:', {
-          errorName: evtErr?.code || 'PostgrestError',
-          errorMessage: evtErr?.message || 'Failed to record raw webhook event',
-        });
+        if (
+          evtErr?.code === '23505' ||
+          evtErr?.message?.includes('duplicate key') ||
+          evtErr?.message?.includes('unique constraint')
+        ) {
+          const { data: reEvt } = await admin
+            .from('webhook_events')
+            .select('id, status')
+            .eq('channel', event.channel)
+            .eq('event_id', event.eventId)
+            .maybeSingle();
 
-        return NextResponse.json(
-          { error: 'Failed to record raw webhook event' },
-          { status: 500 }
-        );
+          if (reEvt) {
+            if (reEvt.status === 'processed') {
+              results.push({
+                event_id: event.eventId,
+                status: 'ignored',
+                reason: 'duplicate_event',
+              });
+              continue;
+            }
+            rawEventId = reEvt.id;
+          }
+        }
+
+        if (!rawEventId) {
+          console.error('[Inbound Webhook POST] Failed to record raw event in DB:', {
+            errorName: evtErr?.code || 'PostgrestError',
+            errorMessage: evtErr?.message || 'Failed to record raw webhook event',
+          });
+
+          return NextResponse.json(
+            { error: 'Failed to record raw webhook event' },
+            { status: 500 }
+          );
+        }
+      } else {
+        rawEventId = newEvt.id;
       }
-
-      rawEventId = newEvt.id;
     }
 
     console.log('[Inbound Webhook POST] After webhook_events insert:', {
