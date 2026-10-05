@@ -102,9 +102,6 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   useEffect(() => {
     if (selectedConvId) {
       loadConversationDetails(selectedConvId);
-    } else {
-      setActiveConv(null);
-      setMessages([]);
     }
   }, [selectedConvId, loadConversationDetails]);
 
@@ -142,9 +139,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   useEffect(() => {
     const supabase = createClient();
 
-    const handleMessageEvent = async (payload: { eventType: string; new: Message }) => {
-      const newMsg = payload.new;
-      if (!newMsg) return;
+    const handleMessageEvent = async (payload: { new?: unknown }) => {
+      const newMsg = payload.new as Message | undefined;
+      if (!newMsg || !newMsg.id) return;
 
       // 1. If new message belongs to currently active thread, update messages array in real time
       if (newMsg.conversation_id === selectedConvIdRef.current) {
@@ -170,11 +167,11 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       await refreshConversations(false);
     };
 
-    const handleConversationEvent = async (payload: { eventType: string; new: ConversationWithDetails }) => {
+    const handleConversationEvent = async (payload: { new?: unknown }) => {
       // Refresh list and auto-select if no conversation was previously open
       await refreshConversations(true);
 
-      const newConv = payload.new;
+      const newConv = payload.new as ConversationWithDetails | undefined;
       if (newConv && selectedConvIdRef.current === newConv.id) {
         loadConversationDetails(newConv.id);
       }
@@ -185,22 +182,30 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       .on(
         'postgres_changes',
         { event: '*', schema: 'app', table: 'messages' },
-        handleMessageEvent
+        (payload) => {
+          handleMessageEvent(payload);
+        }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'app', table: 'conversations' },
-        handleConversationEvent
+        (payload) => {
+          handleConversationEvent(payload);
+        }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'messages' },
-        handleMessageEvent
+        (payload) => {
+          handleMessageEvent(payload);
+        }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations' },
-        handleConversationEvent
+        (payload) => {
+          handleConversationEvent(payload);
+        }
       )
       .subscribe();
 
@@ -411,7 +416,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
             <Sparkles size={14} /> Simulate Inbound Message
           </button>
           <button
-            onClick={refreshConversations}
+            onClick={() => refreshConversations(false)}
             disabled={isPending}
             style={{
               background: 'rgba(255,255,255,0.06)',

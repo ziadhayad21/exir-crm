@@ -12,6 +12,16 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const admin = createClient(supabaseUrl, serviceRoleKey);
 const authClient = createClient(supabaseUrl, anonKey);
 
+interface IngestionRpcResult {
+  success: boolean;
+  conversation_id: string;
+  message_id: string;
+  lead_id: string | null;
+  assigned_to: string | null;
+  status: string;
+  is_duplicate_message: boolean;
+}
+
 async function runVerification() {
   console.log('======================================================================');
   console.log('🚀 VERIFYING REALTIME MESSENGER & INSTAGRAM INBOX INGESTION');
@@ -28,18 +38,20 @@ async function runVerification() {
   }
   console.log('✅ Signed in as Admin User:', authData.user.email);
 
-  const receivedEvents: { type: string; table: string; data: any }[] = [];
+  const receivedEvents: { type: string; table: string; data: Record<string, unknown> }[] = [];
 
   // 2. Set up realtime subscription matching inbox-client
   const channel = authClient
     .channel('verify-inbox-realtime')
     .on('postgres_changes', { event: '*', schema: 'app', table: 'messages' }, (payload) => {
-      receivedEvents.push({ type: payload.eventType, table: 'messages', data: payload.new });
-      console.log(`  ⚡ [REALTIME EVENT] Message ${payload.eventType}: id=${(payload.new as any)?.id} content="${(payload.new as any)?.content}"`);
+      const row = payload.new as Record<string, unknown>;
+      receivedEvents.push({ type: payload.eventType, table: 'messages', data: row });
+      console.log(`  ⚡ [REALTIME EVENT] Message ${payload.eventType}: id=${row?.id} content="${row?.content}"`);
     })
     .on('postgres_changes', { event: '*', schema: 'app', table: 'conversations' }, (payload) => {
-      receivedEvents.push({ type: payload.eventType, table: 'conversations', data: payload.new });
-      console.log(`  ⚡ [REALTIME EVENT] Conversation ${payload.eventType}: id=${(payload.new as any)?.id} channel=${(payload.new as any)?.channel} status=${(payload.new as any)?.status}`);
+      const row = payload.new as Record<string, unknown>;
+      receivedEvents.push({ type: payload.eventType, table: 'conversations', data: row });
+      console.log(`  ⚡ [REALTIME EVENT] Conversation ${payload.eventType}: id=${row?.id} channel=${row?.channel} status=${row?.status}`);
     })
     .subscribe((status, err) => {
       console.log(`  📡 Channel subscription status: ${status} ${err || ''}`);
@@ -52,7 +64,7 @@ async function runVerification() {
   const messengerSenderId = `fb_test_${Date.now()}`;
   const messengerContent = `Hello from Messenger realtime test ${Date.now()}`;
 
-  const { data: messengerResult, error: messengerErr } = await admin.rpc('ingest_inbound_message', {
+  const { data: messengerResultRaw, error: messengerErr } = await admin.rpc('ingest_inbound_message', {
     p_raw_event_id: null,
     p_channel: 'messenger',
     p_external_sender_id: messengerSenderId,
@@ -69,6 +81,7 @@ async function runVerification() {
   if (messengerErr) {
     throw new Error(`Messenger ingestion RPC failed: ${messengerErr.message}`);
   }
+  const messengerResult = messengerResultRaw as unknown as IngestionRpcResult;
   console.log('✅ Messenger Ingestion Result:', messengerResult);
 
   // 4. Test Instagram Inbound Ingestion (pending_assignment)
@@ -76,7 +89,7 @@ async function runVerification() {
   const instagramSenderId = `ig_test_${Date.now()}`;
   const instagramContent = `Hello from Instagram realtime test ${Date.now()}`;
 
-  const { data: instagramResult, error: instagramErr } = await admin.rpc('ingest_inbound_message', {
+  const { data: instagramResultRaw, error: instagramErr } = await admin.rpc('ingest_inbound_message', {
     p_raw_event_id: null,
     p_channel: 'instagram',
     p_external_sender_id: instagramSenderId,
@@ -93,6 +106,7 @@ async function runVerification() {
   if (instagramErr) {
     throw new Error(`Instagram ingestion RPC failed: ${instagramErr.message}`);
   }
+  const instagramResult = instagramResultRaw as unknown as IngestionRpcResult;
   console.log('✅ Instagram Ingestion Result:', instagramResult);
 
   // Wait 5 seconds to collect realtime events
