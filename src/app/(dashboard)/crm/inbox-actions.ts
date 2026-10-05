@@ -91,7 +91,19 @@ export async function getConversations(filters?: {
 
   let enriched: ConversationWithDetails[] = convs.map((c) => ({
     ...c,
-    channel_identity: identityMap.get(c.channel_identity_id)!,
+    channel_identity: identityMap.get(c.channel_identity_id) || {
+      id: c.channel_identity_id,
+      channel: c.channel,
+      external_id: 'Unknown',
+      display_name: 'Contact',
+      phone: null,
+      email: null,
+      avatar_url: null,
+      customer_id: null,
+      metadata: {},
+      created_at: c.created_at,
+      updated_at: c.updated_at,
+    },
     customer: c.customer_id ? customerMap.get(c.customer_id) || null : null,
     lead: c.lead_id ? leadMap.get(c.lead_id) || null : null,
     assigned_to_employee: c.assigned_to ? employeeMap.get(c.assigned_to) || null : null,
@@ -146,7 +158,19 @@ export async function getConversationDetails(
 
   return {
     ...conv,
-    channel_identity: identityRes.data,
+    channel_identity: identityRes.data || {
+      id: conv.channel_identity_id,
+      channel: conv.channel,
+      external_id: 'Unknown',
+      display_name: 'Contact',
+      phone: null,
+      email: null,
+      avatar_url: null,
+      customer_id: null,
+      metadata: {},
+      created_at: conv.created_at,
+      updated_at: conv.updated_at,
+    },
     customer: customerRes.data || null,
     lead: leadRes.data || null,
     assigned_to_employee: (empRes.data as Employee) || null,

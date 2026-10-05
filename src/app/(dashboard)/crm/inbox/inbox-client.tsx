@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useTransition, useCallback } from 'react';
+import React, { useState, useEffect, useTransition, useCallback, useRef } from 'react';
 import {
   MessageSquare,
   Search,
@@ -66,6 +66,17 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Keep latest refs for realtime callbacks without recreating channels
+  const selectedConvIdRef = useRef<string | null>(selectedConvId);
+  useEffect(() => {
+    selectedConvIdRef.current = selectedConvId;
+  }, [selectedConvId]);
+
+  const filtersRef = useRef({ channel: channelFilter, status: statusFilter, search: searchTerm });
+  useEffect(() => {
+    filtersRef.current = { channel: channelFilter, status: statusFilter, search: searchTerm };
+  }, [channelFilter, statusFilter, searchTerm]);
+
   // Link Customer state
   const [showLinkModal, setShowLinkModal] = useState<boolean>(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
@@ -80,86 +91,123 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   const isAdmin = user.permissions.includes('crm.inbox.read_all') || user.permissions.includes('admin.system');
 
   // Load selected conversation details
-  useEffect(() => {
-    let isMounted = true;
-    if (selectedConvId) {
-      getConversationDetails(selectedConvId).then((data) => {
-        if (isMounted) {
-          setActiveConv(data || null);
-          setMessages(data?.messages || []);
-        }
-      });
+  const loadConversationDetails = useCallback(async (convId: string) => {
+    const data = await getConversationDetails(convId);
+    if (data && selectedConvIdRef.current === convId) {
+      setActiveConv(data);
+      setMessages(data.messages || []);
     }
+  }, []);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedConvId]);
+  useEffect(() => {
+    if (selectedConvId) {
+      loadConversationDetails(selectedConvId);
+    } else {
+      setActiveConv(null);
+      setMessages([]);
+    }
+  }, [selectedConvId, loadConversationDetails]);
 
-  // Refresh conversation list
-  const refreshConversations = useCallback(() => {
-    startTransition(async () => {
+  // Refresh conversation list without resetting WebSocket connections
+  const refreshConversations = useCallback(async (autoSelectIfNone = false) => {
+    try {
       const data = await getConversations({
-        channel: channelFilter,
-        status: statusFilter,
-        search: searchTerm,
+        channel: filtersRef.current.channel,
+        status: filtersRef.current.status,
+        search: filtersRef.current.search,
       });
       setConversations(data);
-      if (selectedConvId && !data.some((c) => c.id === selectedConvId) && data.length > 0) {
-        setSelectedConvId(data[0].id);
-      }
-    });
-  }, [channelFilter, statusFilter, searchTerm, selectedConvId]);
+      setSelectedConvId((currentSelected) => {
+        if ((autoSelectIfNone || !currentSelected) && data.length > 0) {
+          return currentSelected && data.some((c) => c.id === currentSelected) ? currentSelected : data[0].id;
+        }
+        if (currentSelected && !data.some((c) => c.id === currentSelected) && data.length > 0) {
+          return data[0].id;
+        }
+        return currentSelected;
+      });
+    } catch (err) {
+      console.error('[Inbox] Error fetching conversations:', err);
+    }
+  }, []);
 
+  // Filter & search changes trigger conversation refresh
   useEffect(() => {
-    refreshConversations();
+    startTransition(() => {
+      refreshConversations(false);
+    });
+  }, [channelFilter, statusFilter, searchTerm, refreshConversations]);
 
-    // 1. Polling fallback interval (refreshes conversations & selected chat every 4 seconds)
-    const interval = setInterval(() => {
-      refreshConversations();
-      if (selectedConvId) {
-        getConversationDetails(selectedConvId).then((data) => {
-          if (data) {
-            setActiveConv(data);
-            setMessages(data.messages || []);
+  // Supabase Realtime Subscription (Connected ONCE on mount, zero memory leaks)
+  useEffect(() => {
+    const supabase = createClient();
+
+    const handleMessageEvent = async (payload: { eventType: string; new: Message }) => {
+      const newMsg = payload.new;
+      if (!newMsg) return;
+
+      // 1. If new message belongs to currently active thread, update messages array in real time
+      if (newMsg.conversation_id === selectedConvIdRef.current) {
+        setMessages((prev) => {
+          const exists = prev.some(
+            (m) =>
+              m.id === newMsg.id ||
+              (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
+          );
+          if (exists) {
+            return prev.map((m) =>
+              m.id === newMsg.id ||
+              (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
+                ? newMsg
+                : m
+            );
           }
+          return [...prev, newMsg];
         });
       }
-    }, 4000);
 
-    // 2. Supabase Realtime WebSockets Subscription
-    const supabase = createClient();
+      // 2. Refresh conversation previews, timestamps, and unread counts immediately
+      await refreshConversations(false);
+    };
+
+    const handleConversationEvent = async (payload: { eventType: string; new: ConversationWithDetails }) => {
+      // Refresh list and auto-select if no conversation was previously open
+      await refreshConversations(true);
+
+      const newConv = payload.new;
+      if (newConv && selectedConvIdRef.current === newConv.id) {
+        loadConversationDetails(newConv.id);
+      }
+    };
+
     const channel = supabase
-      .channel('inbox-realtime')
+      .channel('inbox-realtime-singleton')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'app', table: 'messages' },
+        handleMessageEvent
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'app', table: 'conversations' },
+        handleConversationEvent
+      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'messages' },
-        () => {
-          refreshConversations();
-          if (selectedConvId) {
-            getConversationDetails(selectedConvId).then((data) => {
-              if (data) {
-                setActiveConv(data);
-                setMessages(data.messages || []);
-              }
-            });
-          }
-        }
+        handleMessageEvent
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations' },
-        () => {
-          refreshConversations();
-        }
+        handleConversationEvent
       )
       .subscribe();
 
     return () => {
-      clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [refreshConversations, selectedConvId]);
+  }, [refreshConversations, loadConversationDetails]);
 
   // Background Outbound Message Dispatcher (Non-blocking)
   const dispatchOutboundMessage = useCallback(async (convId: string, content: string, tempId: string) => {
@@ -551,7 +599,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                     <span style={{ fontSize: '11px', color: '#64748B' }}>({activeConv.channel_identity?.external_id})</span>
                   </div>
                   <div style={{ display: 'flex', gap: '12px', marginTop: '4px', fontSize: '12px', color: '#94A3B8' }}>
-                    <span>Rep: <strong style={{ color: '#E2E8F0' }}>{activeConv.assigned_to_employee?.full_name || 'None'}</strong></span>
+                    <span>Rep: <strong style={{ color: '#E2E8F0' }}>{activeConv.assigned_to_employee?.full_name || (activeConv.status === 'pending_assignment' ? 'Pending Routing' : 'Unassigned')}</strong></span>
                     <span>Channel: <strong style={{ color: '#E2E8F0', textTransform: 'capitalize' }}>{activeConv.channel}</strong></span>
                   </div>
                 </div>
@@ -570,6 +618,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                       fontSize: '12px',
                     }}
                   >
+                    {activeConv.status === 'pending_assignment' && (
+                      <option value="pending_assignment">Pending Routing</option>
+                    )}
                     <option value="open">Open</option>
                     <option value="closed">Closed</option>
                     <option value="archived">Archived</option>
