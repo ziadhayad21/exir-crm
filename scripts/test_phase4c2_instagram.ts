@@ -157,9 +157,9 @@ async function runInstagramTestSuite() {
     const singleJson = await singleRes.json();
     recordTest('Single Inbound', 'Instagram webhook POST returns HTTP 200 success', singleRes.status === 200 && singleJson.success === true);
 
-    const { data: singleIdentity } = await admin.from('channel_identities').select('*').eq('external_id', senderId).maybeSingle();
-    const { data: singleConv } = await admin.from('conversations').select('*').eq('channel_identity_id', singleIdentity?.id || '').maybeSingle();
-    const { data: singleMsg } = await admin.from('messages').select('*').eq('external_message_id', midSingle).maybeSingle();
+    const { data: singleConv } = await admin.from('conversations').select('*').eq('id', singleJson.conversation_id || '').maybeSingle();
+    const { data: singleIdentity } = await admin.from('channel_identities').select('*').eq('id', singleConv?.channel_identity_id || '').maybeSingle();
+    const { data: singleMsg } = await admin.from('messages').select('*').eq('id', singleJson.message_id || '').maybeSingle();
     const { data: singleLead } = await admin.from('leads').select('*').eq('id', singleConv?.lead_id || '').maybeSingle();
 
     recordTest('Single Inbound', 'Channel identity channel="instagram"', singleIdentity?.channel === 'instagram', `Channel: ${singleIdentity?.channel}`);
@@ -295,7 +295,8 @@ async function runInstagramTestSuite() {
       headers: { 'Content-Type': 'application/json', 'x-hub-signature-256': msgSig },
       body: msgPayload,
     });
-    const { data: regMsg } = await admin.from('messages').select('*').eq('external_message_id', msgMid).maybeSingle();
+    const msgJson = await msgRes.json();
+    const { data: regMsg } = await admin.from('messages').select('*').eq('id', msgJson.message_id || '').maybeSingle();
 
     recordTest('Messenger Regression', 'Facebook Messenger inbound payload still processes HTTP 200 with channel="messenger"', msgRes.status === 200 && regMsg?.channel === 'messenger');
 
