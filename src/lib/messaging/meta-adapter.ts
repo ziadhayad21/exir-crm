@@ -181,6 +181,26 @@ export function verifyMetaSignature(
   }
 }
 
+function safeIsoTimestamp(rawTimestamp: unknown): string {
+  if (!rawTimestamp) return new Date().toISOString();
+  let ms: number;
+  if (typeof rawTimestamp === 'number') {
+    ms = rawTimestamp < 1e11 ? rawTimestamp * 1000 : rawTimestamp;
+  } else if (typeof rawTimestamp === 'string') {
+    const parsed = Number(rawTimestamp);
+    if (!isNaN(parsed) && rawTimestamp.trim() !== '') {
+      ms = parsed < 1e11 ? parsed * 1000 : parsed;
+    } else {
+      const d = new Date(rawTimestamp);
+      return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+    }
+  } else {
+    return new Date().toISOString();
+  }
+  const date = new Date(ms);
+  return isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+}
+
 /**
  * Normalizes raw incoming webhook payloads into standardized internal events.
  * Supports Meta Messenger payloads (object === 'page'), Meta Instagram payloads (object === 'instagram'), as well as mock/generic payloads.
@@ -204,8 +224,7 @@ export function normalizeInboundPayload(
       const senderId = messagingObj.sender?.id || 'unknown_sender';
       const recipientId = messagingObj.recipient?.id || entryId || null;
       const mid = messagingObj.message.mid || `mid_${Date.now()}_${Math.random()}`;
-      const timestampMs = messagingObj.timestamp || Date.now();
-      const timestamp = new Date(timestampMs).toISOString();
+      const timestamp = safeIsoTimestamp(messagingObj.timestamp);
 
       let messageType: MessageType = 'text';
       let content = messagingObj.message.text || '';
