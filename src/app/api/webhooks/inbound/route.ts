@@ -146,8 +146,12 @@ export async function POST(req: NextRequest) {
 
   try {
     rawPayload = JSON.parse(rawBody) as Record<string, unknown>;
-  } catch {
-    console.error('[Inbound Webhook POST] Malformed JSON payload received');
+  } catch (err: unknown) {
+    const errorObj = err as Error;
+    console.error('[Inbound Webhook POST] Malformed JSON payload received:', {
+      errorName: errorObj?.name || 'SyntaxError',
+      errorMessage: errorObj?.message || String(err),
+    });
     return NextResponse.json(
       { error: 'Bad Request: Malformed JSON body' },
       { status: 400 }
@@ -168,10 +172,19 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  console.log('[Inbound Webhook POST] Starting event processing:', {
+    eventsCount: normalizedEvents.length,
+  });
+
   const results = [];
 
   for (const event of normalizedEvents) {
     // 3. Raw-First Persistence in app.webhook_events
+    console.log('[Inbound Webhook POST] Before webhook_events insert:', {
+      channel: event.channel,
+      eventId: event.eventId,
+    });
+
     let rawEventId: string | null = null;
 
     const { data: existingEvent } = await admin
@@ -183,6 +196,10 @@ export async function POST(req: NextRequest) {
 
     if (existingEvent) {
       if (existingEvent.status === 'processed') {
+        console.log('[Inbound Webhook POST] Duplicate event skipped:', {
+          eventId: event.eventId,
+          status: existingEvent.status,
+        });
         results.push({
           event_id: event.eventId,
           status: 'ignored',
@@ -215,10 +232,10 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (evtErr || !newEvt) {
-        console.error(
-          '[Inbound Webhook POST] Failed to record raw event in DB:',
-          evtErr?.message
-        );
+        console.error('[Inbound Webhook POST] Failed to record raw event in DB:', {
+          errorName: evtErr?.code || 'PostgrestError',
+          errorMessage: evtErr?.message || 'Failed to record raw webhook event',
+        });
 
         return NextResponse.json(
           { error: 'Failed to record raw webhook event' },
@@ -229,7 +246,20 @@ export async function POST(req: NextRequest) {
       rawEventId = newEvt.id;
     }
 
+    console.log('[Inbound Webhook POST] After webhook_events insert:', {
+      rawEventId,
+      eventId: event.eventId,
+    });
+
     // 4. Atomic Database Ingestion via PL/pgSQL RPC
+    console.log('[Inbound Webhook POST] Before inbound message processing:', {
+      rawEventId,
+      channel: event.channel,
+      externalSenderId: event.externalSenderId,
+      externalThreadId: event.externalThreadId,
+      hasExternalMessageId: !!event.externalMessageId,
+    });
+
     try {
       const { data: ingestResult, error: ingestErr } = await admin.rpc(
         'ingest_inbound_message',
@@ -251,6 +281,15 @@ export async function POST(req: NextRequest) {
       if (ingestErr) {
         throw new Error(ingestErr.message);
       }
+
+      console.log('[Inbound Webhook POST] After inbound message processing:', {
+        rawEventId,
+        status: ingestResult?.status,
+        conversationId: ingestResult?.conversation_id,
+        messageId: ingestResult?.message_id,
+        leadId: ingestResult?.lead_id,
+        assignedTo: ingestResult?.assigned_to,
+      });
 
       // Write Audit Logs cleanly
       if (
@@ -303,11 +342,11 @@ export async function POST(req: NextRequest) {
     } catch (err: unknown) {
       const errorObj = err as Error;
 
-      console.error(
-        '[Inbound Webhook POST] Processing error for event:',
-        event.eventId,
-        errorObj?.message
-      );
+      console.error('[Inbound Webhook POST] Processing error caught:', {
+        eventId: event.eventId,
+        errorName: errorObj?.name || 'Error',
+        errorMessage: errorObj?.message || String(err),
+      });
 
       if (rawEventId) {
         const { data: currEvt } = await admin
@@ -334,6 +373,12 @@ export async function POST(req: NextRequest) {
   }
 
   const primaryResult = results[0] || {};
+
+  console.log('[Inbound Webhook POST] Returning 200:', {
+    resultsCount: results.length,
+    primaryConversationId: primaryResult?.conversation_id,
+    primaryStatus: primaryResult?.status,
+  });
 
   return NextResponse.json({
     success: true,
