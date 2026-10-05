@@ -205,7 +205,7 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
         content: parsed.data.content,
         media_url: parsed.data.media_url || null,
         message_type: parsed.data.message_type || 'text',
-        status: 'sent',
+        status: 'sending',
         sent_at: new Date().toISOString(),
       })
       .select('*')
@@ -214,6 +214,76 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
     if (msgError || !newMsg) {
       return { success: false, error: msgError?.message || 'Failed to send message via RLS policy' };
     }
+
+    // Check conversation channel & identity for external outbound dispatching
+    const { data: conv } = await admin
+      .from('conversations')
+      .select('id, channel, channel_identity_id')
+      .eq('id', parsed.data.conversation_id)
+      .single();
+
+    let externalMsgId: string | null = null;
+    let finalStatus: 'sent' | 'failed' = 'sent';
+    let errorDetail: string | null = null;
+
+    if (conv?.channel === 'messenger') {
+      const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
+      const apiVersion = process.env.META_API_VERSION?.trim() || 'v21.0';
+
+      const { data: channelIdent } = await admin
+        .from('channel_identities')
+        .select('external_id')
+        .eq('id', conv.channel_identity_id)
+        .single();
+
+      if (!pageToken) {
+        finalStatus = 'failed';
+        errorDetail = 'META_PAGE_ACCESS_TOKEN is missing in server environment variables';
+      } else if (!channelIdent?.external_id) {
+        finalStatus = 'failed';
+        errorDetail = 'Missing customer external PSID for Messenger reply';
+      } else {
+        try {
+          const metaUrl = `https://graph.facebook.com/${apiVersion}/me/messages?access_token=${encodeURIComponent(pageToken)}`;
+          const metaRes = await fetch(metaUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipient: { id: channelIdent.external_id },
+              messaging_type: 'RESPONSE',
+              message: { text: parsed.data.content },
+            }),
+          });
+
+          const metaJson = await metaRes.json();
+          if (metaRes.ok && metaJson.message_id) {
+            externalMsgId = metaJson.message_id;
+            finalStatus = 'sent';
+            console.log('[Outbound Messenger] Message dispatched successfully:', metaJson.message_id);
+          } else {
+            finalStatus = 'failed';
+            errorDetail = metaJson?.error?.message || 'Failed to dispatch Messenger message via Meta Graph API';
+            console.error('[Outbound Messenger] Meta API error:', metaJson?.error?.message || metaJson);
+          }
+        } catch (err: unknown) {
+          finalStatus = 'failed';
+          errorDetail = err instanceof Error ? err.message : 'Network error dispatching Meta Messenger reply';
+          console.error('[Outbound Messenger] Network exception:', errorDetail);
+        }
+      }
+    }
+
+    // Update message status & external_message_id
+    const { data: updatedMsg } = await admin
+      .from('messages')
+      .update({
+        status: finalStatus,
+        external_message_id: externalMsgId,
+        error_detail: errorDetail,
+      })
+      .eq('id', newMsg.id)
+      .select('*')
+      .single();
 
     // Update conversation last message details
     await admin
@@ -236,11 +306,18 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
         conversation_id: parsed.data.conversation_id,
         message_type: newMsg.message_type,
         content_preview: parsed.data.content.slice(0, 50),
+        status: finalStatus,
+        error_detail: errorDetail,
       },
     });
 
     revalidatePath('/crm/inbox');
-    return { success: true, data: newMsg };
+
+    if (finalStatus === 'failed') {
+      return { success: false, error: errorDetail || 'Failed to deliver message to customer on Facebook Messenger' };
+    }
+
+    return { success: true, data: updatedMsg || newMsg };
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : 'Unexpected error' };
   }
