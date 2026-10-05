@@ -46,6 +46,29 @@ export async function fetchFacebookProfileName(
   }
 }
 
+/**
+ * Fetches the Instagram account display name or username for a given IGSID using Meta Graph API.
+ * Returns null if unavailable or if Graph API request fails.
+ */
+export async function fetchInstagramProfileName(
+  igsid: string,
+  token: string,
+  apiVersion = 'v21.0'
+): Promise<string | null> {
+  if (!igsid || !token) return null;
+  try {
+    const url = `https://graph.facebook.com/${apiVersion}/${igsid}?fields=name,username&access_token=${encodeURIComponent(token)}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(1000) });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { name?: string; username?: string };
+    if (data.name?.trim()) return data.name.trim();
+    if (data.username?.trim()) return `@${data.username.trim()}`;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export interface MetaMessagingAttachment {
   type?: string;
   payload?: {
@@ -160,7 +183,7 @@ export function verifyMetaSignature(
 
 /**
  * Normalizes raw incoming webhook payloads into standardized internal events.
- * Supports Meta Messenger payloads (object === 'page', messaging array or changes array) as well as mock/generic payloads.
+ * Supports Meta Messenger payloads (object === 'page'), Meta Instagram payloads (object === 'instagram'), as well as mock/generic payloads.
  */
 export function normalizeInboundPayload(
   rawPayload: Record<string, unknown> | null | undefined
@@ -169,10 +192,11 @@ export function normalizeInboundPayload(
     return [];
   }
 
-  // 1. Meta Messenger Webhook Payload (object === 'page')
+  // 1. Meta Webhook Payload (object === 'page' || object === 'instagram')
   const metaPayload = rawPayload as MetaWebhookPayload;
-  if (metaPayload.object === 'page' && Array.isArray(metaPayload.entry)) {
+  if ((metaPayload.object === 'page' || metaPayload.object === 'instagram') && Array.isArray(metaPayload.entry)) {
     const events: NormalizedInboundEvent[] = [];
+    const channel: ChannelType = metaPayload.object === 'instagram' ? 'instagram' : 'messenger';
 
     const processMessagingObject = (messagingObj: MetaMessagingObject, entryId?: string) => {
       if (!messagingObj.message) return;
@@ -205,13 +229,13 @@ export function normalizeInboundPayload(
       }
 
       events.push({
-        channel: 'messenger',
-        eventId: `messenger_${senderId}_${mid}`,
+        channel,
+        eventId: `${channel}_${senderId}_${mid}`,
         externalSenderId: senderId,
         recipientPageId: recipientId,
-        senderDisplayName: null, // PSID does not provide profile name directly without Graph API lookup
+        senderDisplayName: null, // Profile name fetched via Graph API
         senderPhone: null,
-        externalThreadId: senderId, // In Messenger PSID represents the conversation thread
+        externalThreadId: senderId, // In Meta IGSID/PSID represents the conversation thread
         externalMessageId: mid,
         messageType,
         content,
@@ -222,7 +246,7 @@ export function normalizeInboundPayload(
     };
 
     for (const entry of metaPayload.entry) {
-      // 1A. Standard Messenger messaging array
+      // 1A. Standard messaging array
       if (Array.isArray(entry.messaging)) {
         for (const messagingObj of entry.messaging) {
           processMessagingObject(messagingObj, entry.id);

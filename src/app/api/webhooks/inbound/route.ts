@@ -11,12 +11,13 @@ import {
   verifyMetaSignature,
   normalizeInboundPayload,
   fetchFacebookProfileName,
+  fetchInstagramProfileName,
 } from '@/lib/messaging/meta-adapter';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * GET Handler — Meta Webhook Subscription Verification
+ * GET Handler — Meta Webhook Subscription Verification (Messenger & Instagram)
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -24,25 +25,24 @@ export async function GET(req: NextRequest) {
   const mode = searchParams.get('hub.mode');
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
-  const expectedToken = process.env.META_VERIFY_TOKEN?.trim();
+  const expectedMetaToken = process.env.META_VERIFY_TOKEN?.trim();
+  const expectedIgToken = process.env.INSTAGRAM_VERIFY_TOKEN?.trim();
 
-  // Temporary safe debug logging.
-  // Never logs the actual token value.
+  const tokenMatches =
+    !!token &&
+    ((expectedMetaToken && token === expectedMetaToken) ||
+     (expectedIgToken && token === expectedIgToken));
+
   console.log('[Inbound Webhook GET] Verification check:', {
     mode,
     hasReceivedToken: !!token,
-    hasExpectedToken: !!expectedToken,
-    tokenMatches:
-      !!token && !!expectedToken && token === expectedToken,
+    hasExpectedMetaToken: !!expectedMetaToken,
+    hasExpectedIgToken: !!expectedIgToken,
+    tokenMatches,
     hasChallenge: !!challenge,
   });
 
-  if (
-    mode === 'subscribe' &&
-    token &&
-    expectedToken &&
-    token === expectedToken
-  ) {
+  if (mode === 'subscribe' && tokenMatches) {
     console.log('[Inbound Webhook GET] Meta verification successful');
 
     return new NextResponse(challenge || '', {
@@ -203,6 +203,30 @@ export async function POST(req: NextRequest) {
           event.senderDisplayName = fetchedName || 'Facebook User';
         } else {
           event.senderDisplayName = 'Facebook User';
+        }
+      }
+    } else if (event.channel === 'instagram' && !event.senderDisplayName && event.externalSenderId) {
+      const { data: existingIdentity } = await admin
+        .from('channel_identities')
+        .select('display_name')
+        .eq('channel', 'instagram')
+        .eq('external_id', event.externalSenderId)
+        .maybeSingle();
+
+      if (existingIdentity?.display_name) {
+        event.senderDisplayName = existingIdentity.display_name;
+      } else {
+        const token = process.env.INSTAGRAM_ACCESS_TOKEN?.trim() || process.env.META_PAGE_ACCESS_TOKEN?.trim();
+        const apiVersion = process.env.META_API_VERSION?.trim() || 'v21.0';
+        if (token) {
+          const fetchedName = await fetchInstagramProfileName(
+            event.externalSenderId,
+            token,
+            apiVersion
+          );
+          event.senderDisplayName = fetchedName || 'Instagram User';
+        } else {
+          event.senderDisplayName = 'Instagram User';
         }
       }
     }
