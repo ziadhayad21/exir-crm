@@ -63,7 +63,9 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   const admin = createAdminClient();
-  const rawBody = await req.text();
+  const rawArrayBuffer = await req.arrayBuffer();
+  const rawBuffer = Buffer.from(rawArrayBuffer);
+  const rawBody = rawBuffer.toString('utf-8');
   const headers = Object.fromEntries(req.headers.entries());
 
   // 1. Signature & Authorization Verification
@@ -75,8 +77,13 @@ export async function POST(req: NextRequest) {
   const appSecret = process.env.META_APP_SECRET?.trim();
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
+  console.log('[Inbound Webhook] Secret diagnostics:', {
+    hasAppSecret: !!process.env.META_APP_SECRET,
+    appSecretLength: process.env.META_APP_SECRET?.trim().length ?? 0,
+  });
+
   console.log('[Inbound Webhook POST] Inbound request received:', {
-    bodyLength: rawBody.length,
+    bodyLength: rawBuffer.length,
     hasSig256: !!req.headers.get('x-hub-signature-256'),
     hasSigSha1: !!req.headers.get('x-hub-signature'),
     hasAppSecret: !!appSecret,
@@ -85,13 +92,15 @@ export async function POST(req: NextRequest) {
   });
 
   let isAuthorized = false;
+  let signatureVerified = false;
 
   if (signatureHeader && appSecret) {
-    isAuthorized = verifyMetaSignature(
-      rawBody,
+    signatureVerified = verifyMetaSignature(
+      rawBuffer,
       signatureHeader,
       appSecret
     );
+    isAuthorized = signatureVerified;
   } else if (
     authHeader &&
     serviceKey &&
@@ -118,9 +127,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (!isAuthorized) {
-    console.warn('[Inbound Webhook POST] Authorization failed: Invalid signature or missing app secret', {
-      hasSignatureHeader: !!signatureHeader,
-      hasAppSecret: !!appSecret,
+    console.warn('[Inbound Webhook POST] Authorization failed diagnostics:', {
+      hasSig256: !!req.headers.get('x-hub-signature-256'),
+      hasSigSha1: !!req.headers.get('x-hub-signature'),
+      hasAppSecret: !!process.env.META_APP_SECRET,
+      appSecretLength: process.env.META_APP_SECRET?.trim().length ?? 0,
+      bodyLength: rawBuffer.length,
+      signatureVerified,
     });
 
     return NextResponse.json(

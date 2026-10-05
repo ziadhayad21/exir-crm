@@ -93,7 +93,7 @@ export interface GenericWebhookPayload {
  * Validates Meta's X-Hub-Signature-256 (or legacy X-Hub-Signature) header using constant-time HMAC comparison.
  */
 export function verifyMetaSignature(
-  rawBody: string,
+  rawBody: string | Buffer,
   signatureHeader: string | null | undefined,
   appSecret: string
 ): boolean {
@@ -102,30 +102,31 @@ export function verifyMetaSignature(
   }
 
   const cleanSecret = appSecret.trim();
+  const cleanHeader = signatureHeader.trim();
   let algorithm = 'sha256';
-  let signatureHex = '';
+  let signatureHex = cleanHeader;
 
-  if (signatureHeader.startsWith('sha256=')) {
+  if (cleanHeader.toLowerCase().startsWith('sha256=')) {
     algorithm = 'sha256';
-    signatureHex = signatureHeader.slice(7);
-  } else if (signatureHeader.startsWith('sha1=')) {
+    signatureHex = cleanHeader.slice(7).trim();
+  } else if (cleanHeader.toLowerCase().startsWith('sha1=')) {
     algorithm = 'sha1';
-    signatureHex = signatureHeader.slice(5);
-  } else {
-    signatureHex = signatureHeader;
+    signatureHex = cleanHeader.slice(5).trim();
   }
 
   try {
     const hmac = crypto.createHmac(algorithm, cleanSecret);
-    const expectedSignature = hmac.update(rawBody).digest('hex');
+    const expectedSignature = typeof rawBody === 'string'
+      ? hmac.update(rawBody, 'utf-8').digest('hex')
+      : hmac.update(rawBody).digest('hex');
 
     if (signatureHex.length !== expectedSignature.length) {
       return false;
     }
 
     return crypto.timingSafeEqual(
-      Buffer.from(signatureHex, 'hex'),
-      Buffer.from(expectedSignature, 'hex')
+      Buffer.from(signatureHex.toLowerCase(), 'hex'),
+      Buffer.from(expectedSignature.toLowerCase(), 'hex')
     );
   } catch {
     return false;
