@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
   // Define public routes that don't require authentication
-  const publicRoutes = ['/login', '/auth/callback', '/api/webhooks'];
+  const publicRoutes = ['/login', '/auth/callback', '/api/webhooks', '/privacy-policy'];
   const isPublicRoute = publicRoutes.some((route) =>
     request.nextUrl.pathname.startsWith(route),
   );
