@@ -701,8 +701,6 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
       },
     });
 
-    revalidatePath('/crm/inbox');
-
     if (finalStatus === 'failed') {
       const fallbackChannelName = conv?.channel === 'whatsapp' ? 'WhatsApp' : 'Facebook Messenger';
       return { success: false, error: errorDetail || `Failed to deliver message to customer on ${fallbackChannelName}` };
@@ -1305,8 +1303,6 @@ export async function sendOutboundMediaReply(
       },
     });
 
-    revalidatePath('/crm/inbox');
-
     const resultMsg: Message = {
       ...(updatedMsg || newMsg),
       media_url: signedUrl,
@@ -1560,8 +1556,6 @@ export async function retryOutboundMediaReply(
         error_detail: errorDetail,
       },
     });
-
-    revalidatePath('/crm/inbox');
 
     const resultMsg: Message = {
       ...(updatedMsg || msg),

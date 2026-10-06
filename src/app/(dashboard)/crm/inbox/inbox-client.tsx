@@ -278,14 +278,6 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     }
   };
 
-  useEffect(() => {
-    return () => {
-      if (filePreviewUrl) {
-        URL.revokeObjectURL(filePreviewUrl);
-      }
-    };
-  }, [filePreviewUrl]);
-
   // In-memory caching for instant 0ms chat switching
   const messagesCacheRef = useRef<Map<string, MessageCacheEntry>>(new Map());
 
@@ -558,12 +550,23 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
           );
           const updated = exists
-            ? prev.map((m) =>
-                m.id === newMsg.id ||
-                (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
-                  ? newMsg
-                  : m
-              )
+            ? prev.map((m) => {
+                if (
+                  m.id === newMsg.id ||
+                  (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
+                ) {
+                  return {
+                    ...m,
+                    ...newMsg,
+                    media_url: newMsg.media_url || m.media_url,
+                    attachments:
+                      newMsg.attachments && newMsg.attachments.length > 0
+                        ? newMsg.attachments
+                        : m.attachments,
+                  };
+                }
+                return m;
+              })
             : [...prev, newMsg];
           messagesCacheRef.current.set(newMsg.conversation_id, { messages: updated, fetchedAt: Date.now(), loading: false });
           return updated;
@@ -813,15 +816,34 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         void getMessages(activeId).then((freshMsgs) => {
           if (selectedConvIdRef.current === activeId && freshMsgs.length > 0) {
             setMessages((prev) => {
+              const hasStatusChange = prev.some((p, i) => {
+                const f = freshMsgs[i];
+                return f && (f.status !== p.status || f.media_url !== p.media_url);
+              });
               if (
                 prev.length !== freshMsgs.length ||
-                freshMsgs[freshMsgs.length - 1]?.id !== prev[prev.length - 1]?.id
+                freshMsgs[freshMsgs.length - 1]?.id !== prev[prev.length - 1]?.id ||
+                hasStatusChange
               ) {
-                messagesCacheRef.current.set(activeId, { messages: freshMsgs, fetchedAt: Date.now(), loading: false });
+                const merged = freshMsgs.map((fm) => {
+                  const local = prev.find((p) => p.id === fm.id);
+                  if (local && (!fm.media_url || fm.media_url.startsWith('/'))) {
+                    return {
+                      ...fm,
+                      media_url: local.media_url || fm.media_url,
+                      attachments: (fm.attachments && fm.attachments.length > 0)
+                        ? fm.attachments
+                        : local.attachments,
+                    };
+                  }
+                  return fm;
+                });
+
+                messagesCacheRef.current.set(activeId, { messages: merged, fetchedAt: Date.now(), loading: false });
                 if (isNearBottomRef.current) {
                   setTimeout(() => scrollToBottom(true), 50);
                 }
-                return freshMsgs;
+                return merged;
               }
               return prev;
             });
@@ -901,13 +923,22 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   const dispatchOutboundMessage = useCallback(
     async (convId: string, content: string, tempId: string) => {
       const res = await sendOutboundReply({
+        id: tempId,
         conversation_id: convId,
         content,
       });
 
       if (res.success && res.data) {
         setMessages((prev) => {
-          const next = prev.map((m) => (m.id === tempId ? res.data! : m));
+          const next = prev.map((m) =>
+            m.id === tempId
+              ? {
+                  ...m,
+                  ...res.data!,
+                  status: res.data!.status || 'sent',
+                }
+              : m
+          );
           messagesCacheRef.current.set(convId, { messages: next, fetchedAt: Date.now(), loading: false });
           return next;
         });
@@ -1065,7 +1096,31 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       void sendOutboundMediaReply(formData).then((res) => {
         if (res.success && res.data) {
           setMessages((prev) => {
-            const next = prev.map((m) => (m.id === tempId ? { ...res.data!, attachments: m.attachments } : m));
+            const next = prev.map((m) => {
+              if (m.id === tempId) {
+                const serverAtts = res.data!.attachments || [];
+                const mergedAtts = serverAtts.length > 0
+                  ? serverAtts.map((sa) => ({
+                      ...sa,
+                      status: 'stored' as const,
+                      signed_url: sa.signed_url || fileUrlToSend || m.media_url || undefined,
+                    }))
+                  : (m.attachments || []).map((ma) => ({
+                      ...ma,
+                      status: 'stored' as const,
+                      signed_url: ma.signed_url || fileUrlToSend || undefined,
+                    }));
+
+                return {
+                  ...m,
+                  ...res.data!,
+                  status: res.data!.status || 'sent',
+                  media_url: res.data!.media_url || fileUrlToSend || m.media_url,
+                  attachments: mergedAtts,
+                };
+              }
+              return m;
+            });
             messagesCacheRef.current.set(selectedConvId, { messages: next, fetchedAt: Date.now(), loading: false });
             return next;
           });
@@ -2062,7 +2117,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                   }
 
                                   const mediaSrc = att.signed_url || msg.media_url;
-                                  const isPendingMedia = att.status === 'pending' || msg.status === 'sending';
+                                  const isPendingMedia = msg.status === 'sending';
 
                                   if (att.media_type === 'image') {
                                     return (
