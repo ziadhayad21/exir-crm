@@ -46,6 +46,8 @@ import {
   getMessages,
   sendOutboundReply,
   sendOutboundMediaReply,
+  createMediaUploadUrl,
+  finalizeOutboundMediaReply,
   retryOutboundMediaReply,
   getMediaSignedUrl,
   updateConversationStatus,
@@ -1117,61 +1119,134 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           : prev
       );
 
-      // 2. Dispatch background media upload & send action
-      const formData = new FormData();
-      formData.append('conversation_id', selectedConvId);
-    formData.append('id', tempId);
-      formData.append('file', fileToSend);
-      if (content) {
-        formData.append('caption', content);
-      }
-
-      void sendOutboundMediaReply(formData).then((res) => {
-        if (res.success && res.data) {
-          setMessages((prev) => {
-            const next = prev.map((m) => {
-              if (m.id === tempId) {
-                const serverAtts = res.data!.attachments || [];
-                const mergedAtts = serverAtts.length > 0
-                  ? serverAtts.map((sa) => ({
-                      ...sa,
-                      status: 'stored' as const,
-                      signed_url: sa.signed_url || fileUrlToSend || m.media_url || undefined,
-                    }))
-                  : (m.attachments || []).map((ma) => ({
-                      ...ma,
-                      status: 'stored' as const,
-                      signed_url: ma.signed_url || fileUrlToSend || undefined,
-                    }));
-
-                return {
-                  ...m,
-                  ...res.data!,
-                  status: res.data!.status || 'sent',
-                  media_url: res.data!.media_url || fileUrlToSend || m.media_url,
-                  attachments: mergedAtts,
-                };
-              }
-              return m;
-            });
-            if (!next.some((m) => m.id === tempId || m.id === res.data!.id)) {
-              next.push({
-                ...res.data!,
-                status: res.data!.status || 'sent',
-                media_url: res.data!.media_url || fileUrlToSend || null,
+      // 2. Dispatch Direct-to-Storage upload & send action
+      void (async () => {
+        try {
+          // Client-side image downscaling for photos > 2MB (preserve docs/audio/video)
+          let finalFile = fileToSend;
+          if (fileToSend.type.startsWith('image/') && fileToSend.type !== 'image/gif' && fileToSend.size > 2 * 1024 * 1024) {
+            try {
+              const img = new Image();
+              const objectUrl = URL.createObjectURL(fileToSend);
+              await new Promise<void>((resolve, reject) => {
+                img.onload = () => resolve();
+                img.onerror = reject;
+                img.src = objectUrl;
               });
+              URL.revokeObjectURL(objectUrl);
+              const maxDim = 1600;
+              let { width, height } = img;
+              if (width > maxDim || height > maxDim) {
+                if (width > height) {
+                  height = Math.round((height * maxDim) / width);
+                  width = maxDim;
+                } else {
+                  width = Math.round((width * maxDim) / height);
+                  height = maxDim;
+                }
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, width, height);
+                const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+                if (blob && blob.size < fileToSend.size) {
+                  finalFile = new File([blob], fileToSend.name.replace(/\.[^/.]+$/, '.jpg'), { type: 'image/jpeg' });
+                }
+              }
+            } catch (compressErr) {
+              console.warn('[Direct Media] Downscale fallback:', compressErr);
             }
-            messagesCacheRef.current.set(selectedConvId, { messages: next, fetchedAt: Date.now(), loading: false });
-            return next;
+          }
+
+          // A. Request short-lived signed upload URL (bypasses 4.5MB Vercel limit)
+          const urlRes = await createMediaUploadUrl({
+            conversationId: selectedConvId,
+            fileName: finalFile.name,
+            fileType: finalFile.type,
+            fileSize: finalFile.size,
           });
-        } else {
+
+          if (!urlRes.success || !urlRes.data) {
+            throw new Error(urlRes.error || 'Failed to initialize direct storage upload');
+          }
+
+          const { uploadUrl, storagePath } = urlRes.data;
+
+          // B. Direct upload to Supabase Storage bucket via PUT
+          const uploadRes = await fetch(uploadUrl, {
+            method: 'PUT',
+            body: finalFile,
+            headers: {
+              'Content-Type': finalFile.type || 'application/octet-stream',
+            },
+          });
+
+          if (!uploadRes.ok) {
+            throw new Error(`Direct storage upload failed with status ${uploadRes.status}`);
+          }
+
+          // C. Finalize upload & dispatch to Meta
+          const finalizeRes = await finalizeOutboundMediaReply({
+            conversationId: selectedConvId,
+            msgId: tempId,
+            storagePath,
+            fileName: finalFile.name,
+            fileType: finalFile.type,
+            caption: content || undefined,
+          });
+
+          if (finalizeRes.success && finalizeRes.data) {
+            setMessages((prev) => {
+              const next = prev.map((m) => {
+                if (m.id === tempId) {
+                  const serverAtts = finalizeRes.data!.attachments || [];
+                  const mergedAtts = serverAtts.length > 0
+                    ? serverAtts.map((sa) => ({
+                        ...sa,
+                        status: 'stored' as const,
+                        signed_url: sa.signed_url || fileUrlToSend || m.media_url || undefined,
+                      }))
+                    : (m.attachments || []).map((ma) => ({
+                        ...ma,
+                        status: 'stored' as const,
+                        signed_url: ma.signed_url || fileUrlToSend || undefined,
+                      }));
+
+                  return {
+                    ...m,
+                    ...finalizeRes.data!,
+                    status: finalizeRes.data!.status || 'sent',
+                    media_url: finalizeRes.data!.media_url || fileUrlToSend || m.media_url,
+                    attachments: mergedAtts,
+                  };
+                }
+                return m;
+              });
+              if (!next.some((m) => m.id === tempId || m.id === finalizeRes.data!.id)) {
+                next.push({
+                  ...finalizeRes.data!,
+                  status: finalizeRes.data!.status || 'sent',
+                  media_url: finalizeRes.data!.media_url || fileUrlToSend || null,
+                });
+              }
+              messagesCacheRef.current.set(selectedConvId, { messages: next, fetchedAt: Date.now(), loading: false });
+              return next;
+            });
+          } else {
+            throw new Error(finalizeRes.error || 'Failed to finalize media dispatch');
+          }
+        } catch (err: unknown) {
+          const errorMsg = err instanceof Error ? err.message : 'Media upload failed';
           setMessages((prev) => {
             const next = prev.map((m) =>
               m.id === tempId
                 ? {
                     ...m,
                     status: 'failed' as const,
-                    error_detail: res.error || 'Failed to deliver media message',
+                    error_detail: errorMsg,
                   }
                 : m
             );
@@ -1179,7 +1254,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
             return next;
           });
         }
-      });
+      })();
       return;
     }
 
