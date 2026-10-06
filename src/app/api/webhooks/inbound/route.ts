@@ -27,17 +27,20 @@ export async function GET(req: NextRequest) {
   const challenge = searchParams.get('hub.challenge');
   const expectedMetaToken = process.env.META_VERIFY_TOKEN?.trim();
   const expectedIgToken = process.env.INSTAGRAM_VERIFY_TOKEN?.trim();
+  const expectedWaToken = process.env.WHATSAPP_VERIFY_TOKEN?.trim();
 
   const tokenMatches =
     !!token &&
     ((expectedMetaToken && token === expectedMetaToken) ||
-     (expectedIgToken && token === expectedIgToken));
+     (expectedIgToken && token === expectedIgToken) ||
+     (expectedWaToken && token === expectedWaToken));
 
   console.log('[Inbound Webhook GET] Verification check:', {
     mode,
     hasReceivedToken: !!token,
     hasExpectedMetaToken: !!expectedMetaToken,
     hasExpectedIgToken: !!expectedIgToken,
+    hasExpectedWaToken: !!expectedWaToken,
     tokenMatches,
     hasChallenge: !!challenge,
   });
@@ -75,13 +78,14 @@ export async function POST(req: NextRequest) {
   const webhookSecretHeader = req.headers.get('x-webhook-secret');
   const appSecret = process.env.META_APP_SECRET?.trim();
   const igAppSecret = process.env.INSTAGRAM_APP_SECRET?.trim();
+  const waAppSecret = process.env.WHATSAPP_APP_SECRET?.trim();
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
   console.log('[Inbound Webhook POST] Inbound request received:', {
     bodyLength: rawBody.length,
     hasSig256: !!req.headers.get('x-hub-signature-256'),
     hasSigSha1: !!req.headers.get('x-hub-signature'),
-    hasAppSecret: !!(appSecret || igAppSecret),
+    hasAppSecret: !!(appSecret || igAppSecret || waAppSecret),
     hasAuthHeader: !!authHeader,
     hasWebhookSecretHeader: !!webhookSecretHeader,
   });
@@ -89,7 +93,7 @@ export async function POST(req: NextRequest) {
   let isAuthorized = false;
   let signatureVerified = false;
 
-  if (signatureHeader && (appSecret || igAppSecret)) {
+  if (signatureHeader && (appSecret || igAppSecret || waAppSecret)) {
     if (appSecret) {
       signatureVerified = verifyMetaSignature(
         rawBody,
@@ -102,6 +106,13 @@ export async function POST(req: NextRequest) {
         rawBody,
         signatureHeader,
         igAppSecret
+      );
+    }
+    if (!signatureVerified && waAppSecret) {
+      signatureVerified = verifyMetaSignature(
+        rawBody,
+        signatureHeader,
+        waAppSecret
       );
     }
     isAuthorized = signatureVerified;
@@ -135,7 +146,7 @@ export async function POST(req: NextRequest) {
     console.warn('[Inbound Webhook POST] Authorization failed diagnostics:', {
       hasSig256: !!req.headers.get('x-hub-signature-256'),
       hasSigSha1: !!req.headers.get('x-hub-signature'),
-      hasAppSecret: !!process.env.META_APP_SECRET,
+      hasAppSecret: !!(appSecret || igAppSecret || waAppSecret),
       appSecretLength: appSecret?.length ?? 0,
       bodyLength: rawBody.length,
       sigPrefix,
@@ -164,17 +175,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 2. Normalize Payload (Meta Messenger v26.0 vs Mock/Generic)
+  // 2. Normalize Payload (Meta Messenger / Instagram / WhatsApp Cloud API vs Mock/Generic)
   const normalizedEvents = normalizeInboundPayload(rawPayload);
 
   console.log('[Inbound Webhook POST] Normalized events count:', normalizedEvents.length);
 
   if (!normalizedEvents || normalizedEvents.length === 0) {
-    console.warn('[Inbound Webhook POST] Webhook payload ignored: No supported messaging events found');
+    const isWhatsAppStatus =
+      rawPayload?.object === 'whatsapp_business_account' &&
+      Array.isArray((rawPayload as Record<string, unknown>)?.entry);
+
+    console.warn('[Inbound Webhook POST] Webhook payload ignored: No supported messaging events found', {
+      isWhatsAppStatus,
+    });
     return NextResponse.json({
       success: true,
       status: 'ignored',
-      reason: 'no_supported_events',
+      reason: isWhatsAppStatus ? 'whatsapp_status_update' : 'no_supported_events',
     });
   }
 
@@ -185,7 +202,7 @@ export async function POST(req: NextRequest) {
   const results = [];
 
   for (const event of normalizedEvents) {
-    // If Messenger sender name is missing, check channel_identities DB cache first before calling Meta Graph API
+    // If Messenger/Instagram sender name is missing, check channel_identities DB cache first before calling Meta Graph API
     if (event.channel === 'messenger' && !event.senderDisplayName && event.externalSenderId) {
       const { data: existingIdentity } = await admin
         .from('channel_identities')
@@ -233,6 +250,19 @@ export async function POST(req: NextRequest) {
         } else {
           event.senderDisplayName = 'Instagram User';
         }
+      }
+    } else if (event.channel === 'whatsapp' && !event.senderDisplayName && event.externalSenderId) {
+      const { data: existingIdentity } = await admin
+        .from('channel_identities')
+        .select('display_name')
+        .eq('channel', 'whatsapp')
+        .eq('external_id', event.externalSenderId)
+        .maybeSingle();
+
+      if (existingIdentity?.display_name) {
+        event.senderDisplayName = existingIdentity.display_name;
+      } else {
+        event.senderDisplayName = event.senderPhone || 'WhatsApp User';
       }
     }
 

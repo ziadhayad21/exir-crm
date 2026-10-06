@@ -295,6 +295,74 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
           console.error('[Outbound Messenger] Network exception:', errorDetail);
         }
       }
+    } else if (conv?.channel === 'whatsapp') {
+      const whatsappToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || process.env.META_PAGE_ACCESS_TOKEN?.trim();
+      const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
+      const apiVersion = process.env.META_API_VERSION?.trim() || 'v21.0';
+
+      const { data: channelIdent } = await admin
+        .from('channel_identities')
+        .select('external_id, phone')
+        .eq('id', conv.channel_identity_id)
+        .single();
+
+      const recipientPhone = channelIdent?.phone || channelIdent?.external_id;
+
+      if (!whatsappToken) {
+        finalStatus = 'failed';
+        errorDetail = 'WHATSAPP_ACCESS_TOKEN is missing in server environment variables';
+      } else if (!phoneNumberId) {
+        finalStatus = 'failed';
+        errorDetail = 'WHATSAPP_PHONE_NUMBER_ID is missing in server environment variables';
+      } else if (!recipientPhone) {
+        finalStatus = 'failed';
+        errorDetail = 'Missing customer phone number or wa_id for WhatsApp reply';
+      } else {
+        try {
+          const metaUrl = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
+          const metaRes = await fetch(metaUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${whatsappToken}`,
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: recipientPhone,
+              type: 'text',
+              text: {
+                preview_url: false,
+                body: parsed.data.content,
+              },
+            }),
+          });
+
+          const metaJson = (await metaRes.json()) as {
+            messages?: Array<{ id?: string }>;
+            message_id?: string;
+            id?: string;
+            error?: { message?: string; code?: number; error_subcode?: number };
+            message?: string;
+          };
+
+          const returnedWamid = metaJson?.messages?.[0]?.id || metaJson?.message_id || metaJson?.id || null;
+
+          if (metaRes.ok && returnedWamid) {
+            externalMsgId = returnedWamid;
+            finalStatus = 'sent';
+            console.log('[Outbound WhatsApp] Message dispatched successfully:', returnedWamid);
+          } else {
+            finalStatus = 'failed';
+            errorDetail = metaJson?.error?.message || metaJson?.message || 'Failed to dispatch WhatsApp message via Meta Cloud API';
+            console.error('[Outbound WhatsApp] Meta API error:', metaJson?.error?.message || metaJson);
+          }
+        } catch (err: unknown) {
+          finalStatus = 'failed';
+          errorDetail = err instanceof Error ? err.message : 'Network error dispatching WhatsApp reply';
+          console.error('[Outbound WhatsApp] Network exception:', errorDetail);
+        }
+      }
     }
 
     // Update message status & external_message_id
@@ -338,7 +406,8 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
     revalidatePath('/crm/inbox');
 
     if (finalStatus === 'failed') {
-      return { success: false, error: errorDetail || 'Failed to deliver message to customer on Facebook Messenger' };
+      const fallbackChannelName = conv?.channel === 'whatsapp' ? 'WhatsApp' : 'Facebook Messenger';
+      return { success: false, error: errorDetail || `Failed to deliver message to customer on ${fallbackChannelName}` };
     }
 
     return { success: true, data: updatedMsg || newMsg };

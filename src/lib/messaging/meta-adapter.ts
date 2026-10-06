@@ -118,6 +118,89 @@ export interface MetaWebhookPayload {
   entry?: MetaWebhookEntry[];
 }
 
+export interface WhatsAppProfile {
+  name?: string;
+}
+
+export interface WhatsAppContact {
+  profile?: WhatsAppProfile;
+  wa_id?: string;
+}
+
+export interface WhatsAppMediaPayload {
+  id?: string;
+  mime_type?: string;
+  sha256?: string;
+  caption?: string;
+  filename?: string;
+}
+
+export interface WhatsAppIncomingMessage {
+  from?: string;
+  id?: string;
+  timestamp?: string | number;
+  type?: string;
+  text?: {
+    body?: string;
+  };
+  image?: WhatsAppMediaPayload;
+  audio?: WhatsAppMediaPayload;
+  video?: WhatsAppMediaPayload;
+  document?: WhatsAppMediaPayload;
+  voice?: WhatsAppMediaPayload;
+  button?: {
+    text?: string;
+    payload?: string;
+  };
+  interactive?: {
+    type?: string;
+    button_reply?: { id?: string; title?: string };
+    list_reply?: { id?: string; title?: string };
+  };
+}
+
+export interface WhatsAppStatusPayload {
+  id?: string;
+  status?: 'sent' | 'delivered' | 'read' | 'failed' | string;
+  timestamp?: string | number;
+  recipient_id?: string;
+  conversation?: {
+    id?: string;
+    expiration_timestamp?: string | number;
+    origin?: { type?: string };
+  };
+  pricing?: {
+    billable?: boolean;
+    pricing_model?: string;
+    category?: string;
+  };
+  errors?: Array<{ code?: number; title?: string; message?: string }>;
+}
+
+export interface WhatsAppWebhookValue {
+  messaging_product?: string;
+  metadata?: {
+    display_phone_number?: string;
+    phone_number_id?: string;
+  };
+  contacts?: WhatsAppContact[];
+  messages?: WhatsAppIncomingMessage[];
+  statuses?: WhatsAppStatusPayload[];
+}
+
+export interface WhatsAppWebhookEntry {
+  id?: string;
+  changes?: Array<{
+    field?: string;
+    value?: WhatsAppWebhookValue;
+  }>;
+}
+
+export interface WhatsAppWebhookPayload {
+  object?: string;
+  entry?: WhatsAppWebhookEntry[];
+}
+
 export interface GenericWebhookPayload {
   channel?: string;
   event_id?: string;
@@ -300,7 +383,84 @@ export function normalizeInboundPayload(
     return events;
   }
 
-  // 2. Mock / Generic / Phase 4A Payload Format
+  // 2. WhatsApp Cloud API Webhook Payload (object === 'whatsapp_business_account')
+  const waPayload = rawPayload as WhatsAppWebhookPayload;
+  if (waPayload.object === 'whatsapp_business_account' && Array.isArray(waPayload.entry)) {
+    const events: NormalizedInboundEvent[] = [];
+
+    for (const entry of waPayload.entry) {
+      if (!Array.isArray(entry.changes)) continue;
+
+      for (const change of entry.changes) {
+        const val = change.value;
+        if (!val) continue;
+
+        const phoneNumberId = val.metadata?.phone_number_id || null;
+        const contacts = Array.isArray(val.contacts) ? val.contacts : [];
+        const messages = Array.isArray(val.messages) ? val.messages : [];
+
+        // Map contacts by wa_id for fast display_name lookup
+        const contactMap = new Map<string, string>();
+        for (const contact of contacts) {
+          if (contact.wa_id && contact.profile?.name) {
+            contactMap.set(contact.wa_id, contact.profile.name.trim());
+          }
+        }
+
+        for (const msg of messages) {
+          const senderWaId = msg.from || contacts[0]?.wa_id || 'unknown_sender';
+          const senderPhone = senderWaId;
+          const displayName = contactMap.get(senderWaId) || contacts[0]?.profile?.name?.trim() || null;
+          const mid = msg.id || `wamid_${Date.now()}_${Math.random()}`;
+          const timestamp = safeIsoTimestamp(msg.timestamp);
+
+          let messageType: MessageType = 'text';
+          let content = msg.text?.body || '';
+          const mediaUrl: string | null = null;
+
+          if (msg.type === 'image') {
+            messageType = 'image';
+            content = msg.image?.caption || content || '[IMAGE Attachment]';
+          } else if (msg.type === 'audio' || msg.type === 'voice') {
+            messageType = 'audio';
+            content = content || '[AUDIO Attachment]';
+          } else if (msg.type === 'video') {
+            messageType = 'video';
+            content = msg.video?.caption || content || '[VIDEO Attachment]';
+          } else if (msg.type === 'document') {
+            messageType = 'document';
+            content = msg.document?.caption || msg.document?.filename || content || '[DOCUMENT Attachment]';
+          } else if (msg.type === 'button') {
+            content = msg.button?.text || content || '[BUTTON Response]';
+          } else if (msg.type === 'interactive') {
+            content = msg.interactive?.button_reply?.title || msg.interactive?.list_reply?.title || content || '[INTERACTIVE Response]';
+          } else if (msg.type && !content) {
+            content = `[${msg.type.toUpperCase()} Message]`;
+          }
+
+          events.push({
+            channel: 'whatsapp',
+            eventId: `whatsapp_${senderWaId}_${mid}`,
+            externalSenderId: senderWaId,
+            recipientPageId: phoneNumberId,
+            senderDisplayName: displayName,
+            senderPhone: senderPhone,
+            externalThreadId: senderWaId,
+            externalMessageId: mid,
+            messageType,
+            content,
+            mediaUrl,
+            timestamp,
+            rawPayload: msg as unknown as Record<string, unknown>,
+          });
+        }
+      }
+    }
+
+    return events;
+  }
+
+  // 3. Mock / Generic / Phase 4A Payload Format
   const genPayload = rawPayload as GenericWebhookPayload;
   const channel: ChannelType = (genPayload.channel || 'mock') as ChannelType;
   const senderId: string =
