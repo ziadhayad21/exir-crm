@@ -391,6 +391,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
 
       const currentOpenConvId = selectedConvIdRef.current;
       const isCurrentOpen = newMsg.conversation_id === currentOpenConvId;
+      const previewText = (newMsg.content || (newMsg.media_url ? '[Media attachment]' : '')).slice(
+        0,
+        100
+      );
 
       // 1. If message belongs to currently active thread:
       if (isCurrentOpen) {
@@ -437,25 +441,65 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         }
       }
 
-      // 2. Update conversation list directly in local state WITHOUT full getConversations() query
+      // 2. Update conversation list directly in local state WITHOUT delay
       setConversations((prev) => {
         const targetIdx = prev.findIndex((c) => c.id === newMsg.conversation_id);
-        const previewText = (newMsg.content || (newMsg.media_url ? '[Media attachment]' : '')).slice(
-            0,
-            100
-          );
 
         if (targetIdx === -1) {
-          // Brand new conversation: Fetch ONLY this single conversation details in background and prepend it
+          // Brand new conversation: create optimistic record to appear in 0ms!
+          const optimisticConv: ConversationWithDetails = {
+            id: newMsg.conversation_id,
+            channel: 'whatsapp',
+            external_thread_id: 'pending',
+            channel_identity_id: 'pending',
+            customer_id: null,
+            lead_id: null,
+            assigned_to: null,
+            status: 'open',
+            unread_count: isCurrentOpen ? 0 : 1,
+            last_message_preview: previewText,
+            last_message_at: newMsg.created_at || new Date().toISOString(),
+            created_at: newMsg.created_at || new Date().toISOString(),
+            updated_at: newMsg.created_at || new Date().toISOString(),
+            channel_identity: {
+              id: 'pending',
+              channel: 'whatsapp',
+              external_id: 'New Contact',
+              display_name: 'New Contact',
+              phone: null,
+              email: null,
+              avatar_url: null,
+              customer_id: null,
+              metadata: {},
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+            customer: null,
+            lead: null,
+            assigned_to_employee: null,
+          };
+
+          // Fetch full conversation details in background and hydrate
           void getConversationDetails(newMsg.conversation_id).then((freshConv) => {
             if (freshConv) {
-              setConversations((currentList) => {
-                if (currentList.some((c) => c.id === freshConv.id)) return currentList;
-                return [freshConv, ...currentList];
+              setConversations((curr) => {
+                const idx = curr.findIndex((c) => c.id === freshConv.id);
+                if (idx === -1) return [freshConv, ...curr];
+                return curr.map((c) =>
+                  c.id === freshConv.id
+                    ? {
+                        ...freshConv,
+                        unread_count: isCurrentOpen ? 0 : freshConv.unread_count || c.unread_count,
+                        last_message_preview: previewText || freshConv.last_message_preview,
+                        last_message_at: newMsg.created_at || freshConv.last_message_at,
+                      }
+                    : c
+                );
               });
             }
           });
-          return prev;
+
+          return [optimisticConv, ...prev];
         }
 
         const existing = prev[targetIdx];
@@ -482,11 +526,13 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       setConversations((prev) => {
         const idx = prev.findIndex((c) => c.id === newConv.id);
         if (idx === -1) {
-          // Brand new conversation: fetch and prepend
+          // Brand new conversation: fetch details and prepend immediately
           void getConversationDetails(newConv.id).then((freshConv) => {
             if (freshConv) {
               setConversations((curr) =>
-                curr.some((c) => c.id === freshConv.id) ? curr : [freshConv, ...curr]
+                curr.some((c) => c.id === freshConv.id)
+                  ? curr.map((c) => (c.id === freshConv.id ? { ...c, ...freshConv } : c))
+                  : [freshConv, ...curr]
               );
             }
           });
@@ -502,13 +548,15 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           customer: existing.customer,
           lead: existing.lead,
           assigned_to_employee: existing.assigned_to_employee,
+          last_message_at: newConv.last_message_at || existing.last_message_at,
+          last_message_preview: newConv.last_message_preview || existing.last_message_preview,
           unread_count:
             existing.id === currentOpenConvId
               ? 0
               : (newConv.unread_count ?? existing.unread_count),
         };
 
-        return prev.map((c) => (c.id === newConv.id ? merged : c));
+        return [merged, ...prev.slice(0, idx), ...prev.slice(idx + 1)];
       });
 
       if (newConv.id === currentOpenConvId) {
@@ -555,7 +603,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         }
       });
 
-    // Fail-safe live background sync for open conversation (every 3 seconds)
+    // Fail-safe live background sync for open conversation and conversation list (every 3 seconds)
     const syncInterval = setInterval(() => {
       const activeId = selectedConvIdRef.current;
       if (activeId) {
@@ -577,6 +625,67 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           }
         });
       }
+
+      // Background sync conversations to catch any new contact / routing updates
+      void getConversations({
+        channel: filtersRef.current.channel,
+        status: filtersRef.current.status,
+        search: filtersRef.current.search,
+      })
+        .then((serverConvs) => {
+          if (serverConvs) {
+            setConversations((prev) => {
+              const prevMap = new Map(prev.map((c) => [c.id, c]));
+              const currOpen = selectedConvIdRef.current;
+
+              const merged = serverConvs.map((sc) => {
+                const existing = prevMap.get(sc.id);
+                const isLocallyNewer =
+                  existing?.last_message_at &&
+                  new Date(existing.last_message_at).getTime() >
+                    new Date(sc.last_message_at).getTime();
+
+                return {
+                  ...sc,
+                  unread_count: sc.id === currOpen ? 0 : sc.unread_count,
+                  last_message_at: isLocallyNewer
+                    ? existing!.last_message_at
+                    : sc.last_message_at,
+                  last_message_preview: isLocallyNewer
+                    ? existing!.last_message_preview
+                    : sc.last_message_preview,
+                };
+              });
+
+              for (const p of prev) {
+                if (!serverConvs.some((sc) => sc.id === p.id)) {
+                  merged.push(p);
+                }
+              }
+
+              // Check if change occurred
+              if (
+                merged.length !== prev.length ||
+                merged.some((m, idx) => {
+                  const p = prev[idx];
+                  return (
+                    !p ||
+                    p.id !== m.id ||
+                    p.last_message_at !== m.last_message_at ||
+                    p.unread_count !== m.unread_count ||
+                    p.last_message_preview !== m.last_message_preview
+                  );
+                })
+              ) {
+                return merged;
+              }
+              return prev;
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn('[Inbox] Periodic conversation sync error:', err);
+        });
     }, 3000);
 
     return () => {
@@ -607,6 +716,17 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 last_message_preview: content.slice(0, 100),
               }
             : prev
+        );
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === convId
+              ? {
+                  ...c,
+                  last_message_at: res.data!.created_at,
+                  last_message_preview: content.slice(0, 100),
+                }
+              : c
+          )
         );
       } else {
         setMessages((prev) => {
@@ -663,7 +783,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     setErrorMsg(null);
     setTimeout(() => scrollToBottom(true), 50);
 
-    // Update conversation list preview & timestamp immediately
+    // Update conversation list preview & timestamp immediately and move to top
     setConversations((prev) => {
       const idx = prev.findIndex((c) => c.id === selectedConvId);
       if (idx === -1) return prev;
@@ -674,6 +794,16 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       };
       return [updated, ...prev.slice(0, idx), ...prev.slice(idx + 1)];
     });
+
+    setActiveConv((prev) =>
+      prev && prev.id === selectedConvId
+        ? {
+            ...prev,
+            last_message_at: optimisticMsg.created_at,
+            last_message_preview: content.slice(0, 100),
+          }
+        : prev
+    );
 
     // 2. Dispatch background server action
     void dispatchOutboundMessage(selectedConvId, content, tempId);
@@ -780,6 +910,15 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   // Total unread count across visible conversations
   const totalUnreadCount = useMemo(() => {
     return conversations.reduce((acc, c) => acc + (c.unread_count || 0), 0);
+  }, [conversations]);
+
+  // WhatsApp-like sorting: Most recently active chat always on top (by last_message_at DESC)
+  const sortedConversations = useMemo(() => {
+    return [...conversations].sort((a, b) => {
+      const timeA = new Date(a.last_message_at || a.updated_at || a.created_at || 0).getTime() || 0;
+      const timeB = new Date(b.last_message_at || b.updated_at || b.created_at || 0).getTime() || 0;
+      return timeB - timeA;
+    });
   }, [conversations]);
 
   return (
@@ -1057,7 +1196,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               gap: '4px',
             }}
           >
-            {conversations.length === 0 ? (
+            {sortedConversations.length === 0 ? (
               <div
                 style={{
                   padding: '40px 20px',
@@ -1073,7 +1212,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 </p>
               </div>
             ) : (
-              conversations.map((conv) => {
+              sortedConversations.map((conv) => {
                 const isSelected = conv.id === selectedConvId;
                 const theme = CHANNEL_THEMES[conv.channel] || CHANNEL_THEMES.other;
                 const displayName = resolveDisplayName(conv);
