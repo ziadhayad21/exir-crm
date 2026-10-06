@@ -21,52 +21,114 @@ export interface NormalizedInboundEvent {
   rawPayload: Record<string, unknown>;
 }
 
+export interface FetchedProfile {
+  name: string | null;
+  avatar_url: string | null;
+}
+
 /**
- * Fetches the Facebook account display name for a given PSID using Meta Graph API.
+ * Fetches the Facebook account display name and avatar for a given PSID using Meta Graph API.
  * Returns null if unavailable or if Graph API request fails.
  */
-export async function fetchFacebookProfileName(
+export async function fetchFacebookProfile(
   psid: string,
   pageToken: string,
   apiVersion = 'v21.0'
-): Promise<string | null> {
+): Promise<FetchedProfile | null> {
   if (!psid || !pageToken) return null;
   try {
-    const url = `https://graph.facebook.com/${apiVersion}/${psid}?fields=first_name,last_name,name&access_token=${encodeURIComponent(pageToken)}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const url = `https://graph.facebook.com/${apiVersion}/${psid}?fields=first_name,last_name,name,profile_pic&access_token=${encodeURIComponent(pageToken)}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
     if (!res.ok) return null;
-    const data = (await res.json()) as { name?: string; first_name?: string; last_name?: string };
-    if (data.name) return data.name.trim();
-    if (data.first_name || data.last_name) {
-      return `${data.first_name || ''} ${data.last_name || ''}`.trim();
-    }
-    return null;
+    const data = (await res.json()) as {
+      name?: string;
+      first_name?: string;
+      last_name?: string;
+      profile_pic?: string;
+    };
+    const name =
+      data.name?.trim() ||
+      (data.first_name || data.last_name
+        ? `${data.first_name || ''} ${data.last_name || ''}`.trim()
+        : null);
+    return {
+      name: name || null,
+      avatar_url: data.profile_pic || null,
+    };
   } catch {
     return null;
   }
 }
 
+export async function fetchFacebookProfileName(
+  psid: string,
+  pageToken: string,
+  apiVersion = 'v21.0'
+): Promise<string | null> {
+  const profile = await fetchFacebookProfile(psid, pageToken, apiVersion);
+  return profile?.name || null;
+}
+
 /**
- * Fetches the Instagram account display name or username for a given IGSID using Meta Graph API.
- * Returns null if unavailable or if Graph API request fails.
+ * Fetches the Instagram account display name, username, and avatar for a given IGSID.
+ * Supports graph.instagram.com and graph.facebook.com with fallback.
  */
+export async function fetchInstagramProfile(
+  igsid: string,
+  token: string,
+  apiVersion = 'v21.0'
+): Promise<FetchedProfile | null> {
+  if (!igsid || !token) return null;
+
+  // 1. Try graph.instagram.com (for Instagram User Access Tokens) with valid fields
+  try {
+    const igUrl = `https://graph.instagram.com/${igsid}?fields=id,username,name&access_token=${encodeURIComponent(token)}`;
+    const res = await fetch(igUrl, { signal: AbortSignal.timeout(2500) });
+    if (res.ok) {
+      const data = (await res.json()) as {
+        name?: string;
+        username?: string;
+      };
+      const name =
+        data.name?.trim() || (data.username?.trim() ? `@${data.username.trim()}` : null);
+      if (name) {
+        return { name, avatar_url: null };
+      }
+    }
+  } catch {
+    // Continue to fallback
+  }
+
+  // 2. Try graph.facebook.com (for Page Access Tokens with Instagram permissions)
+  try {
+    const fbUrl = `https://graph.facebook.com/${apiVersion}/${igsid}?fields=name,username,profile_pic&access_token=${encodeURIComponent(token)}`;
+    const res = await fetch(fbUrl, { signal: AbortSignal.timeout(2500) });
+    if (res.ok) {
+      const data = (await res.json()) as {
+        name?: string;
+        username?: string;
+        profile_pic?: string;
+      };
+      const name =
+        data.name?.trim() || (data.username?.trim() ? `@${data.username.trim()}` : null);
+      if (name) {
+        return { name, avatar_url: data.profile_pic || null };
+      }
+    }
+  } catch {
+    // Ignore error
+  }
+
+  return null;
+}
+
 export async function fetchInstagramProfileName(
   igsid: string,
   token: string,
   apiVersion = 'v21.0'
 ): Promise<string | null> {
-  if (!igsid || !token) return null;
-  try {
-    const url = `https://graph.facebook.com/${apiVersion}/${igsid}?fields=name,username&access_token=${encodeURIComponent(token)}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { name?: string; username?: string };
-    if (data.name?.trim()) return data.name.trim();
-    if (data.username?.trim()) return `@${data.username.trim()}`;
-    return null;
-  } catch {
-    return null;
-  }
+  const profile = await fetchInstagramProfile(igsid, token, apiVersion);
+  return profile?.name || null;
 }
 
 export interface MetaMessagingAttachment {

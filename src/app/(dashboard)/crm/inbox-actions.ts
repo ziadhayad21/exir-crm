@@ -25,7 +25,8 @@ import type {
   Message,
   Employee,
 } from '@/types';
-import { resolveConversationDisplayName } from '@/lib/utils';
+import { resolveConversationDisplayName, isGenericDisplayName } from '@/lib/utils';
+import { fetchFacebookProfile, fetchInstagramProfile } from '@/lib/messaging/meta-adapter';
 import { revalidatePath } from 'next/cache';
 
 // ═══════════════════════════════════════════════════════════════
@@ -89,6 +90,58 @@ export async function getConversations(filters?: {
   const customerMap = new Map((customersRes.data || []).map((c) => [c.id, c]));
   const leadMap = new Map((leadsRes.data || []).map((l) => [l.id, l]));
   const employeeMap = new Map((employeesRes.data || []).map((e) => [e.id, e as Employee]));
+
+  // Auto-resolve any generic identity names in the background
+  const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
+  const igToken = process.env.INSTAGRAM_ACCESS_TOKEN?.trim() || pageToken;
+
+  for (const conv of convs) {
+    const ident = identityMap.get(conv.channel_identity_id);
+    if (
+      ident &&
+      isGenericDisplayName(ident.display_name) &&
+      ident.external_id &&
+      ident.external_id !== 'Unknown'
+    ) {
+      if (conv.channel === 'messenger' && pageToken) {
+        void (async () => {
+          try {
+            const profile = await fetchFacebookProfile(ident.external_id, pageToken);
+            if (profile?.name && !isGenericDisplayName(profile.name)) {
+              await admin
+                .from('channel_identities')
+                .update({
+                  display_name: profile.name,
+                  ...(profile.avatar_url ? { avatar_url: profile.avatar_url } : {}),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', ident.id);
+            }
+          } catch {
+            // ignore
+          }
+        })();
+      } else if (conv.channel === 'instagram' && igToken) {
+        void (async () => {
+          try {
+            const profile = await fetchInstagramProfile(ident.external_id, igToken);
+            if (profile?.name && !isGenericDisplayName(profile.name)) {
+              await admin
+                .from('channel_identities')
+                .update({
+                  display_name: profile.name,
+                  ...(profile.avatar_url ? { avatar_url: profile.avatar_url } : {}),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', ident.id);
+            }
+          } catch {
+            // ignore
+          }
+        })();
+      }
+    }
+  }
 
   let enriched: ConversationWithDetails[] = convs.map((c) => {
     const ident = identityMap.get(c.channel_identity_id);
@@ -179,6 +232,56 @@ export async function getConversationDetails(
   const ident = identityRes.data;
   const lead = leadRes.data || null;
   const customer = customerRes.data || null;
+
+  // Live resolution if identity display_name is generic
+  if (
+    ident &&
+    isGenericDisplayName(ident.display_name) &&
+    ident.external_id &&
+    ident.external_id !== 'Unknown'
+  ) {
+    const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
+    const igToken = process.env.INSTAGRAM_ACCESS_TOKEN?.trim() || pageToken;
+
+    if (conv.channel === 'messenger' && pageToken) {
+      try {
+        const profile = await fetchFacebookProfile(ident.external_id, pageToken);
+        if (profile?.name && !isGenericDisplayName(profile.name)) {
+          ident.display_name = profile.name;
+          if (profile.avatar_url) ident.avatar_url = profile.avatar_url;
+          void admin
+            .from('channel_identities')
+            .update({
+              display_name: profile.name,
+              ...(profile.avatar_url ? { avatar_url: profile.avatar_url } : {}),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', ident.id);
+        }
+      } catch {
+        // ignore
+      }
+    } else if (conv.channel === 'instagram' && igToken) {
+      try {
+        const profile = await fetchInstagramProfile(ident.external_id, igToken);
+        if (profile?.name && !isGenericDisplayName(profile.name)) {
+          ident.display_name = profile.name;
+          if (profile.avatar_url) ident.avatar_url = profile.avatar_url;
+          void admin
+            .from('channel_identities')
+            .update({
+              display_name: profile.name,
+              ...(profile.avatar_url ? { avatar_url: profile.avatar_url } : {}),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', ident.id);
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   const resolvedName = resolveConversationDisplayName({
     channel: conv.channel,
     channel_identity: ident,

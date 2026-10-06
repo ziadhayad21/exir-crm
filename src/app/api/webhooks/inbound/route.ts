@@ -10,8 +10,8 @@ import { writeAuditLog } from '@/lib/audit';
 import {
   verifyMetaSignature,
   normalizeInboundPayload,
-  fetchFacebookProfileName,
-  fetchInstagramProfileName,
+  fetchFacebookProfile,
+  fetchInstagramProfile,
 } from '@/lib/messaging/meta-adapter';
 import { isGenericDisplayName } from '@/lib/utils';
 
@@ -203,7 +203,42 @@ export async function POST(req: NextRequest) {
   const results = [];
 
   for (const event of normalizedEvents) {
-    // 2B. Fast In-Memory Display Name Default (0ms non-blocking path)
+    // 2B. Fetch profile name & avatar inline for Messenger & Instagram
+    let fetchedAvatarUrl: string | null = null;
+
+    if (!event.senderDisplayName || isGenericDisplayName(event.senderDisplayName)) {
+      if (event.channel === 'messenger' && event.externalSenderId) {
+        const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
+        if (pageToken) {
+          try {
+            const profile = await fetchFacebookProfile(event.externalSenderId, pageToken);
+            if (profile?.name && !isGenericDisplayName(profile.name)) {
+              event.senderDisplayName = profile.name;
+              fetchedAvatarUrl = profile.avatar_url;
+            }
+          } catch {
+            // ignore network errors
+          }
+        }
+      } else if (event.channel === 'instagram' && event.externalSenderId) {
+        const igToken =
+          process.env.INSTAGRAM_ACCESS_TOKEN?.trim() ||
+          process.env.META_PAGE_ACCESS_TOKEN?.trim();
+        if (igToken) {
+          try {
+            const profile = await fetchInstagramProfile(event.externalSenderId, igToken);
+            if (profile?.name && !isGenericDisplayName(profile.name)) {
+              event.senderDisplayName = profile.name;
+              fetchedAvatarUrl = profile.avatar_url;
+            }
+          } catch {
+            // ignore network errors
+          }
+        }
+      }
+    }
+
+    // Fast In-Memory Display Name Fallback
     if (!event.senderDisplayName) {
       if (event.channel === 'whatsapp') {
         event.senderDisplayName = event.senderPhone || 'WhatsApp User';
@@ -322,6 +357,7 @@ export async function POST(req: NextRequest) {
       externalSenderId: event.externalSenderId,
       externalThreadId: event.externalThreadId,
       hasExternalMessageId: !!event.externalMessageId,
+      displayName: event.senderDisplayName,
     });
 
     try {
@@ -354,6 +390,49 @@ export async function POST(req: NextRequest) {
         leadId: ingestResult?.lead_id,
         assignedTo: ingestResult?.assigned_to,
       });
+
+      // Update channel_identities avatar and display name if available
+      if (
+        event.senderDisplayName &&
+        !isGenericDisplayName(event.senderDisplayName)
+      ) {
+        await Promise.all([
+          admin
+            .from('channel_identities')
+            .update({
+              display_name: event.senderDisplayName,
+              ...(fetchedAvatarUrl ? { avatar_url: fetchedAvatarUrl } : {}),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('channel', event.channel)
+            .eq('external_id', event.externalSenderId),
+          ingestResult?.lead_id
+            ? admin
+                .from('leads')
+                .update({
+                  full_name: event.senderDisplayName,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', ingestResult.lead_id)
+                .in('full_name', [
+                  'Facebook User',
+                  'Instagram User',
+                  'WhatsApp User',
+                  'Contact',
+                  'Unknown',
+                ])
+            : Promise.resolve(),
+        ]);
+      } else if (fetchedAvatarUrl) {
+        await admin
+          .from('channel_identities')
+          .update({
+            avatar_url: fetchedAvatarUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('channel', event.channel)
+          .eq('external_id', event.externalSenderId);
+      }
 
       // Write Audit Logs cleanly in background
       if (
@@ -393,42 +472,6 @@ export async function POST(req: NextRequest) {
             source: 'automatic_inbound',
           },
         }).catch((err) => console.error('[Inbound Webhook POST] Audit log error:', err));
-      }
-
-      // Background Profile Enrichment for Messenger / Instagram (non-blocking, zero latency on message delivery)
-      if (
-        (event.channel === 'messenger' || event.channel === 'instagram') &&
-        event.externalSenderId
-      ) {
-        const extSenderId = event.externalSenderId;
-        const chan = event.channel;
-        void (async () => {
-          try {
-            let fetchedName: string | null = null;
-            if (chan === 'messenger') {
-              const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
-              if (pageToken) {
-                fetchedName = await fetchFacebookProfileName(extSenderId, pageToken);
-              }
-            } else {
-              const igToken =
-                process.env.INSTAGRAM_ACCESS_TOKEN?.trim() ||
-                process.env.META_PAGE_ACCESS_TOKEN?.trim();
-              if (igToken) {
-                fetchedName = await fetchInstagramProfileName(extSenderId, igToken);
-              }
-            }
-            if (fetchedName && !isGenericDisplayName(fetchedName)) {
-              await admin
-                .from('channel_identities')
-                .update({ display_name: fetchedName, updated_at: new Date().toISOString() })
-                .eq('channel', chan)
-                .eq('external_id', extSenderId);
-            }
-          } catch {
-            // Ignore background profile fetch errors
-          }
-        })();
       }
 
       results.push({
