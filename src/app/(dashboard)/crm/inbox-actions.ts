@@ -370,9 +370,16 @@ export async function enrichMessagesWithAttachments(
 
   if (pathArray.length > 0) {
     try {
-      const { data: signedResults } = await admin.storage
+      // Add 1.5s timeout guard so storage signed URL generation never blocks message loading
+      const signedPromise = admin.storage
         .from(MEDIA_STORAGE_BUCKET)
         .createSignedUrls(pathArray, 3600);
+      const timeoutPromise = new Promise<{ data: null }>((resolve) =>
+        setTimeout(() => resolve({ data: null }), 1500)
+      );
+
+      const res = await Promise.race([signedPromise, timeoutPromise]);
+      const signedResults = res?.data;
 
       for (const item of signedResults || []) {
         if (item.path && item.signedUrl) {

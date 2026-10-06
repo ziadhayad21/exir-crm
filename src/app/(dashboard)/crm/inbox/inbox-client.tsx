@@ -483,6 +483,20 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     });
   }, [initialConversations]);
 
+  // Keep background cache warmed for active conversation list
+  useEffect(() => {
+    if (conversations.length === 0) return;
+    conversations.slice(0, 10).forEach((c) => {
+      if (!messagesCacheRef.current.has(c.id)) {
+        void getMessages(c.id).then((msgs) => {
+          if (msgs && msgs.length > 0) {
+            messagesCacheRef.current.set(c.id, msgs);
+          }
+        });
+      }
+    });
+  }, [conversations]);
+
   // Supabase Realtime Subscription (Singleton across component lifetime)
   useEffect(() => {
     const supabase = createClient();
@@ -2022,33 +2036,12 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                     );
                                   }
 
-                                  if (att.status === 'pending') {
-                                    return (
-                                      <div
-                                        key={att.id}
-                                        style={{
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          gap: '6px',
-                                          padding: '8px 10px',
-                                          background: 'rgba(255, 255, 255, 0.05)',
-                                          borderRadius: '8px',
-                                          color: '#94A3B8',
-                                          fontSize: '11px',
-                                          marginBottom: msg.content ? '6px' : 0,
-                                        }}
-                                      >
-                                        <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} />
-                                        <span>Processing media...</span>
-                                      </div>
-                                    );
-                                  }
-
-                                  const mediaSrc = att.signed_url;
+                                  const mediaSrc = att.signed_url || msg.media_url;
+                                  const isPendingMedia = att.status === 'pending' || msg.status === 'sending';
 
                                   if (att.media_type === 'image') {
                                     return (
-                                      <div key={att.id} style={{ marginBottom: (msg.content || att.caption) ? '6px' : 0 }}>
+                                      <div key={att.id} style={{ marginBottom: (msg.content || att.caption) ? '6px' : 0, position: 'relative' }}>
                                         <div
                                           onClick={() => mediaSrc && setPreviewModalAttachment({ url: mediaSrc, title: att.file_name || 'Image', type: 'image' })}
                                           style={{
@@ -2073,11 +2066,39 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                                 maxHeight: '260px',
                                                 objectFit: 'cover',
                                                 borderRadius: '8px',
+                                                opacity: isPendingMedia ? 0.85 : 1,
+                                                transition: 'opacity 0.2s ease',
                                               }}
                                             />
                                           ) : (
                                             <div style={{ padding: '20px', textAlign: 'center', color: '#94A3B8', fontSize: '11px' }}>
                                               Loading image...
+                                            </div>
+                                          )}
+
+                                          {isPendingMedia && (
+                                            <div
+                                              style={{
+                                                position: "absolute",
+                                                top: "8px",
+                                                right: "8px",
+                                                background: "rgba(15, 23, 42, 0.85)",
+                                                backdropFilter: "blur(4px)",
+                                                padding: "4px 8px",
+                                                borderRadius: "12px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "5px",
+                                                color: "#38BDF8",
+                                                fontSize: "10px",
+                                                fontWeight: 600,
+                                                border: "1px solid rgba(56, 189, 248, 0.3)",
+                                                boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
+                                                zIndex: 2,
+                                              }}
+                                            >
+                                              <RefreshCw size={11} style={{ animation: "spin 1s linear infinite" }} />
+                                              <span>Sending...</span>
                                             </div>
                                           )}
                                         </div>
