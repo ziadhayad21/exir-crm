@@ -4,6 +4,7 @@
 // signed URL authorization, provider media retrieval (WhatsApp/Messenger/Instagram),
 // and resilient retry/failure recovery.
 
+import 'server-only';
 import crypto from 'crypto';
 import path from 'path';
 import { createAdminClient } from '@/lib/supabase/admin';

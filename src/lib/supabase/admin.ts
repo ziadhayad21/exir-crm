@@ -2,6 +2,7 @@
 // Admin Supabase client using service role key.
 // ONLY use in server-side code. NEVER import in client components.
 
+import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 
 export function createAdminClient() {

@@ -58,6 +58,15 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { resolveConversationDisplayName, mergeMessages } from '@/lib/utils';
 
+function safeMediaUrl(url: string | null | undefined): string {
+  if (!url) return '#';
+  const trimmed = url.trim();
+  if (trimmed.startsWith('https://') || trimmed.startsWith('http://') || trimmed.startsWith('blob:')) {
+    return trimmed;
+  }
+  return '#';
+}
+
 export interface MessageCacheEntry {
   messages: Message[];
   fetchedAt: number;
@@ -2388,7 +2397,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                       </div>
                                       {mediaSrc && (
                                         <a
-                                          href={mediaSrc}
+                                          href={safeMediaUrl(mediaSrc)}
                                           download={att.file_name || 'document'}
                                           target="_blank"
                                           rel="noopener noreferrer"
@@ -2456,7 +2465,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                       </div>
                                       {msg.media_url && (
                                         <a
-                                          href={msg.media_url}
+                                          href={safeMediaUrl(msg.media_url)}
                                           download="document"
                                           target="_blank"
                                           rel="noopener noreferrer"
@@ -3483,7 +3492,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               </span>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <a
-                  href={previewModalAttachment.url}
+                  href={safeMediaUrl(previewModalAttachment.url)}
                   download={previewModalAttachment.title}
                   target="_blank"
                   rel="noopener noreferrer"

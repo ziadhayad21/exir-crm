@@ -2,6 +2,7 @@
 // Server-side authentication and authorization utilities.
 // Use these in Server Components, Server Actions, and Route Handlers.
 
+import 'server-only';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import type { CurrentUser, Employee, Role } from '@/types';

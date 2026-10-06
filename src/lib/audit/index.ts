@@ -2,6 +2,7 @@
 // Server-side audit logging utilities.
 // All audit log writes go through the admin client to bypass RLS.
 
+import 'server-only';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export interface AuditLogEntry {

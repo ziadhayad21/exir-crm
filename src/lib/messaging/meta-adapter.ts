@@ -2,6 +2,7 @@
 // Normalization layer for Meta Webhook payloads (Facebook Messenger v26.0)
 // Extracts standardized inbound events safely without spreading Meta-specific parsing throughout app logic.
 
+import 'server-only';
 import crypto from 'crypto';
 import { ChannelType, MessageType } from '@/types';
 
