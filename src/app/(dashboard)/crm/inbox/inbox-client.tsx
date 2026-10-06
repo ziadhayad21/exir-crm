@@ -2195,24 +2195,99 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                     </div>
                                   );
                                 })
-                              ) : msg.media_url ? (
+                              ) : msg.media_url || ['image', 'audio', 'video', 'document'].includes(msg.message_type) ? (
                                 <div style={{ marginBottom: msg.content ? '8px' : 0 }}>
-                                  <a
-                                    href={msg.media_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                      color: '#38BDF8',
-                                      fontSize: '12px',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '4px',
-                                      textDecoration: 'none',
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    View Media Attachment <ExternalLink size={12} />
-                                  </a>
+                                  {msg.message_type === 'audio' || (msg.media_url && (msg.media_url.includes('.ogg') || msg.media_url.includes('.mp3') || msg.media_url.includes('audio'))) ? (
+                                    <div style={{ minWidth: '220px', maxWidth: '320px' }}>
+                                      <audio
+                                        src={msg.media_url || undefined}
+                                        controls
+                                        preload="none"
+                                        style={{ width: '100%', height: '36px' }}
+                                      />
+                                    </div>
+                                  ) : msg.message_type === 'video' || (msg.media_url && (msg.media_url.includes('.mp4') || msg.media_url.includes('video'))) ? (
+                                    <div style={{ maxWidth: '320px' }}>
+                                      <video
+                                        src={msg.media_url || undefined}
+                                        controls
+                                        playsInline
+                                        preload="metadata"
+                                        style={{ width: '100%', maxHeight: '260px', borderRadius: '8px', background: '#000' }}
+                                      />
+                                    </div>
+                                  ) : msg.message_type === 'document' ? (
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '12px',
+                                        padding: '8px 12px',
+                                        borderRadius: '8px',
+                                        background: 'rgba(255,255,255,0.08)',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                        minWidth: '220px',
+                                        maxWidth: '320px',
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                                        <FileText size={20} style={{ color: '#38BDF8', flexShrink: 0 }} />
+                                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#F8FAFC' }}>
+                                          Document Attachment
+                                        </span>
+                                      </div>
+                                      {msg.media_url && (
+                                        <a
+                                          href={msg.media_url}
+                                          download="document"
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            width: '28px',
+                                            height: '28px',
+                                            borderRadius: '6px',
+                                            background: 'rgba(255,255,255,0.1)',
+                                            color: '#F8FAFC',
+                                            textDecoration: 'none',
+                                            flexShrink: 0,
+                                          }}
+                                          title="Download document"
+                                        >
+                                          <Download size={14} />
+                                        </a>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div
+                                      onClick={() => msg.media_url && setPreviewModalAttachment({ url: msg.media_url, title: 'Image', type: 'image' })}
+                                      style={{
+                                        borderRadius: '8px',
+                                        overflow: 'hidden',
+                                        cursor: 'pointer',
+                                        maxWidth: '300px',
+                                        maxHeight: '260px',
+                                        background: '#0F172A',
+                                      }}
+                                      title="Click to view full image"
+                                    >
+                                      {msg.media_url ? (
+                                        <img
+                                          src={msg.media_url}
+                                          alt="Media Attachment"
+                                          loading="lazy"
+                                          style={{ display: 'block', width: '100%', maxHeight: '260px', objectFit: 'cover', borderRadius: '8px' }}
+                                        />
+                                      ) : (
+                                        <div style={{ padding: '20px', textAlign: 'center', color: '#94A3B8', fontSize: '11px' }}>
+                                          Image Attachment
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               ) : null}
 

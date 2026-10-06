@@ -266,41 +266,35 @@ export async function getConversationDetails(
     const igToken = process.env.INSTAGRAM_ACCESS_TOKEN?.trim() || pageToken;
 
     if (conv.channel === 'messenger' && pageToken) {
-      try {
-        const profile = await fetchFacebookProfile(ident.external_id, pageToken);
-        if (profile?.name && !isGenericDisplayName(profile.name)) {
-          ident.display_name = profile.name;
-          if (profile.avatar_url) ident.avatar_url = profile.avatar_url;
-          void admin
-            .from('channel_identities')
-            .update({
-              display_name: profile.name,
-              ...(profile.avatar_url ? { avatar_url: profile.avatar_url } : {}),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', ident.id);
-        }
-      } catch {
-        // ignore
-      }
+      void fetchFacebookProfile(ident.external_id, pageToken)
+        .then((profile) => {
+          if (profile?.name && !isGenericDisplayName(profile.name)) {
+            void admin
+              .from('channel_identities')
+              .update({
+                display_name: profile.name,
+                ...(profile.avatar_url ? { avatar_url: profile.avatar_url } : {}),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', ident.id);
+          }
+        })
+        .catch(() => {});
     } else if (conv.channel === 'instagram' && igToken) {
-      try {
-        const profile = await fetchInstagramProfile(ident.external_id, igToken);
-        if (profile?.name && !isGenericDisplayName(profile.name)) {
-          ident.display_name = profile.name;
-          if (profile.avatar_url) ident.avatar_url = profile.avatar_url;
-          void admin
-            .from('channel_identities')
-            .update({
-              display_name: profile.name,
-              ...(profile.avatar_url ? { avatar_url: profile.avatar_url } : {}),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', ident.id);
-        }
-      } catch {
-        // ignore
-      }
+      void fetchInstagramProfile(ident.external_id, igToken)
+        .then((profile) => {
+          if (profile?.name && !isGenericDisplayName(profile.name)) {
+            void admin
+              .from('channel_identities')
+              .update({
+                display_name: profile.name,
+                ...(profile.avatar_url ? { avatar_url: profile.avatar_url } : {}),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', ident.id);
+          }
+        })
+        .catch(() => {});
     }
   }
 
