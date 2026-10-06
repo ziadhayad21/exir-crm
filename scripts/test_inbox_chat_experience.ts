@@ -221,7 +221,7 @@ async function runTest() {
     // ─── TEST 6: Message Ordering & Idempotency ───
     console.log('\n--- Test 6: Verifying Message Ordering & Idempotency ---');
     // Re-send same message ID (should be detected as duplicate)
-    const { data: _dupResultRaw } = await admin.rpc('ingest_inbound_message', {
+    await admin.rpc('ingest_inbound_message', {
       p_raw_event_id: null,
       p_channel: 'whatsapp',
       p_external_sender_id: waSenderId,

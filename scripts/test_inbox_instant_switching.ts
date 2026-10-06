@@ -92,6 +92,24 @@ async function runTestSuite() {
     });
     if (nameE !== 'WhatsApp User') throw new Error(`Expected 'WhatsApp User', got '${nameE}'`);
 
+    // Case F: Generic placeholder in identity, but linked Customer has real name
+    const nameF = resolveConversationDisplayName({
+      channel: 'messenger',
+      channel_identity: { display_name: 'Facebook User' },
+      customer: { full_name: 'Dr. Tarek Mohamed' },
+      lead: { full_name: 'Facebook User' },
+    });
+    if (nameF !== 'Dr. Tarek Mohamed') throw new Error(`Expected 'Dr. Tarek Mohamed', got '${nameF}'`);
+
+    // Case G: Generic placeholder in identity and no customer, but Lead was updated by sales
+    const nameG = resolveConversationDisplayName({
+      channel: 'instagram',
+      channel_identity: { display_name: 'Instagram User' },
+      customer: null,
+      lead: { full_name: 'Reem Hassan' },
+    });
+    if (nameG !== 'Reem Hassan') throw new Error(`Expected 'Reem Hassan', got '${nameG}'`);
+
     console.log('✅ Display name resolver passed all fallback levels without returning "Unknown Customer"!');
 
     // ─── Setup 3 Conversations (A, B, C) ───
@@ -248,7 +266,7 @@ async function runTestSuite() {
     // ─── TEST 4: Realtime Inbound Message Arrival During Active Chat & Unread Zeroing ───
     console.log('\n--- Test 4: Realtime Inbound Message While Active Chat is Open ---');
     // Active chat is C. Send a new message to C.
-    const { data: rawC2 } = await admin.rpc('ingest_inbound_message', {
+    await admin.rpc('ingest_inbound_message', {
       p_raw_event_id: null,
       p_channel: 'instagram',
       p_external_sender_id: senderC,
@@ -261,7 +279,6 @@ async function runTestSuite() {
       p_media_url: null,
       p_business_tz: 'Africa/Cairo',
     });
-    const _resC2 = rawC2 as unknown as IngestionRpcResult;
 
     // Simulate inbox client realtime logic:
     // If activeConversationId === convId, mark as read immediately

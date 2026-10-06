@@ -49,7 +49,7 @@ export function formatCurrency(amount: number | null | undefined): string {
 
 /**
  * Standard display-name resolver across Messenger, Instagram, and WhatsApp.
- * Priority: identity display_name -> customer full_name -> lead full_name -> phone -> external_id -> channel fallback.
+ * Priority: Real identity display_name -> Real customer full_name -> Real lead full_name -> Phone -> Any display_name -> External ID -> Channel fallback.
  */
 export interface DisplayNameInputs {
   channel?: string | null;
@@ -58,29 +58,70 @@ export interface DisplayNameInputs {
   lead?: { full_name?: string | null } | null;
 }
 
+const GENERIC_NAMES = new Set([
+  'facebook user',
+  'instagram user',
+  'whatsapp user',
+  'whatsapp contact',
+  'contact',
+  'unknown',
+  'unknown customer',
+  'unknown user',
+]);
+
+export function isGenericDisplayName(name?: string | null): boolean {
+  if (!name || !name.trim()) return true;
+  return GENERIC_NAMES.has(name.trim().toLowerCase());
+}
+
 export function resolveConversationDisplayName(inputs: DisplayNameInputs): string {
   const { channel, channel_identity, customer, lead } = inputs;
-  if (channel_identity?.display_name && channel_identity.display_name.trim() && channel_identity.display_name.trim() !== 'Contact') {
-    return channel_identity.display_name.trim();
+
+  const identName = channel_identity?.display_name?.trim();
+  const custName = customer?.full_name?.trim();
+  const leadName = lead?.full_name?.trim();
+  const phone = channel_identity?.phone?.trim();
+  const extId = channel_identity?.external_id?.trim();
+
+  // 1. If identity has a REAL name (not generic placeholder)
+  if (identName && !isGenericDisplayName(identName)) {
+    return identName;
   }
-  if (customer?.full_name && customer.full_name.trim()) {
-    return customer.full_name.trim();
+
+  // 2. If customer has a REAL name (e.g. linked CRM customer)
+  if (custName && !isGenericDisplayName(custName)) {
+    return custName;
   }
-  if (lead?.full_name && lead.full_name.trim()) {
-    return lead.full_name.trim();
+
+  // 3. If lead has a REAL name (e.g. edited by sales agent)
+  if (leadName && !isGenericDisplayName(leadName)) {
+    return leadName;
   }
-  if (channel_identity?.phone && channel_identity.phone.trim()) {
-    return channel_identity.phone.trim();
+
+  // 4. If phone exists
+  if (phone) {
+    return phone;
   }
-  if (channel_identity?.external_id && channel_identity.external_id.trim() && channel_identity.external_id !== 'Unknown') {
-    if (channel === 'messenger') return 'Facebook User';
-    if (channel === 'instagram') return 'Instagram User';
-    if (channel === 'whatsapp') return 'WhatsApp User';
-    return channel_identity.external_id.trim();
+
+  // 5. If customer / lead has any non-empty name
+  if (custName) return custName;
+  if (leadName) return leadName;
+
+  // 6. If identity has any non-empty display name
+  if (identName) return identName;
+
+  // 7. Channel specific external ID or fallback
+  if (extId && extId !== 'Unknown') {
+    if (channel === 'whatsapp') return extId.startsWith('+') ? extId : `+${extId}`;
+    if (channel === 'instagram') return extId.startsWith('@') ? extId : `@${extId}`;
+    if (channel === 'messenger') return `Facebook User (${extId.slice(-4)})`;
+    return extId;
   }
+
   if (channel === 'messenger') return 'Facebook User';
   if (channel === 'instagram') return 'Instagram User';
   if (channel === 'whatsapp') return 'WhatsApp User';
   return 'Contact';
 }
+
 

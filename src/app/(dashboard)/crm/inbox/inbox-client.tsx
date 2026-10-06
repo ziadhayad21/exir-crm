@@ -264,9 +264,11 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   // Fast Instant Switching: Renders conversation metadata immediately + caches messages
   const handleSelectConversation = useCallback(
     (conv: ConversationWithDetails) => {
-      if (selectedConvIdRef.current === conv.id) return;
-
       const convId = conv.id;
+      if (selectedConvIdRef.current === convId) return;
+
+      // CRITICAL: Synchronously update ref immediately
+      selectedConvIdRef.current = convId;
       setSelectedConvId(convId);
 
       // 1. Instant 0ms metadata render from list state
@@ -280,7 +282,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
 
       // 3. Render cached messages immediately if present
       const cachedMsgs = messagesCacheRef.current.get(convId);
-      if (cachedMsgs) {
+      if (cachedMsgs && cachedMsgs.length > 0) {
         setMessages(cachedMsgs);
         setIsLoadingMessages(false);
       } else {
@@ -297,14 +299,11 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         console.warn('[Inbox] markConversationAsRead error:', err)
       );
 
-      // 6. Fetch fresh messages (1 single query, NOT 9 queries!)
+      // 6. Fetch fresh messages (1 single query)
       void getMessages(convId)
         .then((freshMsgs) => {
           // Stale response guard: discard if user already switched to another conversation
-          if (
-            currentRequestId !== requestCounterRef.current ||
-            selectedConvIdRef.current !== convId
-          ) {
+          if (currentRequestId !== requestCounterRef.current) {
             return;
           }
           setMessages(freshMsgs);
@@ -314,12 +313,26 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           console.error('[Inbox] Error loading messages:', err);
         })
         .finally(() => {
-          if (
-            currentRequestId === requestCounterRef.current &&
-            selectedConvIdRef.current === convId
-          ) {
+          if (currentRequestId === requestCounterRef.current) {
             setIsLoadingMessages(false);
           }
+        });
+
+      // 7. Background enrich full conversation details (customer / lead details)
+      void getConversationDetails(convId)
+        .then((fullConv) => {
+          if (fullConv && currentRequestId === requestCounterRef.current) {
+            setActiveConv((prev) => {
+              if (!prev || prev.id !== convId) return prev;
+              return {
+                ...fullConv,
+                unread_count: 0,
+              };
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn('[Inbox] Error enriching conversation details:', err);
         });
     },
     []
