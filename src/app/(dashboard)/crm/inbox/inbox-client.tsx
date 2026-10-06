@@ -555,14 +555,24 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   m.id === newMsg.id ||
                   (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
                 ) {
+                  const newHasHttp = newMsg.media_url && (newMsg.media_url.startsWith('http://') || newMsg.media_url.startsWith('https://'));
+                  const localHasBlob = m.media_url && m.media_url.startsWith('blob:');
+                  const finalMediaUrl = newHasHttp ? newMsg.media_url : (localHasBlob ? m.media_url : (newMsg.media_url || m.media_url));
+
+                  const finalAttachments = (newMsg.attachments && newMsg.attachments.length > 0)
+                    ? newMsg.attachments.map((na, idx) => ({
+                        ...na,
+                        signed_url: (na.signed_url && (na.signed_url.startsWith('http') || na.signed_url.startsWith('blob:')))
+                          ? na.signed_url
+                          : (m.attachments?.[idx]?.signed_url || m.attachments?.[0]?.signed_url || na.signed_url),
+                      }))
+                    : m.attachments;
+
                   return {
                     ...m,
                     ...newMsg,
-                    media_url: newMsg.media_url || m.media_url,
-                    attachments:
-                      newMsg.attachments && newMsg.attachments.length > 0
-                        ? newMsg.attachments
-                        : m.attachments,
+                    media_url: finalMediaUrl,
+                    attachments: finalAttachments,
                   };
                 }
                 return m;
@@ -814,31 +824,57 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       const activeId = selectedConvIdRef.current;
       if (activeId) {
         void getMessages(activeId).then((freshMsgs) => {
-          if (selectedConvIdRef.current === activeId && freshMsgs.length > 0) {
+          if (selectedConvIdRef.current === activeId && Array.isArray(freshMsgs)) {
             setMessages((prev) => {
-              const hasStatusChange = prev.some((p, i) => {
-                const f = freshMsgs[i];
-                return f && (f.status !== p.status || f.media_url !== p.media_url);
+              // 1. Collect all local in-flight messages (sending, temp)
+              const inFlight = prev.filter((p) => p.status === 'sending' || p.id.startsWith('temp_'));
+              const freshIdSet = new Set(freshMsgs.map((m) => m.id));
+
+              // 2. Map fresh messages, preserving local previews if fresh message doesn't have a valid HTTP signed URL yet
+              const merged: Message[] = freshMsgs.map((fm) => {
+                const local = prev.find((p) => p.id === fm.id);
+                if (!local) return fm;
+
+                const localMedia = local.media_url || local.attachments?.[0]?.signed_url;
+                const serverMedia = fm.media_url || fm.attachments?.[0]?.signed_url;
+
+                const serverHasHttp = serverMedia && (serverMedia.startsWith('http://') || serverMedia.startsWith('https://'));
+                const localHasBlob = localMedia && localMedia.startsWith('blob:');
+
+                const preferredMediaUrl = serverHasHttp ? fm.media_url : (localHasBlob ? local.media_url : fm.media_url);
+
+                const mergedAtts = (fm.attachments && fm.attachments.length > 0)
+                  ? fm.attachments.map((fa, idx) => ({
+                      ...fa,
+                      signed_url: (fa.signed_url?.startsWith('http') ? fa.signed_url : null) || local.attachments?.[idx]?.signed_url || local.attachments?.[0]?.signed_url || fa.signed_url,
+                    }))
+                  : (local.attachments || []);
+
+                return {
+                  ...fm,
+                  media_url: preferredMediaUrl,
+                  attachments: mergedAtts,
+                };
               });
-              if (
-                prev.length !== freshMsgs.length ||
-                freshMsgs[freshMsgs.length - 1]?.id !== prev[prev.length - 1]?.id ||
-                hasStatusChange
-              ) {
-                const merged = freshMsgs.map((fm) => {
-                  const local = prev.find((p) => p.id === fm.id);
-                  if (local && (!fm.media_url || fm.media_url.startsWith('/'))) {
-                    return {
-                      ...fm,
-                      media_url: local.media_url || fm.media_url,
-                      attachments: (fm.attachments && fm.attachments.length > 0)
-                        ? fm.attachments
-                        : local.attachments,
-                    };
-                  }
-                  return fm;
+
+              // 3. CRITICAL: Re-add any in-flight messages that are still uploading and not yet in freshMsgs!
+              for (const pending of inFlight) {
+                if (!freshIdSet.has(pending.id)) {
+                  merged.push(pending);
+                }
+              }
+
+              // Sort chronologically
+              merged.sort((a, b) => new Date(a.created_at || a.sent_at || 0).getTime() - new Date(b.created_at || b.sent_at || 0).getTime());
+
+              const isDifferent =
+                merged.length !== prev.length ||
+                merged.some((m, idx) => {
+                  const p = prev[idx];
+                  return !p || p.id !== m.id || p.status !== m.status || p.media_url !== m.media_url;
                 });
 
+              if (isDifferent) {
                 messagesCacheRef.current.set(activeId, { messages: merged, fetchedAt: Date.now(), loading: false });
                 if (isNearBottomRef.current) {
                   setTimeout(() => scrollToBottom(true), 50);
@@ -851,7 +887,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         });
       }
 
-      // Background sync conversations to catch any new contact / routing updates
+      // Background sync conversations list
       void getConversations({
         channel: filtersRef.current.channel,
         status: filtersRef.current.status,
@@ -888,7 +924,6 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 }
               }
 
-              // Check if change occurred
               if (
                 merged.length !== prev.length ||
                 merged.some((m, idx) => {
@@ -908,9 +943,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
             });
           }
         })
-        .catch((err) => {
-          console.warn('[Inbox] Periodic conversation sync error:', err);
-        });
+        .catch(() => {});
     }, 3000);
 
     return () => {
@@ -1121,6 +1154,13 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               }
               return m;
             });
+            if (!next.some((m) => m.id === tempId || m.id === res.data!.id)) {
+              next.push({
+                ...res.data!,
+                status: res.data!.status || 'sent',
+                media_url: res.data!.media_url || fileUrlToSend || null,
+              });
+            }
             messagesCacheRef.current.set(selectedConvId, { messages: next, fetchedAt: Date.now(), loading: false });
             return next;
           });
@@ -2116,7 +2156,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                     );
                                   }
 
-                                  const mediaSrc = att.signed_url || msg.media_url;
+                                  const rawSrc = att.signed_url || msg.media_url;
+                                  const mediaSrc = (rawSrc && (rawSrc.startsWith('http://') || rawSrc.startsWith('https://') || rawSrc.startsWith('blob:') || rawSrc.startsWith('data:'))) ? rawSrc : null;
                                   const isPendingMedia = msg.status === 'sending';
 
                                   if (att.media_type === 'image') {

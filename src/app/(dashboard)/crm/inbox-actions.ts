@@ -1070,10 +1070,7 @@ export async function sendOutboundMediaReply(
       console.error('[Outbound Media] Failed to record attachment:', attError?.message);
     }
 
-    // Update message media_url to storagePath
-    await admin.from('messages').update({ media_url: storagePath }).eq('id', newMsg.id);
-
-    // 6. Generate signed URL for provider delivery
+    // 6. Generate signed URL for provider delivery & realtime display
     const { data: signed } = await admin.storage
       .from(MEDIA_STORAGE_BUCKET)
       .createSignedUrl(storagePath, 3600);
@@ -1086,6 +1083,9 @@ export async function sendOutboundMediaReply(
         .eq('id', newMsg.id);
       return { success: false, error: 'Failed to generate signed URL for provider dispatch' };
     }
+
+    // Update message media_url to full signed HTTPS URL (NOT raw storagePath)
+    await admin.from('messages').update({ media_url: signedUrl }).eq('id', newMsg.id);
 
     // 7. Dispatch to Provider API
     let externalMsgId: string | null = null;
