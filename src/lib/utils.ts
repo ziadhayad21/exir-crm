@@ -48,14 +48,39 @@ export function formatCurrency(amount: number | null | undefined): string {
 }
 
 /**
- * Safely parse a JSON value, returning null on failure.
+ * Standard display-name resolver across Messenger, Instagram, and WhatsApp.
+ * Priority: identity display_name -> customer full_name -> lead full_name -> phone -> external_id -> channel fallback.
  */
-export function safeJsonParse<T>(value: string | null | undefined): T | null {
-  if (!value) return null;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return null;
+export interface DisplayNameInputs {
+  channel?: string | null;
+  channel_identity?: { display_name?: string | null; phone?: string | null; external_id?: string | null } | null;
+  customer?: { full_name?: string | null } | null;
+  lead?: { full_name?: string | null } | null;
+}
+
+export function resolveConversationDisplayName(inputs: DisplayNameInputs): string {
+  const { channel, channel_identity, customer, lead } = inputs;
+  if (channel_identity?.display_name && channel_identity.display_name.trim() && channel_identity.display_name.trim() !== 'Contact') {
+    return channel_identity.display_name.trim();
   }
+  if (customer?.full_name && customer.full_name.trim()) {
+    return customer.full_name.trim();
+  }
+  if (lead?.full_name && lead.full_name.trim()) {
+    return lead.full_name.trim();
+  }
+  if (channel_identity?.phone && channel_identity.phone.trim()) {
+    return channel_identity.phone.trim();
+  }
+  if (channel_identity?.external_id && channel_identity.external_id.trim() && channel_identity.external_id !== 'Unknown') {
+    if (channel === 'messenger') return 'Facebook User';
+    if (channel === 'instagram') return 'Instagram User';
+    if (channel === 'whatsapp') return 'WhatsApp User';
+    return channel_identity.external_id.trim();
+  }
+  if (channel === 'messenger') return 'Facebook User';
+  if (channel === 'instagram') return 'Instagram User';
+  if (channel === 'whatsapp') return 'WhatsApp User';
+  return 'Contact';
 }
 

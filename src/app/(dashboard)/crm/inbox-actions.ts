@@ -25,44 +25,12 @@ import type {
   Message,
   Employee,
 } from '@/types';
+import { resolveConversationDisplayName } from '@/lib/utils';
 import { revalidatePath } from 'next/cache';
 
 // ═══════════════════════════════════════════════════════════════
 // READ OPERATIONS (RLS-ENFORCED)
 // ═══════════════════════════════════════════════════════════════
-
-function resolveDisplayName(
-  channel: string,
-  identity?: { display_name?: string | null; phone?: string | null; external_id?: string | null } | null,
-  lead?: { full_name?: string | null } | null,
-  customer?: { full_name?: string | null } | null
-): string {
-  if (identity?.display_name && identity.display_name.trim() && identity.display_name.trim() !== 'Contact') {
-    return identity.display_name.trim();
-  }
-  if (customer?.full_name && customer.full_name.trim()) {
-    return customer.full_name.trim();
-  }
-  if (lead?.full_name && lead.full_name.trim()) {
-    return lead.full_name.trim();
-  }
-  if (identity?.phone && identity.phone.trim()) {
-    return identity.phone.trim();
-  }
-  if (identity?.external_id && identity.external_id.trim() && identity.external_id !== 'Unknown') {
-    if (channel === 'messenger') return 'Facebook User';
-    if (channel === 'instagram') return 'Instagram User';
-    if (channel === 'whatsapp') return 'WhatsApp User';
-    return identity.external_id.trim();
-  }
-  return channel === 'messenger'
-    ? 'Facebook User'
-    : channel === 'instagram'
-    ? 'Instagram User'
-    : channel === 'whatsapp'
-    ? 'WhatsApp User'
-    : 'Contact';
-}
 
 /**
  * Get conversations visible to current user based on RLS (Behavior B).
@@ -126,7 +94,12 @@ export async function getConversations(filters?: {
     const ident = identityMap.get(c.channel_identity_id);
     const lead = c.lead_id ? leadMap.get(c.lead_id) || null : null;
     const customer = c.customer_id ? customerMap.get(c.customer_id) || null : null;
-    const resolvedName = resolveDisplayName(c.channel, ident, lead, customer);
+    const resolvedName = resolveConversationDisplayName({
+      channel: c.channel,
+      channel_identity: ident,
+      lead,
+      customer,
+    });
 
     return {
       ...c,
@@ -206,7 +179,12 @@ export async function getConversationDetails(
   const ident = identityRes.data;
   const lead = leadRes.data || null;
   const customer = customerRes.data || null;
-  const resolvedName = resolveDisplayName(conv.channel, ident, lead, customer);
+  const resolvedName = resolveConversationDisplayName({
+    channel: conv.channel,
+    channel_identity: ident,
+    lead,
+    customer,
+  });
 
   return {
     ...conv,

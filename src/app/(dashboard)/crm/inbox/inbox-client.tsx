@@ -1,6 +1,6 @@
 // src/app/(dashboard)/crm/inbox/inbox-client.tsx
-// Unified Messaging Inbox: Modern 3-pane responsive interface.
-// Left: Conversation List, Search, Channel & Status Filters, Realtime Previews & Unread Badges
+// Unified Messaging Inbox: WhatsApp Web-style instant switching 3-pane interface.
+// Left: Conversation List, Search, Channel & Status Filters, Realtime Inbound Updates & Unread Badges
 // Center: Message History, Delivery Statuses, Date Separators, Auto-scroll & Multi-line Composer
 // Right: Customer Profile, Channel Identity, Linked Customer & Sales Lead Context
 
@@ -35,6 +35,7 @@ import type {
 import {
   getConversations,
   getConversationDetails,
+  getMessages,
   sendOutboundReply,
   updateConversationStatus,
   linkConversationCustomer,
@@ -42,6 +43,7 @@ import {
   markConversationAsRead,
 } from '../inbox-actions';
 import { createClient } from '@/lib/supabase/client';
+import { resolveConversationDisplayName } from '@/lib/utils';
 
 interface InboxClientProps {
   initialConversations: ConversationWithDetails[];
@@ -103,6 +105,11 @@ function getInitials(name?: string | null): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+function resolveDisplayName(conv?: ConversationWithDetails | null): string {
+  if (!conv) return 'Contact';
+  return resolveConversationDisplayName(conv);
+}
+
 function formatDateSeparator(dateString: string): string {
   const d = new Date(dateString);
   const now = new Date();
@@ -133,13 +140,21 @@ function formatMessageTime(dateString: string): string {
 }
 
 export function InboxClient({ initialConversations, customers, user }: InboxClientProps) {
-  const [conversations, setConversations] = useState<ConversationWithDetails[]>(initialConversations);
+  const [conversations, setConversations] = useState<ConversationWithDetails[]>(() => {
+    if (initialConversations.length > 0) {
+      // Optimistically zero unread for the initially open conversation
+      return initialConversations.map((c, idx) => (idx === 0 ? { ...c, unread_count: 0 } : c));
+    }
+    return initialConversations;
+  });
+
   const [selectedConvId, setSelectedConvId] = useState<string | null>(
     initialConversations[0]?.id || null
   );
   const [activeConv, setActiveConv] = useState<ConversationWithDetails | null>(
-    initialConversations[0] || null
+    initialConversations[0] ? { ...initialConversations[0], unread_count: 0 } : null
   );
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
   const [channelFilter, setChannelFilter] = useState<string>('all');
@@ -151,11 +166,13 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   const [showRightSidebar, setShowRightSidebar] = useState<boolean>(true);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
-  // In-memory caching for zero-delay instant chat switching
+  // In-memory caching for instant 0ms chat switching
   const messagesCacheRef = useRef<Map<string, Message[]>>(new Map());
-  const convDetailsCacheRef = useRef<Map<string, ConversationWithDetails>>(new Map());
 
-  // Ref tracking for realtime listeners without hook teardown
+  // Request counter for stale response protection on rapid switching (A -> B -> C)
+  const requestCounterRef = useRef<number>(0);
+
+  // Tracking refs for realtime callbacks without hook teardown
   const selectedConvIdRef = useRef<string | null>(selectedConvId);
   useEffect(() => {
     selectedConvIdRef.current = selectedConvId;
@@ -167,6 +184,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   }, [channelFilter, statusFilter, searchTerm]);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const isNearBottomRef = useRef<boolean>(true);
 
   // Link Customer state
   const [showLinkModal, setShowLinkModal] = useState<boolean>(false);
@@ -189,9 +207,11 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     }
   }, []);
 
-  useEffect(() => {
-    scrollToBottom(false);
-  }, [messages.length, scrollToBottom]);
+  const handleMessagesScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 120;
+    isNearBottomRef.current = isNearBottom;
+  };
 
   // Copy helper
   const handleCopy = (text: string, label: string) => {
@@ -200,7 +220,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     setTimeout(() => setCopiedText(null), 2000);
   };
 
-  // Refresh conversation list from server (used on filters or new conversations)
+  // Refresh conversation list from server (only used for user-initiated filter changes or search)
   const refreshConversations = useCallback(async (autoSelectIfNone = false) => {
     try {
       const data = await getConversations({
@@ -210,7 +230,6 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       });
 
       setConversations(() => {
-        // Retain unread_count === 0 for the currently open conversation
         return data.map((c) => {
           if (c.id === selectedConvIdRef.current) {
             return { ...c, unread_count: 0 };
@@ -242,80 +261,100 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     });
   }, [channelFilter, statusFilter, searchTerm, refreshConversations]);
 
-  // Load selected conversation details with in-memory caching & auto-read reset
-  const loadConversationData = useCallback(
-    (convId: string, isInitial = false) => {
-      // 1. Immediately reset unread count in local conversations state
+  // Fast Instant Switching: Renders conversation metadata immediately + caches messages
+  const handleSelectConversation = useCallback(
+    (conv: ConversationWithDetails) => {
+      if (selectedConvIdRef.current === conv.id) return;
+
+      const convId = conv.id;
+      setSelectedConvId(convId);
+
+      // 1. Instant 0ms metadata render from list state
+      const targetActive = { ...conv, unread_count: 0 };
+      setActiveConv(targetActive);
+
+      // 2. Optimistically reset unread count in conversations array
       setConversations((prev) =>
         prev.map((c) => (c.id === convId ? { ...c, unread_count: 0 } : c))
       );
 
-      // 2. Check client-side message cache for instant 0ms render
+      // 3. Render cached messages immediately if present
       const cachedMsgs = messagesCacheRef.current.get(convId);
-      const cachedDetails = convDetailsCacheRef.current.get(convId);
-
       if (cachedMsgs) {
         setMessages(cachedMsgs);
-        if (cachedDetails) setActiveConv(cachedDetails);
         setIsLoadingMessages(false);
-      } else if (!isInitial) {
+      } else {
+        setMessages([]);
         setIsLoadingMessages(true);
       }
 
-      // 3. Dispatch mark as read on the server in background
+      // 4. Stale-response guard: track request counter
+      requestCounterRef.current += 1;
+      const currentRequestId = requestCounterRef.current;
+
+      // 5. Dispatch mark as read on server in background
       void markConversationAsRead(convId).catch((err) =>
         console.warn('[Inbox] markConversationAsRead error:', err)
       );
 
-      // 4. Fetch fresh details and messages in background
-      void getConversationDetails(convId)
-        .then((freshDetails) => {
-          if (freshDetails && selectedConvIdRef.current === convId) {
-            setActiveConv(freshDetails);
-            const freshMsgs = freshDetails.messages || [];
-            setMessages(freshMsgs);
-            messagesCacheRef.current.set(convId, freshMsgs);
-            convDetailsCacheRef.current.set(convId, freshDetails);
+      // 6. Fetch fresh messages (1 single query, NOT 9 queries!)
+      void getMessages(convId)
+        .then((freshMsgs) => {
+          // Stale response guard: discard if user already switched to another conversation
+          if (
+            currentRequestId !== requestCounterRef.current ||
+            selectedConvIdRef.current !== convId
+          ) {
+            return;
           }
+          setMessages(freshMsgs);
+          messagesCacheRef.current.set(convId, freshMsgs);
         })
         .catch((err) => {
-          console.error('[Inbox] Error loading conversation details:', err);
+          console.error('[Inbox] Error loading messages:', err);
         })
         .finally(() => {
-          setIsLoadingMessages(false);
+          if (
+            currentRequestId === requestCounterRef.current &&
+            selectedConvIdRef.current === convId
+          ) {
+            setIsLoadingMessages(false);
+          }
         });
     },
     []
   );
 
-  // Switch conversation immediately on click
-  const handleSelectConversation = useCallback(
-    (conv: ConversationWithDetails) => {
-      if (selectedConvId === conv.id) return;
-      setSelectedConvId(conv.id);
-      setActiveConv(conv);
-      loadConversationData(conv.id);
-    },
-    [selectedConvId, loadConversationData]
-  );
-
-  // Initial load on mount
+  // Initial load on mount: zero unread & fetch messages for first conversation
   useEffect(() => {
     if (!initialConversations[0]?.id) return;
-    const initialId = initialConversations[0].id;
-    void getConversationDetails(initialId)
-      .then((freshDetails) => {
-        if (freshDetails) {
-          setActiveConv(freshDetails);
-          const freshMsgs = freshDetails.messages || [];
+    const initialConv = initialConversations[0];
+    const initialId = initialConv.id;
+
+    // Zero out unread count in DB & fetch initial messages
+    void markConversationAsRead(initialId).catch((err) =>
+      console.warn('[Inbox] Initial mark-as-read error:', err)
+    );
+
+    void getMessages(initialId)
+      .then((freshMsgs) => {
+        if (selectedConvIdRef.current === initialId) {
           setMessages(freshMsgs);
           messagesCacheRef.current.set(initialId, freshMsgs);
-          convDetailsCacheRef.current.set(initialId, freshDetails);
+          setIsLoadingMessages(false);
         }
       })
       .catch((err) => {
-        console.error('[Inbox] Error loading initial conversation details:', err);
+        console.error('[Inbox] Error loading initial messages:', err);
       });
+
+    // Background pre-load messages for top conversations to make subsequent clicks 0ms
+    const topConvs = initialConversations.slice(1, 6);
+    topConvs.forEach((c) => {
+      void getMessages(c.id).then((msgs) => {
+        messagesCacheRef.current.set(c.id, msgs);
+      });
+    });
   }, [initialConversations]);
 
   // Supabase Realtime Subscription (Singleton across component lifetime)
@@ -327,39 +366,39 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       if (!newMsg || !newMsg.id) return;
 
       const currentOpenConvId = selectedConvIdRef.current;
-      const belongsToActiveConv = newMsg.conversation_id === currentOpenConvId;
+      const isCurrentOpen = newMsg.conversation_id === currentOpenConvId;
 
       // 1. If message belongs to currently active thread:
-      if (belongsToActiveConv) {
+      if (isCurrentOpen) {
         setMessages((prev) => {
-          // Avoid duplicate messages
           const exists = prev.some(
             (m) =>
               m.id === newMsg.id ||
               (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
           );
-          let updated: Message[];
-          if (exists) {
-            updated = prev.map((m) =>
-              m.id === newMsg.id ||
-              (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
-                ? newMsg
-                : m
-            );
-          } else {
-            updated = [...prev, newMsg];
-          }
-          // Update cache
+          const updated = exists
+            ? prev.map((m) =>
+                m.id === newMsg.id ||
+                (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
+                  ? newMsg
+                  : m
+              )
+            : [...prev, newMsg];
           messagesCacheRef.current.set(newMsg.conversation_id, updated);
           return updated;
         });
 
-        // If inbound message arrives while chat is open, immediately mark as read
+        // Auto-scroll if user is near bottom
+        if (isNearBottomRef.current) {
+          setTimeout(() => scrollToBottom(true), 50);
+        }
+
+        // Auto-mark read on server if inbound
         if (newMsg.direction === 'inbound') {
           void markConversationAsRead(newMsg.conversation_id);
         }
       } else {
-        // Update cached messages if previously opened
+        // Update cached messages if previously loaded
         const cached = messagesCacheRef.current.get(newMsg.conversation_id);
         if (cached) {
           const exists = cached.some(
@@ -374,7 +413,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         }
       }
 
-      // 2. Instant in-memory conversation list update & reordering (0ms delay)
+      // 2. Update conversation list directly in local state WITHOUT full getConversations() query
       setConversations((prev) => {
         const targetIdx = prev.findIndex((c) => c.id === newMsg.conversation_id);
         const previewText = (newMsg.content || (newMsg.media_url ? '[Media attachment]' : '')).slice(
@@ -383,8 +422,15 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         );
 
         if (targetIdx === -1) {
-          // New conversation not in local list -> trigger background fetch
-          void refreshConversations(false);
+          // Brand new conversation: Fetch ONLY this single conversation details in background and prepend it
+          void getConversationDetails(newMsg.conversation_id).then((freshConv) => {
+            if (freshConv) {
+              setConversations((currentList) => {
+                if (currentList.some((c) => c.id === freshConv.id)) return currentList;
+                return [freshConv, ...currentList];
+              });
+            }
+          });
           return prev;
         }
 
@@ -393,7 +439,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           ...existing,
           last_message_at: newMsg.created_at || new Date().toISOString(),
           last_message_preview: previewText,
-          unread_count: belongsToActiveConv
+          unread_count: isCurrentOpen
             ? 0
             : (existing.unread_count || 0) + (newMsg.direction === 'inbound' ? 1 : 0),
         };
@@ -410,26 +456,50 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       const currentOpenConvId = selectedConvIdRef.current;
 
       setConversations((prev) => {
-        const exists = prev.some((c) => c.id === newConv.id);
-        if (!exists) {
-          // Fresh conversation -> refresh list
-          void refreshConversations(false);
+        const idx = prev.findIndex((c) => c.id === newConv.id);
+        if (idx === -1) {
+          // Brand new conversation: fetch and prepend
+          void getConversationDetails(newConv.id).then((freshConv) => {
+            if (freshConv) {
+              setConversations((curr) =>
+                curr.some((c) => c.id === freshConv.id) ? curr : [freshConv, ...curr]
+              );
+            }
+          });
           return prev;
         }
-        return prev.map((c) => {
-          if (c.id === newConv.id) {
-            return {
-              ...c,
-              ...newConv,
-              unread_count: c.id === currentOpenConvId ? 0 : newConv.unread_count,
-            };
-          }
-          return c;
-        });
+
+        const existing = prev[idx];
+        // SAFELY MERGE without overwriting joined relation objects (channel_identity, customer, lead, assigned_to_employee)!
+        const merged: ConversationWithDetails = {
+          ...existing,
+          ...newConv,
+          channel_identity: existing.channel_identity,
+          customer: existing.customer,
+          lead: existing.lead,
+          assigned_to_employee: existing.assigned_to_employee,
+          unread_count:
+            existing.id === currentOpenConvId
+              ? 0
+              : (newConv.unread_count ?? existing.unread_count),
+        };
+
+        return prev.map((c) => (c.id === newConv.id ? merged : c));
       });
 
       if (newConv.id === currentOpenConvId) {
-        setActiveConv((prev) => (prev ? { ...prev, ...newConv } : prev));
+        setActiveConv((prev) => {
+          if (!prev || prev.id !== newConv.id) return prev;
+          return {
+            ...prev,
+            ...newConv,
+            channel_identity: prev.channel_identity,
+            customer: prev.customer,
+            lead: prev.lead,
+            assigned_to_employee: prev.assigned_to_employee,
+            unread_count: 0,
+          };
+        });
       }
     };
 
@@ -464,7 +534,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [refreshConversations]);
+  }, [scrollToBottom]);
 
   // Outbound Message Dispatcher (Non-blocking background sync)
   const dispatchOutboundMessage = useCallback(
@@ -542,6 +612,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     });
     setReplyText('');
     setErrorMsg(null);
+    setTimeout(() => scrollToBottom(true), 50);
 
     // Update conversation list preview & timestamp immediately
     setConversations((prev) => {
@@ -602,7 +673,6 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       const updated = await getConversationDetails(selectedConvId);
       if (updated) {
         setActiveConv(updated);
-        convDetailsCacheRef.current.set(selectedConvId, updated);
       }
       void refreshConversations();
     } else {
@@ -626,7 +696,6 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         const convId = res.data.conversation_id;
         setSelectedConvId(convId);
         void refreshConversations(false);
-        loadConversationData(convId);
       }
     } else {
       setErrorMsg(res.error || 'Simulation failed');
@@ -958,12 +1027,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               conversations.map((conv) => {
                 const isSelected = conv.id === selectedConvId;
                 const theme = CHANNEL_THEMES[conv.channel] || CHANNEL_THEMES.other;
-                const displayName =
-                  conv.channel_identity?.display_name ||
-                  conv.channel_identity?.phone ||
-                  conv.lead?.full_name ||
-                  conv.customer?.full_name ||
-                  'Customer';
+                const displayName = resolveDisplayName(conv);
                 const initials = getInitials(displayName);
                 const hasUnread = (conv.unread_count || 0) > 0 && !isSelected;
 
@@ -975,15 +1039,15 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                       padding: '10px 12px',
                       borderRadius: '10px',
                       background: isSelected
-                        ? 'rgba(2, 132, 199, 0.12)'
+                        ? 'rgba(2, 132, 199, 0.14)'
                         : hasUnread
                         ? 'rgba(255,255,255,0.03)'
                         : 'transparent',
                       border: isSelected
-                        ? '1px solid rgba(2, 132, 199, 0.3)'
+                        ? '1px solid rgba(2, 132, 199, 0.35)'
                         : '1px solid transparent',
                       cursor: 'pointer',
-                      transition: 'all 0.12s ease',
+                      transition: 'background 0.1s ease',
                       position: 'relative',
                       display: 'flex',
                       gap: '10px',
@@ -1186,7 +1250,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                       flexShrink: 0,
                     }}
                   >
-                    {getInitials(activeConv.channel_identity?.display_name)}
+                    {getInitials(resolveDisplayName(activeConv))}
                   </div>
 
                   <div style={{ minWidth: 0 }}>
@@ -1202,9 +1266,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {activeConv.channel_identity?.display_name ||
-                          activeConv.channel_identity?.phone ||
-                          'Customer'}
+                        {resolveDisplayName(activeConv)}
                       </h2>
                       <span
                         style={{
@@ -1300,6 +1362,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
 
               {/* Message History */}
               <div
+                onScroll={handleMessagesScroll}
                 style={{
                   flex: 1,
                   overflowY: 'auto',
@@ -1309,20 +1372,20 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   gap: '12px',
                 }}
               >
-                {isLoadingMessages ? (
+                {isLoadingMessages && messages.length === 0 ? (
                   <div
                     style={{
                       margin: 'auto',
                       textAlign: 'center',
                       color: '#64748B',
-                      fontSize: '13px',
+                      fontSize: '12px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
                     }}
                   >
-                    <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                    <span>Loading conversation history...</span>
+                    <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                    <span>Loading messages...</span>
                   </div>
                 ) : groupedMessages.length === 0 ? (
                   <div
@@ -1524,9 +1587,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                     style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}
                   >
                     <textarea
-                      placeholder={`Type a reply to ${
-                        activeConv.channel_identity?.display_name || 'contact'
-                      } (Press Enter to send, Shift+Enter for new line)...`}
+                      placeholder={`Type a reply to ${resolveDisplayName(
+                        activeConv
+                      )} (Press Enter to send, Shift+Enter for new line)...`}
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
                       onKeyDown={(e) => {
@@ -1671,7 +1734,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                     Display Name
                   </span>
                   <strong style={{ color: '#F8FAFC', fontSize: '13px' }}>
-                    {activeConv.channel_identity?.display_name || 'Unknown Contact'}
+                    {resolveDisplayName(activeConv)}
                   </strong>
                 </div>
 
