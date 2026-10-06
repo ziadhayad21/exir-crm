@@ -110,8 +110,10 @@ function resolveDisplayName(conv?: ConversationWithDetails | null): string {
   return resolveConversationDisplayName(conv);
 }
 
-function formatDateSeparator(dateString: string): string {
+function formatDateSeparator(dateString?: string | null): string {
+  if (!dateString) return 'Today';
   const d = new Date(dateString);
+  if (isNaN(d.getTime())) return 'Today';
   const now = new Date();
   const isToday =
     d.getDate() === now.getDate() &&
@@ -134,8 +136,10 @@ function formatDateSeparator(dateString: string): string {
   });
 }
 
-function formatMessageTime(dateString: string): string {
+function formatMessageTime(dateString?: string | null): string {
+  if (!dateString) return '';
   const d = new Date(dateString);
+  if (isNaN(d.getTime())) return '';
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
@@ -374,6 +378,13 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   useEffect(() => {
     const supabase = createClient();
 
+    // Authenticate realtime websocket connection with session JWT
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.access_token) {
+        void supabase.realtime.setAuth(session.access_token);
+      }
+    });
+
     const handleMessageEvent = (payload: { new?: unknown; old?: unknown; eventType?: string }) => {
       const newMsg = payload.new as Message | undefined;
       if (!newMsg || !newMsg.id) return;
@@ -430,9 +441,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       setConversations((prev) => {
         const targetIdx = prev.findIndex((c) => c.id === newMsg.conversation_id);
         const previewText = (newMsg.content || (newMsg.media_url ? '[Media attachment]' : '')).slice(
-          0,
-          100
-        );
+            0,
+            100
+          );
 
         if (targetIdx === -1) {
           // Brand new conversation: Fetch ONLY this single conversation details in background and prepend it
@@ -544,7 +555,32 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         }
       });
 
+    // Fail-safe live background sync for open conversation (every 3 seconds)
+    const syncInterval = setInterval(() => {
+      const activeId = selectedConvIdRef.current;
+      if (activeId) {
+        void getMessages(activeId).then((freshMsgs) => {
+          if (selectedConvIdRef.current === activeId && freshMsgs.length > 0) {
+            setMessages((prev) => {
+              if (
+                prev.length !== freshMsgs.length ||
+                freshMsgs[freshMsgs.length - 1]?.id !== prev[prev.length - 1]?.id
+              ) {
+                messagesCacheRef.current.set(activeId, freshMsgs);
+                if (isNearBottomRef.current) {
+                  setTimeout(() => scrollToBottom(true), 50);
+                }
+                return freshMsgs;
+              }
+              return prev;
+            });
+          }
+        });
+      }
+    }, 3000);
+
     return () => {
+      clearInterval(syncInterval);
       void supabase.removeChannel(channel);
     };
   }, [scrollToBottom]);
@@ -1456,6 +1492,20 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                               maxWidth: '100%',
                             }}
                           >
+                            {/* Sender Name Label */}
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                color: isOutbound ? '#38BDF8' : '#94A3B8',
+                                marginBottom: '2px',
+                                paddingLeft: isOutbound ? 0 : '4px',
+                                paddingRight: isOutbound ? '4px' : 0,
+                              }}
+                            >
+                              {isOutbound ? 'You' : resolveDisplayName(activeConv)}
+                            </span>
+
                             {/* Message Bubble */}
                             <div
                               style={{
