@@ -408,7 +408,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
 
       // Read from Cache: Render cached messages IMMEDIATELY without blocking spinner!
       const cacheEntry = messagesCacheRef.current.get(convId);
-      if (cacheEntry && cacheEntry.messages.length > 0) {
+      if (cacheEntry) {
         setMessages(cacheEntry.messages);
         setIsLoadingMessages(false);
       } else {
@@ -508,12 +508,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   // Keep background cache warmed for active conversation list
   useEffect(() => {
     if (conversations.length === 0) return;
-    conversations.slice(0, 10).forEach((c) => {
+    conversations.slice(0, 50).forEach((c) => {
       if (!messagesCacheRef.current.has(c.id)) {
         void getMessages(c.id).then((msgs) => {
-          if (msgs && msgs.length > 0) {
-            messagesCacheRef.current.set(c.id, { messages: msgs, fetchedAt: Date.now(), loading: false });
-          }
+          messagesCacheRef.current.set(c.id, { messages: msgs || [], fetchedAt: Date.now(), loading: false });
         });
       }
     });
