@@ -35,7 +35,7 @@ async function runTestSuite() {
         id: 'msg_1',
         conversation_id: 'conv_1',
         direction: 'inbound',
-        sender_type: 'customer',
+        sender_type: 'contact',
         sender_employee_id: null,
         content: 'First message',
         media_url: null,
@@ -74,7 +74,7 @@ async function runTestSuite() {
         id: 'msg_1',
         conversation_id: 'conv_1',
         direction: 'inbound',
-        sender_type: 'customer',
+        sender_type: 'contact',
         sender_employee_id: null,
         content: 'First message',
         media_url: null,
@@ -92,7 +92,7 @@ async function runTestSuite() {
         id: 'msg_2',
         conversation_id: 'conv_1',
         direction: 'inbound',
-        sender_type: 'customer',
+        sender_type: 'contact',
         sender_employee_id: null,
         content: 'Second message arrived on server',
         media_url: null,
@@ -123,7 +123,7 @@ async function runTestSuite() {
         id: 'msg_realtime_99',
         conversation_id: 'conv_1',
         direction: 'inbound',
-        sender_type: 'customer',
+        sender_type: 'contact',
         sender_employee_id: null,
         content: 'Incoming realtime message',
         media_url: null,
@@ -144,7 +144,7 @@ async function runTestSuite() {
         id: 'msg_realtime_99',
         conversation_id: 'conv_1',
         direction: 'inbound',
-        sender_type: 'customer',
+        sender_type: 'contact',
         sender_employee_id: null,
         content: 'Incoming realtime message',
         media_url: null,
@@ -168,8 +168,8 @@ async function runTestSuite() {
   // --- 3. STALE REQUEST PROTECTION (RAPID SWITCHING A -> B -> C) ---
   console.log('\n--- 3. STALE REQUEST PROTECTION (A -> B -> C) ---');
   {
-    let selectedConvId = 'conv_C';
-    let requestId = 3;
+    const selectedConvId = 'conv_C';
+    const requestId = 3;
 
     function handleServerResponse(responseConvId: string, responseReqId: number, data: Message[]) {
       const isStillActiveView = selectedConvId === responseConvId && requestId === responseReqId;
@@ -200,9 +200,10 @@ async function runTestSuite() {
       .limit(5);
 
     assert(!error && convs !== null, 'Fetched live conversations from Supabase DB');
-    assert(convs.length > 0, `Found ${convs.length} live conversations in database`);
+    const validConvs = convs || [];
+    assert(validConvs.length > 0, `Found ${validConvs.length} live conversations in database`);
 
-    const channels = new Set(convs.map((c) => c.channel));
+    const channels = new Set(validConvs.map((c) => c.channel));
     assert(channels.size > 0, `Multi-channel support verified across channels: ${Array.from(channels).join(', ')}`);
   }
 
