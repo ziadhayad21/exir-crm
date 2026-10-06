@@ -54,7 +54,14 @@ import {
   markConversationAsRead,
 } from '../inbox-actions';
 import { createClient } from '@/lib/supabase/client';
-import { resolveConversationDisplayName } from '@/lib/utils';
+import { resolveConversationDisplayName, mergeMessages } from '@/lib/utils';
+
+export interface MessageCacheEntry {
+  messages: Message[];
+  fetchedAt: number;
+  loading: boolean;
+  hasMore?: boolean;
+}
 
 interface InboxClientProps {
   initialConversations: ConversationWithDetails[];
@@ -280,7 +287,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   }, [filePreviewUrl]);
 
   // In-memory caching for instant 0ms chat switching
-  const messagesCacheRef = useRef<Map<string, Message[]>>(new Map());
+  const messagesCacheRef = useRef<Map<string, MessageCacheEntry>>(new Map());
 
   // Request counter for stale response protection on rapid switching (A -> B -> C)
   const requestCounterRef = useRef<number>(0);
@@ -380,61 +387,76 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       const convId = conv.id;
       if (selectedConvIdRef.current === convId) return;
 
-      // CRITICAL: Synchronously update ref immediately
+      // CRITICAL: Synchronously update ref & active state immediately (0ms UI transition)
       selectedConvIdRef.current = convId;
       setSelectedConvId(convId);
+      setActiveConv({ ...conv, unread_count: 0 });
 
-      // 1. Instant 0ms metadata render from list state
-      const targetActive = { ...conv, unread_count: 0 };
-      setActiveConv(targetActive);
-
-      // 2. Optimistically reset unread count in conversations array
+      // Reset unread count in conversation list state immediately
       setConversations((prev) =>
         prev.map((c) => (c.id === convId ? { ...c, unread_count: 0 } : c))
       );
 
-      // 3. Render cached messages immediately if present
-      const cachedMsgs = messagesCacheRef.current.get(convId);
-      if (cachedMsgs && cachedMsgs.length > 0) {
-        setMessages(cachedMsgs);
+      // Stale-response guard: increment request counter
+      requestCounterRef.current += 1;
+      const currentRequestId = requestCounterRef.current;
+
+      // Dispatch mark as read on server in background (NON-BLOCKING)
+      void markConversationAsRead(convId).catch((err) =>
+        console.warn("[Inbox] markConversationAsRead error:", err)
+      );
+
+      // Read from Cache: Render cached messages IMMEDIATELY without blocking spinner!
+      const cacheEntry = messagesCacheRef.current.get(convId);
+      if (cacheEntry && cacheEntry.messages.length > 0) {
+        setMessages(cacheEntry.messages);
         setIsLoadingMessages(false);
       } else {
+        // Cold cache / First open: show lightweight messages-area skeleton
         setMessages([]);
         setIsLoadingMessages(true);
       }
 
-      // 4. Stale-response guard: track request counter
-      requestCounterRef.current += 1;
-      const currentRequestId = requestCounterRef.current;
+      // Background SWR fetch: fetch missing/newer messages safely
+      const now = Date.now();
+      const isRecentlyFetched = cacheEntry && now - cacheEntry.fetchedAt < 3000;
 
-      // 5. Dispatch mark as read on server in background
-      void markConversationAsRead(convId).catch((err) =>
-        console.warn('[Inbox] markConversationAsRead error:', err)
-      );
+      if (!isRecentlyFetched) {
+        void getMessages(convId)
+          .then((serverMsgs) => {
+            const isStillCurrent =
+              selectedConvIdRef.current === convId &&
+              currentRequestId === requestCounterRef.current;
 
-      // 6. Fetch fresh messages (1 single query)
-      void getMessages(convId)
-        .then((freshMsgs) => {
-          // Stale response guard: discard if user already switched to another conversation
-          if (currentRequestId !== requestCounterRef.current) {
-            return;
-          }
-          setMessages(freshMsgs);
-          messagesCacheRef.current.set(convId, freshMsgs);
-        })
-        .catch((err) => {
-          console.error('[Inbox] Error loading messages:', err);
-        })
-        .finally(() => {
-          if (currentRequestId === requestCounterRef.current) {
-            setIsLoadingMessages(false);
-          }
-        });
+            const existingCached = messagesCacheRef.current.get(convId)?.messages || [];
+            const merged = mergeMessages(existingCached, serverMsgs);
 
-      // 7. Background enrich full conversation details (customer / lead details)
+            messagesCacheRef.current.set(convId, {
+              messages: merged,
+              fetchedAt: Date.now(),
+              loading: false,
+            });
+
+            if (isStillCurrent) {
+              setMessages(merged);
+              setIsLoadingMessages(false);
+            }
+          })
+          .catch((err) => {
+            console.error("[Inbox] Error loading background messages:", err);
+            if (
+              selectedConvIdRef.current === convId &&
+              currentRequestId === requestCounterRef.current
+            ) {
+              setIsLoadingMessages(false);
+            }
+          });
+      }
+
+      // Background enrich full conversation details (customer / lead details)
       void getConversationDetails(convId)
         .then((fullConv) => {
-          if (fullConv && currentRequestId === requestCounterRef.current) {
+          if (fullConv && selectedConvIdRef.current === convId && currentRequestId === requestCounterRef.current) {
             setActiveConv((prev) => {
               if (!prev || prev.id !== convId) return prev;
               return {
@@ -445,7 +467,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           }
         })
         .catch((err) => {
-          console.warn('[Inbox] Error enriching conversation details:', err);
+          console.warn("[Inbox] Error enriching conversation details:", err);
         });
     },
     []
@@ -466,7 +488,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       .then((freshMsgs) => {
         if (selectedConvIdRef.current === initialId) {
           setMessages(freshMsgs);
-          messagesCacheRef.current.set(initialId, freshMsgs);
+          messagesCacheRef.current.set(initialId, { messages: freshMsgs, fetchedAt: Date.now(), loading: false });
           setIsLoadingMessages(false);
         }
       })
@@ -478,7 +500,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     const topConvs = initialConversations.slice(1, 6);
     topConvs.forEach((c) => {
       void getMessages(c.id).then((msgs) => {
-        messagesCacheRef.current.set(c.id, msgs);
+        messagesCacheRef.current.set(c.id, { messages: msgs, fetchedAt: Date.now(), loading: false });
       });
     });
   }, [initialConversations]);
@@ -490,7 +512,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       if (!messagesCacheRef.current.has(c.id)) {
         void getMessages(c.id).then((msgs) => {
           if (msgs && msgs.length > 0) {
-            messagesCacheRef.current.set(c.id, msgs);
+            messagesCacheRef.current.set(c.id, { messages: msgs, fetchedAt: Date.now(), loading: false });
           }
         });
       }
@@ -545,7 +567,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   : m
               )
             : [...prev, newMsg];
-          messagesCacheRef.current.set(newMsg.conversation_id, updated);
+          messagesCacheRef.current.set(newMsg.conversation_id, { messages: updated, fetchedAt: Date.now(), loading: false });
           return updated;
         });
 
@@ -561,17 +583,13 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       } else {
         // Update cached messages if previously loaded
         const cached = messagesCacheRef.current.get(newMsg.conversation_id);
-        if (cached) {
-          const exists = cached.some(
-            (m) =>
-              m.id === newMsg.id ||
-              (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
-          );
-          const next = exists
-            ? cached.map((m) => (m.id === newMsg.id ? newMsg : m))
-            : [...cached, newMsg];
-          messagesCacheRef.current.set(newMsg.conversation_id, next);
-        }
+        const existingMsgs = cached ? cached.messages : [];
+        const next = mergeMessages(existingMsgs, [newMsg]);
+        messagesCacheRef.current.set(newMsg.conversation_id, {
+          messages: next,
+          fetchedAt: Date.now(),
+          loading: false,
+        });
       }
 
       // 2. Update conversation list directly in local state WITHOUT delay
@@ -746,7 +764,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         const next = [...prev.slice(0, msgIdx), updatedMsg, ...prev.slice(msgIdx + 1)];
         const activeId = selectedConvIdRef.current;
         if (activeId) {
-          messagesCacheRef.current.set(activeId, next);
+          messagesCacheRef.current.set(activeId, { messages: next, fetchedAt: Date.now(), loading: false });
         }
         return next;
       });
@@ -801,7 +819,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 prev.length !== freshMsgs.length ||
                 freshMsgs[freshMsgs.length - 1]?.id !== prev[prev.length - 1]?.id
               ) {
-                messagesCacheRef.current.set(activeId, freshMsgs);
+                messagesCacheRef.current.set(activeId, { messages: freshMsgs, fetchedAt: Date.now(), loading: false });
                 if (isNearBottomRef.current) {
                   setTimeout(() => scrollToBottom(true), 50);
                 }
@@ -892,7 +910,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       if (res.success && res.data) {
         setMessages((prev) => {
           const next = prev.map((m) => (m.id === tempId ? res.data! : m));
-          messagesCacheRef.current.set(convId, next);
+          messagesCacheRef.current.set(convId, { messages: next, fetchedAt: Date.now(), loading: false });
           return next;
         });
         setActiveConv((prev) =>
@@ -926,7 +944,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 }
               : m
           );
-          messagesCacheRef.current.set(convId, next);
+          messagesCacheRef.current.set(convId, { messages: next, fetchedAt: Date.now(), loading: false });
           return next;
         });
       }
@@ -1001,7 +1019,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       // 1. Instant optimistic state update
       setMessages((prev) => {
         const next = [...prev, optimisticMsg];
-        messagesCacheRef.current.set(selectedConvId, next);
+        messagesCacheRef.current.set(selectedConvId, { messages: next, fetchedAt: Date.now(), loading: false });
         return next;
       });
       setTimeout(() => scrollToBottom(true), 50);
@@ -1049,7 +1067,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         if (res.success && res.data) {
           setMessages((prev) => {
             const next = prev.map((m) => (m.id === tempId ? res.data! : m));
-            messagesCacheRef.current.set(selectedConvId, next);
+            messagesCacheRef.current.set(selectedConvId, { messages: next, fetchedAt: Date.now(), loading: false });
             return next;
           });
         } else {
@@ -1063,7 +1081,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   }
                 : m
             );
-            messagesCacheRef.current.set(selectedConvId, next);
+            messagesCacheRef.current.set(selectedConvId, { messages: next, fetchedAt: Date.now(), loading: false });
             return next;
           });
         }
@@ -1094,7 +1112,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     // 1. Instant optimistic state update
     setMessages((prev) => {
       const next = [...prev, optimisticMsg];
-      messagesCacheRef.current.set(selectedConvId, next);
+      messagesCacheRef.current.set(selectedConvId, { messages: next, fetchedAt: Date.now(), loading: false });
       return next;
     });
     setErrorMsg(null);
@@ -1141,7 +1159,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       if (res.success && res.data) {
         setMessages((prev) => {
           const next = prev.map((m) => (m.id === msgToRetry.id ? res.data! : m));
-          messagesCacheRef.current.set(selectedConvId, next);
+          messagesCacheRef.current.set(selectedConvId, { messages: next, fetchedAt: Date.now(), loading: false });
           return next;
         });
       } else {
@@ -1151,7 +1169,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               ? { ...m, status: 'failed' as const, error_detail: res.error || 'Retry failed' }
               : m
           );
-          messagesCacheRef.current.set(selectedConvId, next);
+          messagesCacheRef.current.set(selectedConvId, { messages: next, fetchedAt: Date.now(), loading: false });
           return next;
         });
       }
@@ -1898,19 +1916,27 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 }}
               >
                 {isLoadingMessages && messages.length === 0 ? (
-                  <div
-                    style={{
-                      margin: 'auto',
-                      textAlign: 'center',
-                      color: '#64748B',
-                      fontSize: '12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}
-                  >
-                    <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                    <span>Loading messages...</span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "12px 4px" }}>
+                    {/* Inbound Skeleton Bubble */}
+                    <div style={{ display: "flex", gap: "10px", maxWidth: "60%" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.08)", flexShrink: 0, animation: "pulse 1.5s ease-in-out infinite" }} />
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
+                        <div style={{ height: "10px", width: "70px", borderRadius: "4px", background: "rgba(255,255,255,0.08)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                        <div style={{ height: "40px", borderRadius: "12px", background: "rgba(255,255,255,0.08)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                      </div>
+                    </div>
+                    {/* Outbound Skeleton Bubble */}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px", alignSelf: "flex-end", width: "55%" }}>
+                      <div style={{ height: "10px", width: "40px", borderRadius: "4px", background: "rgba(56,189,248,0.15)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                      <div style={{ height: "36px", width: "100%", borderRadius: "12px", background: "rgba(56,189,248,0.15)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                    </div>
+                    {/* Inbound Skeleton Bubble 2 */}
+                    <div style={{ display: "flex", gap: "10px", maxWidth: "65%" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.08)", flexShrink: 0, animation: "pulse 1.5s ease-in-out infinite" }} />
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
+                        <div style={{ height: "48px", borderRadius: "12px", background: "rgba(255,255,255,0.08)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                      </div>
+                    </div>
                   </div>
                 ) : groupedMessages.length === 0 ? (
                   <div

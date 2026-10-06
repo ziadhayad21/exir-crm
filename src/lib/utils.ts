@@ -124,4 +124,78 @@ export function resolveConversationDisplayName(inputs: DisplayNameInputs): strin
   return 'Contact';
 }
 
+import type { Message } from '@/types';
+
+/**
+ * Safely merges cached/optimistic/realtime messages with incoming server messages.
+ * - Deduplicates by stable `id` and `external_message_id`.
+ * - Preserves optimistic pending messages (`temp_...` or `status === 'sending'`).
+ * - Preserves realtime incoming messages that arrived during background fetch.
+ * - Preserves enriched attachments / signed URLs.
+ * - Sorts strictly chronologically by timestamp.
+ */
+export function mergeMessages(cachedMsgs: Message[], serverMsgs: Message[]): Message[] {
+  if (!cachedMsgs || cachedMsgs.length === 0) return serverMsgs || [];
+  if (!serverMsgs || serverMsgs.length === 0) return cachedMsgs || [];
+
+  const map = new Map<string, Message>();
+  const extMap = new Map<string, string>(); // external_message_id -> id
+
+  // 1. Populate map with server messages first (authoritative persisted state)
+  for (const msg of serverMsgs) {
+    if (!msg || !msg.id) continue;
+    map.set(msg.id, msg);
+    if (msg.external_message_id) {
+      extMap.set(msg.external_message_id, msg.id);
+    }
+  }
+
+  // 2. Merge cached/optimistic/realtime messages
+  for (const msg of cachedMsgs) {
+    if (!msg || !msg.id) continue;
+    const isTemp = msg.id.startsWith('temp_') || msg.status === 'sending';
+    const existingById = map.get(msg.id);
+    const existingByExtId = msg.external_message_id ? extMap.get(msg.external_message_id) : null;
+
+    if (isTemp) {
+      // If server already returned a message matching external_message_id or same id, skip temp
+      if (existingByExtId || (existingById && existingById.status !== 'sending')) {
+        continue;
+      }
+      map.set(msg.id, msg);
+    } else if (!existingById && !existingByExtId) {
+      // Realtime message that arrived while server query was in flight
+      map.set(msg.id, msg);
+      if (msg.external_message_id) {
+        extMap.set(msg.external_message_id, msg.id);
+      }
+    } else if (existingById) {
+      // Merge attachments / signed URLs if server response missing signed_url
+      const mergedAtts =
+        msg.attachments && msg.attachments.length > 0
+          ? msg.attachments.map((cachedAtt) => {
+              const serverAtt = existingById.attachments?.find((sa) => sa.id === cachedAtt.id);
+              return {
+                ...(serverAtt || cachedAtt),
+                signed_url: serverAtt?.signed_url || cachedAtt.signed_url,
+              };
+            })
+          : existingById.attachments;
+
+      map.set(msg.id, {
+        ...existingById,
+        attachments: mergedAtts,
+        media_url: existingById.media_url || msg.media_url,
+      });
+    }
+  }
+
+  // 3. Sort chronologically by created_at / sent_at
+  return Array.from(map.values()).sort((a, b) => {
+    const timeA = new Date(a.created_at || a.sent_at || 0).getTime();
+    const timeB = new Date(b.created_at || b.sent_at || 0).getTime();
+    return timeA - timeB;
+  });
+}
+
 
