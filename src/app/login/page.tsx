@@ -36,32 +36,34 @@ export default function LoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, hsl(222 47% 11%) 0%, hsl(217 91% 20%) 50%, hsl(262 60% 20%) 100%)',
-        padding: '1rem',
+        backgroundColor: 'var(--background)',
+        padding: '1.5rem',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
-      {/* Decorative background elements */}
+      {/* Subtle gold glow (low-weight, non-heavy) */}
       <div
         style={{
           position: 'fixed',
-          top: '-20%',
+          top: '-15%',
           right: '-10%',
-          width: '600px',
-          height: '600px',
+          width: '550px',
+          height: '550px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, hsla(217 91% 50% / 0.15) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(242, 196, 106, 0.08) 0%, transparent 70%)',
           pointerEvents: 'none',
         }}
       />
       <div
         style={{
           position: 'fixed',
-          bottom: '-20%',
+          bottom: '-15%',
           left: '-10%',
           width: '500px',
           height: '500px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, hsla(262 83% 58% / 0.1) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(174, 172, 120, 0.08) 0%, transparent 70%)',
           pointerEvents: 'none',
         }}
       />
@@ -70,7 +72,7 @@ export default function LoginPage() {
         className="animate-fade-in"
         style={{
           width: '100%',
-          maxWidth: '420px',
+          maxWidth: '400px',
           position: 'relative',
           zIndex: 1,
         }}
@@ -87,22 +89,24 @@ export default function LoginPage() {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '64px',
-              height: '64px',
-              borderRadius: '16px',
-              background: 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
+              width: '56px',
+              height: '56px',
+              borderRadius: '14px',
+              backgroundColor: 'var(--primary)',
+              color: 'var(--primary-foreground)',
               marginBottom: '1rem',
-              boxShadow: '0 8px 32px hsla(217 91% 50% / 0.3)',
+              boxShadow: '0 4px 12px rgba(76, 69, 65, 0.08)',
+              border: '1px solid rgba(174, 172, 120, 0.35)',
             }}
           >
-            <Plane size={32} color="white" />
+            <Plane size={28} />
           </div>
           <h1
             style={{
-              fontSize: '1.75rem',
+              fontSize: '1.625rem',
               fontWeight: 700,
-              color: 'white',
-              letterSpacing: '-0.025em',
+              color: 'var(--foreground)',
+              letterSpacing: '-0.02em',
             }}
           >
             El-Exir
@@ -110,7 +114,7 @@ export default function LoginPage() {
           <p
             style={{
               fontSize: '0.875rem',
-              color: 'hsla(220 14% 80% / 0.8)',
+              color: 'var(--muted-foreground)',
               marginTop: '0.25rem',
             }}
           >
@@ -121,19 +125,18 @@ export default function LoginPage() {
         {/* Login Card */}
         <div
           style={{
-            background: 'hsla(0 0% 100% / 0.06)',
-            backdropFilter: 'blur(24px)',
-            border: '1px solid hsla(0 0% 100% / 0.1)',
-            borderRadius: '1rem',
+            backgroundColor: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: '0.75rem',
             padding: '2rem',
-            boxShadow: '0 24px 48px hsla(0 0% 0% / 0.2)',
+            boxShadow: '0 8px 24px -4px rgba(76, 69, 65, 0.06)',
           }}
         >
           <h2
             style={{
               fontSize: '1.25rem',
               fontWeight: 600,
-              color: 'white',
+              color: 'var(--foreground)',
               marginBottom: '0.25rem',
             }}
           >
@@ -142,7 +145,7 @@ export default function LoginPage() {
           <p
             style={{
               fontSize: '0.875rem',
-              color: 'hsla(220 14% 80% / 0.7)',
+              color: 'var(--muted-foreground)',
               marginBottom: '1.5rem',
             }}
           >
@@ -153,12 +156,12 @@ export default function LoginPage() {
             <div
               style={{
                 padding: '0.75rem 1rem',
-                background: 'hsla(0 72% 51% / 0.15)',
-                border: '1px solid hsla(0 72% 51% / 0.3)',
-                borderRadius: '0.5rem',
-                color: 'hsl(0 72% 70%)',
+                backgroundColor: 'var(--destructive)',
+                border: '1px solid var(--destructive-border)',
+                borderRadius: 'var(--radius)',
+                color: 'var(--destructive-foreground)',
                 fontSize: '0.875rem',
-                marginBottom: '1rem',
+                marginBottom: '1.25rem',
               }}
             >
               {error}
@@ -173,7 +176,7 @@ export default function LoginPage() {
                   display: 'block',
                   fontSize: '0.8125rem',
                   fontWeight: 500,
-                  color: 'hsla(220 14% 80% / 0.9)',
+                  color: 'var(--foreground)',
                   marginBottom: '0.5rem',
                 }}
               >
@@ -189,21 +192,21 @@ export default function LoginPage() {
                 disabled={isPending}
                 style={{
                   width: '100%',
-                  padding: '0.75rem 1rem',
+                  padding: '0.6875rem 0.875rem',
                   fontSize: '0.9375rem',
-                  background: 'hsla(0 0% 100% / 0.07)',
-                  border: '1px solid hsla(0 0% 100% / 0.12)',
-                  borderRadius: '0.5rem',
-                  color: 'white',
+                  backgroundColor: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  color: 'var(--foreground)',
                   outline: 'none',
-                  transition: 'border-color 0.2s, box-shadow 0.2s',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = 'hsl(217 91% 50%)';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px hsla(217 91% 50% / 0.2)';
+                  e.currentTarget.style.borderColor = 'var(--border-strong)';
+                  e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'hsla(0 0% 100% / 0.12)';
+                  e.currentTarget.style.borderColor = 'var(--border)';
                   e.currentTarget.style.boxShadow = 'none';
                 }}
               />
@@ -216,7 +219,7 @@ export default function LoginPage() {
                   display: 'block',
                   fontSize: '0.8125rem',
                   fontWeight: 500,
-                  color: 'hsla(220 14% 80% / 0.9)',
+                  color: 'var(--foreground)',
                   marginBottom: '0.5rem',
                 }}
               >
@@ -233,21 +236,21 @@ export default function LoginPage() {
                   disabled={isPending}
                   style={{
                     width: '100%',
-                    padding: '0.75rem 3rem 0.75rem 1rem',
+                    padding: '0.6875rem 2.75rem 0.6875rem 0.875rem',
                     fontSize: '0.9375rem',
-                    background: 'hsla(0 0% 100% / 0.07)',
-                    border: '1px solid hsla(0 0% 100% / 0.12)',
-                    borderRadius: '0.5rem',
-                    color: 'white',
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
+                    color: 'var(--foreground)',
                     outline: 'none',
-                    transition: 'border-color 0.2s, box-shadow 0.2s',
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
                   }}
                   onFocus={(e) => {
-                    e.currentTarget.style.borderColor = 'hsl(217 91% 50%)';
-                    e.currentTarget.style.boxShadow = '0 0 0 3px hsla(217 91% 50% / 0.2)';
+                    e.currentTarget.style.borderColor = 'var(--border-strong)';
+                    e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
                   }}
                   onBlur={(e) => {
-                    e.currentTarget.style.borderColor = 'hsla(0 0% 100% / 0.12)';
+                    e.currentTarget.style.borderColor = 'var(--border)';
                     e.currentTarget.style.boxShadow = 'none';
                   }}
                 />
@@ -261,7 +264,7 @@ export default function LoginPage() {
                     transform: 'translateY(-50%)',
                     background: 'none',
                     border: 'none',
-                    color: 'hsla(220 14% 80% / 0.6)',
+                    color: 'var(--muted-foreground)',
                     cursor: 'pointer',
                     padding: '0.25rem',
                     display: 'flex',
@@ -282,19 +285,23 @@ export default function LoginPage() {
                 padding: '0.75rem',
                 fontSize: '0.9375rem',
                 fontWeight: 600,
-                color: 'white',
-                background: isPending
-                  ? 'hsl(217 91% 40%)'
-                  : 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
-                border: 'none',
-                borderRadius: '0.5rem',
+                color: 'var(--primary-foreground)',
+                backgroundColor: 'var(--primary)',
+                border: '1px solid rgba(174, 172, 120, 0.4)',
+                borderRadius: 'var(--radius)',
                 cursor: isPending ? 'not-allowed' : 'pointer',
-                transition: 'opacity 0.2s, transform 0.1s',
-                boxShadow: '0 4px 16px hsla(217 91% 50% / 0.3)',
+                transition: 'background-color 0.15s, transform 0.1s',
+                boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.5rem',
+              }}
+              onMouseEnter={(e) => {
+                if (!isPending) e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
+              }}
+              onMouseLeave={(e) => {
+                if (!isPending) e.currentTarget.style.backgroundColor = 'var(--primary)';
               }}
             >
               {isPending ? (
@@ -313,7 +320,7 @@ export default function LoginPage() {
           style={{
             textAlign: 'center',
             fontSize: '0.75rem',
-            color: 'hsla(220 14% 80% / 0.4)',
+            color: 'var(--muted-foreground)',
             marginTop: '1.5rem',
           }}
         >
