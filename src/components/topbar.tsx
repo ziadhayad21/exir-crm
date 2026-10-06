@@ -31,8 +31,8 @@ export function Topbar({ user }: TopbarProps) {
     <header
       style={{
         height: '64px',
-        background: 'white',
-        borderBottom: '1px solid hsl(220 13% 91%)',
+        backgroundColor: 'var(--card)',
+        borderBottom: '1px solid var(--border)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -54,17 +54,17 @@ export function Topbar({ user }: TopbarProps) {
             alignItems: 'center',
             gap: '0.75rem',
             padding: '0.5rem 0.75rem',
-            borderRadius: '0.5rem',
+            borderRadius: 'var(--radius)',
             border: '1px solid transparent',
-            background: 'transparent',
+            backgroundColor: 'transparent',
             cursor: 'pointer',
-            transition: 'all 0.15s ease',
+            transition: 'background-color 0.15s ease',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'hsl(220 14% 96%)';
+            e.currentTarget.style.backgroundColor = 'var(--hover)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.backgroundColor = 'transparent';
           }}
           aria-label="User menu"
         >
@@ -73,13 +73,15 @@ export function Topbar({ user }: TopbarProps) {
               width: '36px',
               height: '36px',
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
+              backgroundColor: 'var(--primary)',
+              color: 'var(--primary-foreground)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'white',
               fontWeight: 600,
               fontSize: '0.875rem',
+              border: '1px solid rgba(174, 172, 120, 0.4)',
+              boxShadow: '0 1px 3px rgba(76, 69, 65, 0.08)',
             }}
           >
             {user.employee.full_name
@@ -94,7 +96,7 @@ export function Topbar({ user }: TopbarProps) {
               style={{
                 fontSize: '0.875rem',
                 fontWeight: 600,
-                color: 'hsl(222 47% 11%)',
+                color: 'var(--foreground)',
               }}
             >
               {user.employee.full_name}
@@ -102,7 +104,7 @@ export function Topbar({ user }: TopbarProps) {
             <div
               style={{
                 fontSize: '0.75rem',
-                color: 'hsl(220 8% 46%)',
+                color: 'var(--muted-foreground)',
               }}
             >
               {primaryRole}
@@ -111,7 +113,7 @@ export function Topbar({ user }: TopbarProps) {
           <ChevronDown
             size={16}
             style={{
-              color: 'hsl(220 8% 46%)',
+              color: 'var(--muted-foreground)',
               transform: menuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
               transition: 'transform 0.2s ease',
             }}
@@ -127,10 +129,10 @@ export function Topbar({ user }: TopbarProps) {
               right: 0,
               top: 'calc(100% + 4px)',
               width: '240px',
-              background: 'white',
-              borderRadius: '0.75rem',
-              border: '1px solid hsl(220 13% 91%)',
-              boxShadow: '0 10px 40px hsla(0 0% 0% / 0.12)',
+              backgroundColor: 'var(--card)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
+              boxShadow: '0 10px 25px -5px rgba(76, 69, 65, 0.1), 0 4px 6px -2px rgba(76, 69, 65, 0.05)',
               overflow: 'hidden',
               zIndex: 50,
             }}
@@ -139,14 +141,14 @@ export function Topbar({ user }: TopbarProps) {
             <div
               style={{
                 padding: '1rem',
-                borderBottom: '1px solid hsl(220 13% 91%)',
+                borderBottom: '1px solid var(--border)',
               }}
             >
               <div
                 style={{
                   fontSize: '0.875rem',
                   fontWeight: 600,
-                  color: 'hsl(222 47% 11%)',
+                  color: 'var(--foreground)',
                 }}
               >
                 {user.employee.full_name}
@@ -154,7 +156,7 @@ export function Topbar({ user }: TopbarProps) {
               <div
                 style={{
                   fontSize: '0.75rem',
-                  color: 'hsl(220 8% 46%)',
+                  color: 'var(--muted-foreground)',
                   marginTop: '2px',
                 }}
               >
@@ -177,8 +179,9 @@ export function Topbar({ user }: TopbarProps) {
                       fontSize: '0.6875rem',
                       fontWeight: 500,
                       borderRadius: '999px',
-                      background: 'hsla(217 91% 50% / 0.1)',
-                      color: 'hsl(217 91% 40%)',
+                      backgroundColor: 'var(--accent)',
+                      color: 'var(--foreground)',
+                      border: '1px solid var(--border)',
                     }}
                   >
                     {role.name}
@@ -195,9 +198,9 @@ export function Topbar({ user }: TopbarProps) {
                   alignItems: 'center',
                   gap: '0.625rem',
                   padding: '0.5rem 0.75rem',
-                  borderRadius: '0.375rem',
+                  borderRadius: 'calc(var(--radius) - 2px)',
                   fontSize: '0.875rem',
-                  color: 'hsl(220 8% 46%)',
+                  color: 'var(--muted-foreground)',
                   cursor: 'default',
                 }}
               >
@@ -207,7 +210,8 @@ export function Topbar({ user }: TopbarProps) {
                   style={{
                     marginLeft: 'auto',
                     fontSize: '0.6875rem',
-                    color: 'hsl(220 8% 70%)',
+                    color: 'var(--muted-foreground)',
+                    opacity: 0.7,
                   }}
                 >
                   Phase 2
@@ -218,7 +222,7 @@ export function Topbar({ user }: TopbarProps) {
             <div
               style={{
                 padding: '0.5rem',
-                borderTop: '1px solid hsl(220 13% 91%)',
+                borderTop: '1px solid var(--border)',
               }}
             >
               <form action={logoutAction}>
@@ -229,18 +233,18 @@ export function Topbar({ user }: TopbarProps) {
                     alignItems: 'center',
                     gap: '0.625rem',
                     padding: '0.5rem 0.75rem',
-                    borderRadius: '0.375rem',
+                    borderRadius: 'calc(var(--radius) - 2px)',
                     fontSize: '0.875rem',
-                    color: 'hsl(0 72% 51%)',
+                    color: 'var(--destructive-foreground)',
                     background: 'transparent',
                     border: 'none',
                     cursor: 'pointer',
                     width: '100%',
                     textAlign: 'left',
-                    transition: 'background 0.15s ease',
+                    transition: 'background-color 0.15s ease',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'hsla(0 72% 51% / 0.05)';
+                    e.currentTarget.style.backgroundColor = 'var(--destructive)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent';

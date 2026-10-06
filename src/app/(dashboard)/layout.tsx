@@ -16,7 +16,7 @@ export default async function DashboardLayout({
 
   return (
     <HeartbeatProvider user={user}>
-      <div style={{ display: 'flex', minHeight: '100vh' }}>
+      <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--background)' }}>
         <Sidebar user={user} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <Topbar user={user} />
@@ -24,7 +24,8 @@ export default async function DashboardLayout({
             style={{
               flex: 1,
               padding: '1.5rem',
-              background: 'hsl(220 14% 96%)',
+              backgroundColor: 'var(--background)',
+              color: 'var(--foreground)',
               overflowY: 'auto',
             }}
           >
@@ -35,4 +36,3 @@ export default async function DashboardLayout({
     </HeartbeatProvider>
   );
 }
-

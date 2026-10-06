@@ -24,7 +24,7 @@ export default function DashboardLoading() {
           alignItems: 'center',
           gap: '1rem',
           paddingBottom: '1rem',
-          borderBottom: '1px solid hsla(220 13% 91% / 1)',
+          borderBottom: '1px solid var(--border)',
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -33,7 +33,7 @@ export default function DashboardLoading() {
               width: '180px',
               height: '28px',
               borderRadius: '6px',
-              background: 'linear-gradient(90deg, #E2E8F0 25%, #EDF2F7 50%, #E2E8F0 75%)',
+              background: 'linear-gradient(90deg, #F3F1DF 25%, #FAF8EE 50%, #F3F1DF 75%)',
               backgroundSize: '200% 100%',
               animation: 'shimmer 1.5s infinite',
             }}
@@ -43,7 +43,7 @@ export default function DashboardLoading() {
               width: '260px',
               height: '16px',
               borderRadius: '4px',
-              background: 'linear-gradient(90deg, #E2E8F0 25%, #EDF2F7 50%, #E2E8F0 75%)',
+              background: 'linear-gradient(90deg, #F3F1DF 25%, #FAF8EE 50%, #F3F1DF 75%)',
               backgroundSize: '200% 100%',
               animation: 'shimmer 1.5s infinite',
             }}
@@ -56,7 +56,7 @@ export default function DashboardLoading() {
               width: '100px',
               height: '36px',
               borderRadius: '6px',
-              background: '#E2E8F0',
+              background: '#F3F1DF',
             }}
           />
           <div
@@ -64,7 +64,7 @@ export default function DashboardLoading() {
               width: '110px',
               height: '36px',
               borderRadius: '6px',
-              background: '#E2E8F0',
+              background: '#F3F1DF',
             }}
           />
         </div>
@@ -83,13 +83,13 @@ export default function DashboardLoading() {
             key={i}
             style={{
               padding: '1.25rem',
-              borderRadius: '8px',
-              background: '#FFFFFF',
-              border: '1px solid #E2E8F0',
+              borderRadius: 'var(--radius)',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
               display: 'flex',
               flexDirection: 'column',
               gap: '10px',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+              boxShadow: '0 1px 3px rgba(76, 69, 65, 0.04)',
             }}
           >
             <div
@@ -97,82 +97,83 @@ export default function DashboardLoading() {
                 width: '80px',
                 height: '14px',
                 borderRadius: '4px',
-                background: '#E2E8F0',
+                background: '#F3F1DF',
               }}
             />
             <div
               style={{
                 width: '120px',
-                height: '24px',
+                height: '28px',
+                borderRadius: '6px',
+                background: 'linear-gradient(90deg, #F3F1DF 25%, #FAF8EE 50%, #F3F1DF 75%)',
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 1.5s infinite',
+              }}
+            />
+            <div
+              style={{
+                width: '150px',
+                height: '12px',
                 borderRadius: '4px',
-                background: '#CBD5E1',
+                background: '#F3F1DF',
               }}
             />
           </div>
         ))}
       </div>
 
-      {/* Main Content Area Skeleton (Table / List) */}
+      {/* Main Content / Table Skeleton */}
       <div
         style={{
-          background: '#FFFFFF',
-          borderRadius: '8px',
-          border: '1px solid #E2E8F0',
-          padding: '1.25rem',
+          background: 'var(--card)',
+          borderRadius: 'var(--radius)',
+          border: '1px solid var(--border)',
+          padding: '1.5rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '1rem',
-          minHeight: '400px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+          gap: '1.25rem',
+          boxShadow: '0 1px 3px rgba(76, 69, 65, 0.04)',
         }}
       >
-        {/* Table Toolbar */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div
             style={{
-              width: '240px',
-              height: '36px',
-              borderRadius: '6px',
-              background: '#E2E8F0',
+              width: '160px',
+              height: '20px',
+              borderRadius: '4px',
+              background: '#F3F1DF',
             }}
           />
           <div
             style={{
-              width: '140px',
-              height: '36px',
+              width: '200px',
+              height: '32px',
               borderRadius: '6px',
-              background: '#E2E8F0',
+              background: '#F3F1DF',
             }}
           />
         </div>
 
-        {/* Rows */}
+        {/* Table Rows */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <div
               key={i}
               style={{
-                height: '48px',
+                height: '44px',
                 borderRadius: '6px',
-                background: i % 2 === 0 ? '#F8FAFC' : '#FFFFFF',
-                border: '1px solid #F1F5F9',
+                background: i % 2 === 0 ? 'var(--surface-muted)' : '#FFFFFF',
+                border: '1px solid rgba(174, 172, 120, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 padding: '0 1rem',
-                gap: '1.5rem',
+                gap: '1rem',
               }}
             >
-              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#E2E8F0' }} />
-              <div style={{ width: '140px', height: '14px', borderRadius: '4px', background: '#E2E8F0' }} />
-              <div style={{ width: '100px', height: '14px', borderRadius: '4px', background: '#E2E8F0' }} />
-              <div style={{ flex: 1 }} />
-              <div style={{ width: '80px', height: '14px', borderRadius: '4px', background: '#E2E8F0' }} />
+              <div style={{ width: '20px', height: '20px', borderRadius: '4px', background: '#F3F1DF' }} />
+              <div style={{ width: '140px', height: '14px', borderRadius: '4px', background: '#F3F1DF' }} />
+              <div style={{ width: '90px', height: '14px', borderRadius: '4px', background: '#F3F1DF' }} />
+              <div style={{ width: '110px', height: '14px', borderRadius: '4px', background: '#F3F1DF', marginLeft: 'auto' }} />
             </div>
           ))}
         </div>
@@ -184,8 +185,8 @@ export default function DashboardLoading() {
           100% { background-position: 200% 0; }
         }
         @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>

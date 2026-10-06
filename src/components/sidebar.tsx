@@ -61,6 +61,12 @@ const navItems: NavItem[] = [
         permissionKeys: ['crm.inbox.read_own', 'crm.inbox.read_all'],
       },
       {
+        label: 'Customers',
+        href: '/crm/customers',
+        icon: <Users size={18} />,
+        permissionKeys: ['crm.customers.read_own', 'crm.customers.read_all'],
+      },
+      {
         label: 'Leads',
         href: '/crm/leads',
         icon: <Inbox size={18} />,
@@ -73,27 +79,53 @@ const navItems: NavItem[] = [
         permissionKeys: ['crm.deals.read_own', 'crm.deals.read_all'],
       },
       {
-        label: 'Customers',
-        href: '/crm/customers',
-        icon: <Users size={18} />,
-        permissionKeys: ['crm.customers.read_own', 'crm.customers.read_all'],
+        label: 'Pipeline',
+        href: '/crm/pipeline',
+        icon: <Briefcase size={18} />,
+        permissionKeys: ['crm.deals.read_own', 'crm.deals.read_all'],
+      },
+      {
+        label: 'Services',
+        href: '/crm/services',
+        icon: <Plane size={18} />,
+        permissionKeys: ['crm.deals.read_own', 'crm.deals.read_all'],
       },
     ],
   },
   {
-    label: 'Administration',
+    label: 'Admin',
     href: '/admin',
     icon: <Shield size={20} />,
-    permissionKey: 'admin.system',
+    permissionKey: 'admin.manage_users',
+    children: [
+      {
+        label: 'Employees',
+        href: '/admin/employees',
+        icon: <Users size={18} />,
+        permissionKey: 'admin.manage_users',
+      },
+      {
+        label: 'Roles',
+        href: '/admin/roles',
+        icon: <Shield size={18} />,
+        permissionKey: 'admin.manage_users',
+      },
+      {
+        label: 'Permissions',
+        href: '/admin/permissions',
+        icon: <Shield size={18} />,
+        permissionKey: 'admin.manage_users',
+      },
+    ],
   },
 ];
 
 function isItemVisible(item: NavItem, user: CurrentUser): boolean {
-  if (item.permissionKey && !hasPermission(user, item.permissionKey)) {
-    return false;
+  if (item.permissionKey) {
+    return hasPermission(user, item.permissionKey);
   }
-  if (item.permissionKeys && !hasAnyPermission(user, item.permissionKeys)) {
-    return false;
+  if (item.permissionKeys) {
+    return hasAnyPermission(user, item.permissionKeys);
   }
   return true;
 }
@@ -129,20 +161,21 @@ export function Sidebar({ user }: SidebarProps) {
       style={{
         width: collapsed ? '72px' : '256px',
         minHeight: '100vh',
-        background: 'hsl(222 47% 11%)',
-        borderRight: '1px solid hsla(0 0% 100% / 0.06)',
+        backgroundColor: 'var(--sidebar-bg)',
+        borderInlineEnd: '1px solid var(--border)',
         display: 'flex',
         flexDirection: 'column',
-        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         position: 'relative',
         flexShrink: 0,
+        boxShadow: '1px 0 3px 0 rgba(76, 69, 65, 0.03)',
       }}
     >
       {/* Logo Area */}
       <div
         style={{
           padding: collapsed ? '1.25rem 0.75rem' : '1.25rem 1.25rem',
-          borderBottom: '1px solid hsla(0 0% 100% / 0.06)',
+          borderBottom: '1px solid var(--border)',
           display: 'flex',
           alignItems: 'center',
           gap: '0.75rem',
@@ -154,14 +187,17 @@ export function Sidebar({ user }: SidebarProps) {
             width: '40px',
             height: '40px',
             borderRadius: '10px',
-            background: 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
+            backgroundColor: 'var(--primary)',
+            color: 'var(--primary-foreground)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
+            border: '1px solid rgba(174, 172, 120, 0.4)',
+            boxShadow: '0 2px 4px rgba(76, 69, 65, 0.06)',
           }}
         >
-          <Plane size={22} color="white" />
+          <Plane size={22} />
         </div>
         {!collapsed && (
           <div style={{ whiteSpace: 'nowrap' }}>
@@ -169,8 +205,8 @@ export function Sidebar({ user }: SidebarProps) {
               style={{
                 fontSize: '1rem',
                 fontWeight: 700,
-                color: 'white',
-                letterSpacing: '-0.025em',
+                color: 'var(--foreground)',
+                letterSpacing: '-0.02em',
               }}
             >
               El-Exir
@@ -178,8 +214,9 @@ export function Sidebar({ user }: SidebarProps) {
             <div
               style={{
                 fontSize: '0.6875rem',
-                color: 'hsla(220 14% 80% / 0.5)',
+                color: 'var(--muted-foreground)',
                 marginTop: '-2px',
+                fontWeight: 500,
               }}
             >
               Tourism ERP
@@ -217,27 +254,25 @@ export function Sidebar({ user }: SidebarProps) {
                       alignItems: 'center',
                       gap: '0.75rem',
                       padding: '0.625rem 0.875rem',
-                      borderRadius: '0.5rem',
+                      borderRadius: 'var(--radius)',
                       border: 'none',
                       fontSize: '0.875rem',
                       fontWeight: isParentActive ? 600 : 500,
-                      color: isParentActive ? 'white' : 'hsl(220 14% 65%)',
-                      background: isParentActive ? 'hsla(217 91% 50% / 0.12)' : 'transparent',
+                      color: 'var(--foreground)',
+                      backgroundColor: isParentActive ? 'var(--hover)' : 'transparent',
                       cursor: 'pointer',
                       textAlign: 'left',
-                      transition: 'all 0.15s ease',
+                      transition: 'background-color 0.15s ease',
                       width: '100%',
                     }}
                     onMouseEnter={(e) => {
                       if (!isParentActive) {
-                        e.currentTarget.style.background = 'hsla(0 0% 100% / 0.05)';
-                        e.currentTarget.style.color = 'hsl(220 14% 85%)';
+                        e.currentTarget.style.backgroundColor = 'var(--hover)';
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (!isParentActive) {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = 'hsl(220 14% 65%)';
+                        e.currentTarget.style.backgroundColor = 'transparent';
                       }
                     }}
                   >
@@ -248,7 +283,7 @@ export function Sidebar({ user }: SidebarProps) {
                       style={{
                         transform: crmOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
                         transition: 'transform 0.2s ease',
-                        opacity: 0.6,
+                        color: 'var(--muted-foreground)',
                       }}
                     />
                   </button>
@@ -259,7 +294,7 @@ export function Sidebar({ user }: SidebarProps) {
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '2px',
-                        paddingLeft: '1rem',
+                        paddingInlineStart: '1rem',
                         marginTop: '2px',
                       }}
                     >
@@ -275,14 +310,12 @@ export function Sidebar({ user }: SidebarProps) {
                             onMouseEnter={(e) => {
                               router.prefetch(child.href);
                               if (!isChildActive) {
-                                e.currentTarget.style.background = 'hsla(0 0% 100% / 0.05)';
-                                e.currentTarget.style.color = 'hsl(220 14% 85%)';
+                                e.currentTarget.style.backgroundColor = 'var(--hover)';
                               }
                             }}
                             onMouseLeave={(e) => {
                               if (!isChildActive) {
-                                e.currentTarget.style.background = 'transparent';
-                                e.currentTarget.style.color = 'hsl(220 14% 60%)';
+                                e.currentTarget.style.backgroundColor = 'transparent';
                               }
                             }}
                             style={{
@@ -290,13 +323,13 @@ export function Sidebar({ user }: SidebarProps) {
                               alignItems: 'center',
                               gap: '0.625rem',
                               padding: '0.5rem 0.75rem',
-                              borderRadius: '0.375rem',
+                              borderRadius: 'calc(var(--radius) - 2px)',
                               textDecoration: 'none',
                               fontSize: '0.8125rem',
-                              fontWeight: isChildActive ? 600 : 400,
-                              color: isChildActive ? 'white' : 'hsl(220 14% 60%)',
-                              background: isChildActive
-                                ? 'hsla(217 91% 50% / 0.18)'
+                              fontWeight: isChildActive ? 600 : 500,
+                              color: 'var(--foreground)',
+                              backgroundColor: isChildActive
+                                ? 'var(--selected)'
                                 : 'transparent',
                               transition: 'all 0.15s ease',
                               position: 'relative',
@@ -306,13 +339,13 @@ export function Sidebar({ user }: SidebarProps) {
                               <div
                                 style={{
                                   position: 'absolute',
-                                  left: 0,
+                                  insetInlineStart: 0,
                                   top: '50%',
                                   transform: 'translateY(-50%)',
                                   width: '3px',
                                   height: '60%',
                                   borderRadius: '0 2px 2px 0',
-                                  background: 'hsl(217 91% 50%)',
+                                  backgroundColor: 'var(--ink)',
                                 }}
                               />
                             )}
@@ -340,14 +373,12 @@ export function Sidebar({ user }: SidebarProps) {
                 onMouseEnter={(e) => {
                   router.prefetch(targetHref);
                   if (!isActive) {
-                    e.currentTarget.style.background = 'hsla(0 0% 100% / 0.05)';
-                    e.currentTarget.style.color = 'hsl(220 14% 85%)';
+                    e.currentTarget.style.backgroundColor = 'var(--hover)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = 'hsl(220 14% 65%)';
+                    e.currentTarget.style.backgroundColor = 'transparent';
                   }
                 }}
                 style={{
@@ -355,12 +386,12 @@ export function Sidebar({ user }: SidebarProps) {
                   alignItems: 'center',
                   gap: '0.75rem',
                   padding: collapsed ? '0.625rem' : '0.625rem 0.875rem',
-                  borderRadius: '0.5rem',
+                  borderRadius: 'var(--radius)',
                   textDecoration: 'none',
                   fontSize: '0.875rem',
-                  fontWeight: isActive ? 600 : 400,
-                  color: isActive ? 'white' : 'hsl(220 14% 65%)',
-                  background: isActive ? 'hsla(217 91% 50% / 0.15)' : 'transparent',
+                  fontWeight: isActive ? 600 : 500,
+                  color: 'var(--foreground)',
+                  backgroundColor: isActive ? 'var(--selected)' : 'transparent',
                   transition: 'all 0.15s ease',
                   justifyContent: collapsed ? 'center' : 'flex-start',
                   overflow: 'hidden',
@@ -372,13 +403,13 @@ export function Sidebar({ user }: SidebarProps) {
                   <div
                     style={{
                       position: 'absolute',
-                      left: 0,
+                      insetInlineStart: 0,
                       top: '50%',
                       transform: 'translateY(-50%)',
                       width: '3px',
                       height: '60%',
                       borderRadius: '0 2px 2px 0',
-                      background: 'hsl(217 91% 50%)',
+                      backgroundColor: 'var(--ink)',
                     }}
                   />
                 )}
@@ -395,28 +426,27 @@ export function Sidebar({ user }: SidebarProps) {
         onClick={() => setCollapsed(!collapsed)}
         style={{
           position: 'absolute',
-          right: '-12px',
+          insetInlineEnd: '-12px',
           top: '72px',
           width: '24px',
           height: '24px',
           borderRadius: '50%',
-          background: 'hsl(222 47% 18%)',
-          border: '1px solid hsla(0 0% 100% / 0.1)',
-          color: 'hsl(220 14% 65%)',
+          backgroundColor: 'var(--surface)',
+          border: '1px solid var(--border)',
+          color: 'var(--foreground)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
           zIndex: 10,
+          boxShadow: '0 2px 5px rgba(76, 69, 65, 0.08)',
           transition: 'all 0.15s ease',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'hsl(222 47% 24%)';
-          e.currentTarget.style.color = 'white';
+          e.currentTarget.style.backgroundColor = 'var(--hover)';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'hsl(222 47% 18%)';
-          e.currentTarget.style.color = 'hsl(220 14% 65%)';
+          e.currentTarget.style.backgroundColor = 'var(--surface)';
         }}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
