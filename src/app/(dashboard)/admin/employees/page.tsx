@@ -25,7 +25,8 @@ export default async function EmployeesPage() {
             style={{
               fontSize: '1.5rem',
               fontWeight: 700,
-              color: 'hsl(222 47% 11%)',
+              color: 'var(--foreground)',
+              letterSpacing: '-0.02em',
             }}
           >
             Employee Management
@@ -33,7 +34,7 @@ export default async function EmployeesPage() {
           <p
             style={{
               fontSize: '0.875rem',
-              color: 'hsl(220 8% 46%)',
+              color: 'var(--muted-foreground)',
               marginTop: '0.25rem',
             }}
           >

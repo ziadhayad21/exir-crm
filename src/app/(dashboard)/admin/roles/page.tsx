@@ -14,7 +14,8 @@ export default async function RolesPage() {
           style={{
             fontSize: '1.5rem',
             fontWeight: 700,
-            color: 'hsl(222 47% 11%)',
+            color: 'var(--foreground)',
+            letterSpacing: '-0.02em',
           }}
         >
           Roles
@@ -22,7 +23,7 @@ export default async function RolesPage() {
         <p
           style={{
             fontSize: '0.875rem',
-            color: 'hsl(220 8% 46%)',
+            color: 'var(--muted-foreground)',
             marginTop: '0.25rem',
           }}
         >
@@ -41,11 +42,11 @@ export default async function RolesPage() {
           <div
             key={role.id}
             style={{
-              background: 'white',
-              borderRadius: '0.75rem',
-              border: '1px solid hsl(220 13% 91%)',
+              backgroundColor: 'var(--card)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
               padding: '1.25rem',
-              transition: 'box-shadow 0.2s ease',
+              boxShadow: '0 1px 3px rgba(76, 69, 65, 0.04)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -53,13 +54,14 @@ export default async function RolesPage() {
                 style={{
                   width: '40px',
                   height: '40px',
-                  borderRadius: '0.625rem',
-                  background: 'hsla(217 91% 50% / 0.1)',
+                  borderRadius: 'var(--radius)',
+                  backgroundColor: 'rgba(242, 196, 106, 0.25)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: 'hsl(217 91% 50%)',
+                  color: 'var(--foreground)',
                   flexShrink: 0,
+                  border: '1px solid var(--border)',
                 }}
               >
                 <Shield size={20} />
@@ -69,7 +71,7 @@ export default async function RolesPage() {
                   style={{
                     fontSize: '0.9375rem',
                     fontWeight: 600,
-                    color: 'hsl(222 47% 11%)',
+                    color: 'var(--foreground)',
                   }}
                 >
                   {role.name}
@@ -77,7 +79,7 @@ export default async function RolesPage() {
                 <p
                   style={{
                     fontSize: '0.8125rem',
-                    color: 'hsl(220 8% 46%)',
+                    color: 'var(--muted-foreground)',
                     marginTop: '2px',
                   }}
                 >

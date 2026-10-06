@@ -25,7 +25,8 @@ export default async function PermissionsPage() {
           style={{
             fontSize: '1.5rem',
             fontWeight: 700,
-            color: 'hsl(222 47% 11%)',
+            color: 'var(--foreground)',
+            letterSpacing: '-0.02em',
           }}
         >
           Permissions
@@ -33,7 +34,7 @@ export default async function PermissionsPage() {
         <p
           style={{
             fontSize: '0.875rem',
-            color: 'hsl(220 8% 46%)',
+            color: 'var(--muted-foreground)',
             marginTop: '0.25rem',
           }}
         >
@@ -52,27 +53,29 @@ export default async function PermissionsPage() {
           <div
             key={module}
             style={{
-              background: 'white',
-              borderRadius: '0.75rem',
-              border: '1px solid hsl(220 13% 91%)',
+              backgroundColor: 'var(--card)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
               overflow: 'hidden',
+              boxShadow: '0 1px 3px rgba(76, 69, 65, 0.04)',
             }}
           >
             <div
               style={{
                 padding: '1rem 1.25rem',
-                borderBottom: '1px solid hsl(220 14% 96%)',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.625rem',
+                backgroundColor: 'var(--surface-muted)',
               }}
             >
-              <Key size={18} style={{ color: 'hsl(217 91% 50%)' }} />
+              <Key size={18} style={{ color: 'var(--olive)' }} />
               <h2
                 style={{
                   fontSize: '0.9375rem',
                   fontWeight: 600,
-                  color: 'hsl(222 47% 11%)',
+                  color: 'var(--foreground)',
                   textTransform: 'capitalize',
                 }}
               >
@@ -83,10 +86,11 @@ export default async function PermissionsPage() {
                   marginLeft: 'auto',
                   fontSize: '0.75rem',
                   fontWeight: 500,
-                  color: 'hsl(220 8% 46%)',
-                  background: 'hsl(220 14% 96%)',
+                  color: 'var(--foreground)',
+                  backgroundColor: 'var(--accent)',
                   padding: '2px 8px',
                   borderRadius: '999px',
+                  border: '1px solid var(--border)',
                 }}
               >
                 {perms.length} permissions
@@ -101,15 +105,16 @@ export default async function PermissionsPage() {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '0.5rem 0',
-                    borderBottom: '1px solid hsl(220 14% 97%)',
+                    borderBottom: '1px solid rgba(174, 172, 120, 0.15)',
                   }}
                 >
                   <code
                     style={{
                       fontSize: '0.8125rem',
                       fontWeight: 500,
-                      color: 'hsl(262 83% 50%)',
-                      background: 'hsla(262 83% 58% / 0.06)',
+                      color: 'var(--foreground)',
+                      backgroundColor: 'var(--muted)',
+                      border: '1px solid var(--border)',
                       padding: '2px 8px',
                       borderRadius: '0.25rem',
                       fontFamily: 'monospace',
@@ -120,7 +125,7 @@ export default async function PermissionsPage() {
                   <span
                     style={{
                       fontSize: '0.8125rem',
-                      color: 'hsl(220 8% 46%)',
+                      color: 'var(--muted-foreground)',
                     }}
                   >
                     {perm.description}

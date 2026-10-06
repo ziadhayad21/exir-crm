@@ -108,14 +108,16 @@ async function getCrmStats(employeeId: string, isOwnOnly: boolean): Promise<CrmS
 export default async function DashboardPage() {
   const user = await requireAuth();
 
-  const hasAdminOrAll =
-    user.permissions.includes('admin.system') || user.permissions.includes('crm.deals.read_all');
+  const hasCrmAccess =
+    user.permissions.includes('crm.deals.read_all') ||
+    user.permissions.includes('crm.deals.read_own') ||
+    user.permissions.includes('crm.customers.read_all') ||
+    user.permissions.includes('crm.customers.read_own');
+
   const hasOwnOnly =
-    !hasAdminOrAll &&
-    (user.permissions.includes('crm.deals.read_own') ||
-      user.permissions.includes('crm.customers.read_own') ||
-      user.permissions.includes('crm.pipeline.view'));
-  const hasCrmAccess = hasAdminOrAll || hasOwnOnly;
+    !user.permissions.includes('crm.deals.read_all') &&
+    !user.permissions.includes('crm.customers.read_all');
+
   const hasAdminStats =
     user.permissions.includes('admin.system') || user.permissions.includes('employees.read');
 
@@ -132,36 +134,28 @@ export default async function DashboardPage() {
       {/* Welcome Section */}
       <div
         style={{
-          background: 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
-          borderRadius: '1rem',
+          background: 'linear-gradient(135deg, #FFFFFF 0%, #FCF5E8 100%)',
+          borderRadius: 'var(--radius)',
+          border: '1px solid var(--border)',
           padding: '2rem 2.5rem',
-          color: 'white',
+          color: 'var(--foreground)',
           marginBottom: '1.5rem',
           position: 'relative',
           overflow: 'hidden',
+          boxShadow: '0 2px 8px rgba(76, 69, 65, 0.04)',
         }}
       >
-        {/* Decorative circles */}
+        {/* Soft decorative glow */}
         <div
           style={{
             position: 'absolute',
-            right: '-40px',
-            top: '-40px',
-            width: '200px',
-            height: '200px',
+            right: '-30px',
+            top: '-30px',
+            width: '180px',
+            height: '180px',
             borderRadius: '50%',
-            background: 'hsla(0 0% 100% / 0.08)',
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            right: '60px',
-            bottom: '-60px',
-            width: '150px',
-            height: '150px',
-            borderRadius: '50%',
-            background: 'hsla(0 0% 100% / 0.05)',
+            background: 'radial-gradient(circle, rgba(242, 196, 106, 0.15) 0%, transparent 70%)',
+            pointerEvents: 'none',
           }}
         />
 
@@ -171,6 +165,8 @@ export default async function DashboardPage() {
             fontWeight: 700,
             marginBottom: '0.5rem',
             position: 'relative',
+            color: 'var(--foreground)',
+            letterSpacing: '-0.02em',
           }}
         >
           {greeting}, {user.employee.full_name.split(' ')[0]}!
@@ -178,13 +174,14 @@ export default async function DashboardPage() {
         <p
           style={{
             fontSize: '0.9375rem',
-            opacity: 0.85,
-            maxWidth: '500px',
+            color: 'var(--muted-foreground)',
+            maxWidth: '520px',
             position: 'relative',
+            lineHeight: 1.5,
           }}
         >
           Welcome to the El-Exir Tourism Management System. You are signed in as{' '}
-          <strong>{primaryRole}</strong>.
+          <strong style={{ color: 'var(--foreground)' }}>{primaryRole}</strong>.
         </p>
       </div>
 
@@ -195,14 +192,14 @@ export default async function DashboardPage() {
             style={{
               fontSize: '1.125rem',
               fontWeight: 600,
-              color: 'hsl(222 47% 11%)',
+              color: 'var(--foreground)',
               marginBottom: '0.875rem',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
             }}
           >
-            <Briefcase size={20} style={{ color: 'hsl(217 91% 50%)' }} />
+            <Briefcase size={20} style={{ color: 'var(--olive)' }} />
             {crmStats.isOwnOnly ? 'My CRM Overview' : 'CRM Overview'}
           </h2>
           <div
@@ -216,29 +213,29 @@ export default async function DashboardPage() {
               icon={<UserCheck size={22} />}
               label={crmStats.isOwnOnly ? 'My Customers' : 'Total Customers'}
               value={crmStats.customerCount}
-              color="hsl(217 91% 50%)"
-              bgColor="hsla(217 91% 50% / 0.1)"
+              color="#5A524D"
+              bgColor="rgba(242, 196, 106, 0.25)"
             />
             <StatCard
               icon={<Briefcase size={22} />}
               label={crmStats.isOwnOnly ? 'My Active Deals' : 'Active Deals'}
               value={crmStats.activeDealCount}
-              color="hsl(262 83% 58%)"
-              bgColor="hsla(262 83% 58% / 0.1)"
+              color="#5A524D"
+              bgColor="rgba(174, 172, 120, 0.25)"
             />
             <StatCard
               icon={<DollarSign size={22} />}
               label={crmStats.isOwnOnly ? 'My Pipeline Value' : 'Pipeline Value'}
               value={formatCurrency(crmStats.pipelineValue)}
-              color="hsl(142 71% 45%)"
-              bgColor="hsla(142 71% 45% / 0.1)"
+              color="var(--success-foreground)"
+              bgColor="var(--success)"
             />
             <StatCard
               icon={<TrendingUp size={22} />}
               label={crmStats.isOwnOnly ? 'My Win Rate' : 'Win Rate'}
               value={`${crmStats.winRate}%`}
-              color="hsl(38 92% 50%)"
-              bgColor="hsla(38 92% 50% / 0.1)"
+              color="var(--warning-foreground)"
+              bgColor="var(--warning)"
             />
           </div>
         </div>
@@ -251,14 +248,14 @@ export default async function DashboardPage() {
             style={{
               fontSize: '1.125rem',
               fontWeight: 600,
-              color: 'hsl(222 47% 11%)',
+              color: 'var(--foreground)',
               marginBottom: '0.875rem',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
             }}
           >
-            <Shield size={20} style={{ color: 'hsl(262 83% 58%)' }} />
+            <Shield size={20} style={{ color: 'var(--olive)' }} />
             System Administration
           </h2>
           <div
@@ -272,29 +269,29 @@ export default async function DashboardPage() {
               icon={<Users size={22} />}
               label="Employees"
               value={systemStats.employees}
-              color="hsl(217 91% 50%)"
-              bgColor="hsla(217 91% 50% / 0.1)"
+              color="#5A524D"
+              bgColor="rgba(242, 196, 106, 0.25)"
             />
             <StatCard
               icon={<Shield size={22} />}
               label="Roles"
               value={systemStats.roles}
-              color="hsl(262 83% 58%)"
-              bgColor="hsla(262 83% 58% / 0.1)"
+              color="#5A524D"
+              bgColor="rgba(174, 172, 120, 0.25)"
             />
             <StatCard
               icon={<Key size={22} />}
               label="Permissions"
               value={systemStats.permissions}
-              color="hsl(142 71% 45%)"
-              bgColor="hsla(142 71% 45% / 0.1)"
+              color="var(--success-foreground)"
+              bgColor="var(--success)"
             />
             <StatCard
               icon={<Activity size={22} />}
               label="Audit Entries"
               value={systemStats.auditEntries}
-              color="hsl(38 92% 50%)"
-              bgColor="hsla(38 92% 50% / 0.1)"
+              color="var(--warning-foreground)"
+              bgColor="var(--warning)"
             />
           </div>
         </div>
@@ -311,17 +308,18 @@ export default async function DashboardPage() {
         {/* Your Profile */}
         <div
           style={{
-            background: 'white',
-            borderRadius: '0.75rem',
-            border: '1px solid hsl(220 13% 91%)',
+            backgroundColor: 'var(--card)',
+            borderRadius: 'var(--radius)',
+            border: '1px solid var(--border)',
             padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(76, 69, 65, 0.04)',
           }}
         >
           <h2
             style={{
               fontSize: '0.9375rem',
               fontWeight: 600,
-              color: 'hsl(222 47% 11%)',
+              color: 'var(--foreground)',
               marginBottom: '1rem',
             }}
           >
@@ -337,7 +335,7 @@ export default async function DashboardPage() {
                 style={{
                   fontSize: '0.75rem',
                   fontWeight: 500,
-                  color: 'hsl(220 8% 46%)',
+                  color: 'var(--muted-foreground)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.05em',
                 }}
@@ -361,8 +359,9 @@ export default async function DashboardPage() {
                       fontSize: '0.75rem',
                       fontWeight: 500,
                       borderRadius: '999px',
-                      background: 'hsla(217 91% 50% / 0.1)',
-                      color: 'hsl(217 91% 40%)',
+                      backgroundColor: 'var(--accent)',
+                      color: 'var(--foreground)',
+                      border: '1px solid var(--border)',
                     }}
                   >
                     {role.name}
@@ -376,17 +375,18 @@ export default async function DashboardPage() {
         {/* System Status */}
         <div
           style={{
-            background: 'white',
-            borderRadius: '0.75rem',
-            border: '1px solid hsl(220 13% 91%)',
+            backgroundColor: 'var(--card)',
+            borderRadius: 'var(--radius)',
+            border: '1px solid var(--border)',
             padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(76, 69, 65, 0.04)',
           }}
         >
           <h2
             style={{
               fontSize: '0.9375rem',
               fontWeight: 600,
-              color: 'hsl(222 47% 11%)',
+              color: 'var(--foreground)',
               marginBottom: '1rem',
             }}
           >
@@ -430,14 +430,14 @@ function StatCard({
   return (
     <div
       style={{
-        background: 'white',
-        borderRadius: '0.75rem',
-        border: '1px solid hsl(220 13% 91%)',
+        backgroundColor: 'var(--card)',
+        borderRadius: 'var(--radius)',
+        border: '1px solid var(--border)',
         padding: '1.25rem',
         display: 'flex',
         alignItems: 'center',
         gap: '1rem',
-        transition: 'box-shadow 0.2s ease',
+        boxShadow: '0 1px 3px rgba(76, 69, 65, 0.04)',
       }}
     >
       <div
@@ -451,6 +451,7 @@ function StatCard({
           justifyContent: 'center',
           color: color,
           flexShrink: 0,
+          border: '1px solid var(--border)',
         }}
       >
         {icon}
@@ -460,7 +461,7 @@ function StatCard({
           style={{
             fontSize: '1.5rem',
             fontWeight: 700,
-            color: 'hsl(222 47% 11%)',
+            color: 'var(--foreground)',
             lineHeight: 1,
           }}
         >
@@ -469,7 +470,7 @@ function StatCard({
         <div
           style={{
             fontSize: '0.8125rem',
-            color: 'hsl(220 8% 46%)',
+            color: 'var(--muted-foreground)',
             marginTop: '2px',
           }}
         >
@@ -487,7 +488,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
         style={{
           fontSize: '0.75rem',
           fontWeight: 500,
-          color: 'hsl(220 8% 46%)',
+          color: 'var(--muted-foreground)',
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
         }}
@@ -498,7 +499,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
         style={{
           fontSize: '0.875rem',
           fontWeight: 500,
-          color: 'hsl(222 47% 11%)',
+          color: 'var(--foreground)',
           marginTop: '2px',
         }}
       >
@@ -517,18 +518,21 @@ function StatusRow({
 }) {
   const statusConfig = {
     operational: {
-      color: 'hsl(142 71% 45%)',
-      bgColor: 'hsla(142 71% 45% / 0.1)',
+      color: 'var(--success-foreground)',
+      bgColor: 'var(--success)',
+      borderColor: 'var(--success-border)',
       label: 'Operational',
     },
     pending: {
-      color: 'hsl(220 8% 46%)',
-      bgColor: 'hsla(220 8% 46% / 0.1)',
+      color: 'var(--muted-foreground)',
+      bgColor: 'var(--muted)',
+      borderColor: 'var(--border)',
       label: 'Phase 2+',
     },
     error: {
-      color: 'hsl(0 72% 51%)',
-      bgColor: 'hsla(0 72% 51% / 0.1)',
+      color: 'var(--destructive-foreground)',
+      bgColor: 'var(--destructive)',
+      borderColor: 'var(--destructive-border)',
       label: 'Error',
     },
   };
@@ -546,7 +550,7 @@ function StatusRow({
       <span
         style={{
           fontSize: '0.875rem',
-          color: 'hsl(222 47% 11%)',
+          color: 'var(--foreground)',
         }}
       >
         {label}
@@ -562,6 +566,7 @@ function StatusRow({
           borderRadius: '999px',
           background: config.bgColor,
           color: config.color,
+          border: `1px solid ${config.borderColor}`,
         }}
       >
         {status === 'operational' && (

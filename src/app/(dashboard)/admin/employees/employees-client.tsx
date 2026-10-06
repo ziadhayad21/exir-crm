@@ -98,10 +98,10 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
           className="animate-fade-in"
           style={{
             padding: '0.75rem 1rem',
-            background: 'hsla(142 71% 45% / 0.1)',
-            border: '1px solid hsla(142 71% 45% / 0.2)',
-            borderRadius: '0.5rem',
-            color: 'hsl(142 71% 30%)',
+            backgroundColor: 'var(--success)',
+            border: '1px solid var(--success-border)',
+            borderRadius: 'var(--radius)',
+            color: 'var(--success-foreground)',
             fontSize: '0.875rem',
             marginBottom: '1rem',
             display: 'flex',
@@ -129,10 +129,10 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
           className="animate-fade-in"
           style={{
             padding: '0.75rem 1rem',
-            background: 'hsla(0 72% 51% / 0.1)',
-            border: '1px solid hsla(0 72% 51% / 0.2)',
-            borderRadius: '0.5rem',
-            color: 'hsl(0 72% 40%)',
+            backgroundColor: 'var(--destructive)',
+            border: '1px solid var(--destructive-border)',
+            borderRadius: 'var(--radius)',
+            color: 'var(--destructive-foreground)',
             fontSize: '0.875rem',
             marginBottom: '1rem',
             display: 'flex',
@@ -173,13 +173,13 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
             gap: '0.5rem',
             flex: 1,
             maxWidth: '400px',
-            background: 'white',
-            border: '1px solid hsl(220 13% 91%)',
-            borderRadius: '0.5rem',
+            backgroundColor: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
             padding: '0.5rem 0.75rem',
           }}
         >
-          <Search size={18} style={{ color: 'hsl(220 8% 46%)', flexShrink: 0 }} />
+          <Search size={18} style={{ color: 'var(--muted-foreground)', flexShrink: 0 }} />
           <input
             type="text"
             placeholder="Search employees..."
@@ -191,7 +191,7 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
               outline: 'none',
               fontSize: '0.875rem',
               background: 'transparent',
-              color: 'hsl(222 47% 11%)',
+              color: 'var(--foreground)',
             }}
           />
         </div>
@@ -206,15 +206,21 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
             alignItems: 'center',
             gap: '0.5rem',
             padding: '0.625rem 1rem',
-            background: 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '0.5rem',
+            backgroundColor: 'var(--primary)',
+            color: 'var(--primary-foreground)',
+            border: '1px solid rgba(174, 172, 120, 0.4)',
+            borderRadius: 'var(--radius)',
             fontSize: '0.875rem',
             fontWeight: 600,
             cursor: 'pointer',
-            boxShadow: '0 2px 8px hsla(217 91% 50% / 0.3)',
-            transition: 'opacity 0.15s, transform 0.1s',
+            boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
+            transition: 'background-color 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--primary)';
           }}
         >
           <Plus size={18} />
@@ -225,10 +231,11 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
       {/* Employees Table */}
       <div
         style={{
-          background: 'white',
-          borderRadius: '0.75rem',
-          border: '1px solid hsl(220 13% 91%)',
+          backgroundColor: 'var(--card)',
+          borderRadius: 'var(--radius)',
+          border: '1px solid var(--border)',
           overflow: 'hidden',
+          boxShadow: '0 1px 3px rgba(76, 69, 65, 0.04)',
         }}
       >
         {filteredEmployees.length === 0 ? (
@@ -241,7 +248,8 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
             <Users
               size={48}
               style={{
-                color: 'hsl(220 13% 85%)',
+                color: 'var(--olive)',
+                opacity: 0.5,
                 margin: '0 auto 1rem',
               }}
             />
@@ -249,7 +257,7 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
               style={{
                 fontSize: '0.9375rem',
                 fontWeight: 500,
-                color: 'hsl(220 8% 46%)',
+                color: 'var(--muted-foreground)',
               }}
             >
               {searchQuery ? 'No employees match your search.' : 'No employees found.'}
@@ -267,7 +275,8 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
               <thead>
                 <tr
                   style={{
-                    borderBottom: '1px solid hsl(220 13% 91%)',
+                    backgroundColor: 'var(--surface-muted)',
+                    borderBottom: '1px solid var(--border)',
                   }}
                 >
                   {['Name', 'Email', 'Roles', 'Status', 'Created', 'Actions'].map(
@@ -279,7 +288,7 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                           textAlign: 'left',
                           fontWeight: 600,
                           fontSize: '0.75rem',
-                          color: 'hsl(220 8% 46%)',
+                          color: 'var(--muted-foreground)',
                           textTransform: 'uppercase',
                           letterSpacing: '0.05em',
                           whiteSpace: 'nowrap',
@@ -296,21 +305,21 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                   <tr
                     key={emp.id}
                     style={{
-                      borderBottom: '1px solid hsl(220 14% 96%)',
-                      transition: 'background 0.1s ease',
+                      borderBottom: '1px solid rgba(174, 172, 120, 0.15)',
+                      transition: 'background-color 0.1s ease',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'hsl(220 14% 98%)';
+                      e.currentTarget.style.backgroundColor = 'var(--hover)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
                     <td
                       style={{
                         padding: '0.875rem 1rem',
                         fontWeight: 500,
-                        color: 'hsl(222 47% 11%)',
+                        color: 'var(--foreground)',
                         whiteSpace: 'nowrap',
                       }}
                     >
@@ -320,13 +329,16 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                             width: '32px',
                             height: '32px',
                             borderRadius: '50%',
-                            background: emp.is_active
-                              ? 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)'
-                              : 'hsl(220 13% 85%)',
+                            backgroundColor: emp.is_active
+                              ? 'var(--primary)'
+                              : 'var(--muted)',
+                            border: '1px solid var(--border)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: 'white',
+                            color: emp.is_active
+                              ? 'var(--primary-foreground)'
+                              : 'var(--muted-foreground)',
                             fontSize: '0.75rem',
                             fontWeight: 600,
                             flexShrink: 0,
@@ -345,7 +357,7 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                     <td
                       style={{
                         padding: '0.875rem 1rem',
-                        color: 'hsl(220 8% 46%)',
+                        color: 'var(--muted-foreground)',
                       }}
                     >
                       {emp.email}
@@ -362,8 +374,9 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                                 fontSize: '0.6875rem',
                                 fontWeight: 500,
                                 borderRadius: '999px',
-                                background: 'hsla(217 91% 50% / 0.1)',
-                                color: 'hsl(217 91% 40%)',
+                                backgroundColor: 'var(--accent)',
+                                color: 'var(--foreground)',
+                                border: '1px solid var(--border)',
                               }}
                             >
                               {role.name}
@@ -373,7 +386,7 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                           <span
                             style={{
                               fontSize: '0.8125rem',
-                              color: 'hsl(220 8% 70%)',
+                              color: 'var(--muted-foreground)',
                               fontStyle: 'italic',
                             }}
                           >
@@ -392,12 +405,13 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                           fontSize: '0.75rem',
                           fontWeight: 500,
                           borderRadius: '999px',
-                          background: emp.is_active
-                            ? 'hsla(142 71% 45% / 0.1)'
-                            : 'hsla(0 72% 51% / 0.1)',
+                          backgroundColor: emp.is_active
+                            ? 'var(--success)'
+                            : 'var(--destructive)',
+                          border: `1px solid ${emp.is_active ? 'var(--success-border)' : 'var(--destructive-border)'}`,
                           color: emp.is_active
-                            ? 'hsl(142 71% 30%)'
-                            : 'hsl(0 72% 40%)',
+                            ? 'var(--success-foreground)'
+                            : 'var(--destructive-foreground)',
                         }}
                       >
                         <span
@@ -405,9 +419,9 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                             width: '6px',
                             height: '6px',
                             borderRadius: '50%',
-                            background: emp.is_active
-                              ? 'hsl(142 71% 45%)'
-                              : 'hsl(0 72% 51%)',
+                            backgroundColor: emp.is_active
+                              ? 'var(--success-foreground)'
+                              : 'var(--destructive-foreground)',
                           }}
                         />
                         {emp.is_active ? 'Active' : 'Inactive'}
@@ -416,7 +430,7 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                     <td
                       style={{
                         padding: '0.875rem 1rem',
-                        color: 'hsl(220 8% 46%)',
+                        color: 'var(--muted-foreground)',
                         whiteSpace: 'nowrap',
                       }}
                     >
@@ -437,18 +451,18 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                             justifyContent: 'center',
                             width: '32px',
                             height: '32px',
-                            borderRadius: '0.375rem',
-                            border: '1px solid hsl(220 13% 91%)',
-                            background: 'white',
-                            color: 'hsl(217 91% 50%)',
+                            borderRadius: 'var(--radius)',
+                            border: '1px solid var(--border)',
+                            backgroundColor: 'var(--surface)',
+                            color: 'var(--foreground)',
                             cursor: 'pointer',
-                            transition: 'all 0.15s ease',
+                            transition: 'background-color 0.15s ease',
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'hsla(217 91% 50% / 0.05)';
+                            e.currentTarget.style.backgroundColor = 'var(--hover)';
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'white';
+                            e.currentTarget.style.backgroundColor = 'var(--surface)';
                           }}
                         >
                           <Shield size={15} />
@@ -463,22 +477,20 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                             justifyContent: 'center',
                             width: '32px',
                             height: '32px',
-                            borderRadius: '0.375rem',
-                            border: '1px solid hsl(220 13% 91%)',
-                            background: 'white',
+                            borderRadius: 'var(--radius)',
+                            border: '1px solid var(--border)',
+                            backgroundColor: 'var(--surface)',
                             color: emp.is_active
-                              ? 'hsl(0 72% 51%)'
-                              : 'hsl(142 71% 45%)',
+                              ? 'var(--destructive-foreground)'
+                              : 'var(--success-foreground)',
                             cursor: 'pointer',
-                            transition: 'all 0.15s ease',
+                            transition: 'background-color 0.15s ease',
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = emp.is_active
-                              ? 'hsla(0 72% 51% / 0.05)'
-                              : 'hsla(142 71% 45% / 0.05)';
+                            e.currentTarget.style.backgroundColor = 'var(--hover)';
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'white';
+                            e.currentTarget.style.backgroundColor = 'var(--surface)';
                           }}
                         >
                           {emp.is_active ? <UserX size={15} /> : <UserCheck size={15} />}
@@ -500,10 +512,10 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
             <div
               style={{
                 padding: '0.625rem 0.875rem',
-                background: 'hsla(0 72% 51% / 0.1)',
-                border: '1px solid hsla(0 72% 51% / 0.2)',
-                borderRadius: '0.375rem',
-                color: 'hsl(0 72% 40%)',
+                backgroundColor: 'var(--destructive)',
+                border: '1px solid var(--destructive-border)',
+                borderRadius: 'var(--radius)',
+                color: 'var(--destructive-foreground)',
                 fontSize: '0.8125rem',
                 marginBottom: '1rem',
               }}
@@ -529,7 +541,7 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                     display: 'block',
                     fontSize: '0.8125rem',
                     fontWeight: 500,
-                    color: 'hsl(222 47% 11%)',
+                    color: 'var(--foreground)',
                     marginBottom: '0.375rem',
                   }}
                 >
@@ -543,10 +555,10 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                     width: '100%',
                     padding: '0.625rem 0.75rem',
                     fontSize: '0.875rem',
-                    border: '1px solid hsl(220 13% 91%)',
-                    borderRadius: '0.5rem',
-                    background: 'white',
-                    color: 'hsl(222 47% 11%)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
+                    backgroundColor: 'var(--surface)',
+                    color: 'var(--foreground)',
                     outline: 'none',
                   }}
                 >
@@ -558,7 +570,7 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                   ))}
                 </select>
                 {roles.length === 0 && (
-                  <p style={{ color: 'hsl(0 72% 51%)', fontSize: '0.75rem', marginTop: '4px' }}>
+                  <p style={{ color: 'var(--destructive-foreground)', fontSize: '0.75rem', marginTop: '4px' }}>
                     No roles found. Please refresh the page.
                   </p>
                 )}
@@ -580,10 +592,10 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                   padding: '0.625rem 1.25rem',
                   fontSize: '0.875rem',
                   fontWeight: 500,
-                  borderRadius: '0.5rem',
-                  border: '1px solid hsl(220 13% 91%)',
-                  background: 'white',
-                  color: 'hsl(222 47% 11%)',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'var(--surface)',
+                  color: 'var(--foreground)',
                   cursor: 'pointer',
                 }}
               >
@@ -599,12 +611,13 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                   padding: '0.625rem 1.25rem',
                   fontSize: '0.875rem',
                   fontWeight: 600,
-                  borderRadius: '0.5rem',
-                  border: 'none',
-                  background: 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
-                  color: 'white',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid rgba(174, 172, 120, 0.4)',
+                  backgroundColor: 'var(--primary)',
+                  color: 'var(--primary-foreground)',
                   cursor: isPending ? 'not-allowed' : 'pointer',
                   opacity: isPending ? 0.7 : 1,
+                  boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
                 }}
               >
                 {isPending && <Loader2 size={16} className="animate-spin" />}
@@ -625,10 +638,10 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
             <div
               style={{
                 padding: '0.625rem 0.875rem',
-                background: 'hsla(0 72% 51% / 0.1)',
-                border: '1px solid hsla(0 72% 51% / 0.2)',
-                borderRadius: '0.375rem',
-                color: 'hsl(0 72% 40%)',
+                backgroundColor: 'var(--destructive)',
+                border: '1px solid var(--destructive-border)',
+                borderRadius: 'var(--radius)',
+                color: 'var(--destructive-foreground)',
                 fontSize: '0.8125rem',
                 marginBottom: '1rem',
               }}
@@ -641,7 +654,7 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
             <p
               style={{
                 fontSize: '0.875rem',
-                color: 'hsl(220 8% 46%)',
+                color: 'var(--muted-foreground)',
                 marginBottom: '1rem',
               }}
             >
@@ -653,7 +666,7 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                   display: 'block',
                   fontSize: '0.8125rem',
                   fontWeight: 500,
-                  color: 'hsl(222 47% 11%)',
+                  color: 'var(--foreground)',
                   marginBottom: '0.375rem',
                 }}
               >
@@ -666,10 +679,10 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                   width: '100%',
                   padding: '0.625rem 0.75rem',
                   fontSize: '0.875rem',
-                  border: '1px solid hsl(220 13% 91%)',
-                  borderRadius: '0.5rem',
-                  background: 'white',
-                  color: 'hsl(222 47% 11%)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  backgroundColor: 'var(--surface)',
+                  color: 'var(--foreground)',
                   outline: 'none',
                 }}
               >
@@ -697,10 +710,10 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                   padding: '0.625rem 1.25rem',
                   fontSize: '0.875rem',
                   fontWeight: 500,
-                  borderRadius: '0.5rem',
-                  border: '1px solid hsl(220 13% 91%)',
-                  background: 'white',
-                  color: 'hsl(222 47% 11%)',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'var(--surface)',
+                  color: 'var(--foreground)',
                   cursor: 'pointer',
                 }}
               >
@@ -716,12 +729,13 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                   padding: '0.625rem 1.25rem',
                   fontSize: '0.875rem',
                   fontWeight: 600,
-                  borderRadius: '0.5rem',
-                  border: 'none',
-                  background: 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
-                  color: 'white',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid rgba(174, 172, 120, 0.4)',
+                  backgroundColor: 'var(--primary)',
+                  color: 'var(--primary-foreground)',
                   cursor: isPending ? 'not-allowed' : 'pointer',
                   opacity: isPending ? 0.7 : 1,
+                  boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
                 }}
               >
                 {isPending && <Loader2 size={16} className="animate-spin" />}
@@ -764,8 +778,8 @@ function Modal({
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'hsla(0 0% 0% / 0.5)',
-          backdropFilter: 'blur(4px)',
+          background: 'rgba(76, 69, 65, 0.4)',
+          backdropFilter: 'blur(3px)',
         }}
       />
 
@@ -776,26 +790,28 @@ function Modal({
           position: 'relative',
           width: '100%',
           maxWidth: '480px',
-          background: 'white',
-          borderRadius: '0.75rem',
-          boxShadow: '0 24px 48px hsla(0 0% 0% / 0.15)',
+          backgroundColor: 'var(--card)',
+          borderRadius: 'var(--radius)',
+          border: '1px solid var(--border)',
+          boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.12), 0 8px 10px -6px rgba(76, 69, 65, 0.06)',
           overflow: 'hidden',
         }}
       >
         <div
           style={{
             padding: '1.25rem 1.5rem',
-            borderBottom: '1px solid hsl(220 13% 91%)',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            backgroundColor: 'var(--surface-muted)',
           }}
         >
           <h3
             style={{
               fontSize: '1.0625rem',
               fontWeight: 600,
-              color: 'hsl(222 47% 11%)',
+              color: 'var(--foreground)',
             }}
           >
             {title}
@@ -806,10 +822,10 @@ function Modal({
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              color: 'hsl(220 8% 46%)',
+              color: 'var(--muted-foreground)',
               display: 'flex',
               padding: '4px',
-              borderRadius: '0.25rem',
+              borderRadius: 'var(--radius)',
             }}
           >
             <X size={18} />
@@ -842,7 +858,7 @@ function FormField({
           display: 'block',
           fontSize: '0.8125rem',
           fontWeight: 500,
-          color: 'hsl(222 47% 11%)',
+          color: 'var(--foreground)',
           marginBottom: '0.375rem',
         }}
       >
@@ -858,18 +874,19 @@ function FormField({
           width: '100%',
           padding: '0.625rem 0.75rem',
           fontSize: '0.875rem',
-          border: '1px solid hsl(220 13% 91%)',
-          borderRadius: '0.5rem',
-          color: 'hsl(222 47% 11%)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          color: 'var(--foreground)',
+          backgroundColor: 'var(--surface)',
           outline: 'none',
-          transition: 'border-color 0.2s, box-shadow 0.2s',
+          transition: 'border-color 0.15s, box-shadow 0.15s',
         }}
         onFocus={(e) => {
-          e.currentTarget.style.borderColor = 'hsl(217 91% 50%)';
-          e.currentTarget.style.boxShadow = '0 0 0 3px hsla(217 91% 50% / 0.1)';
+          e.currentTarget.style.borderColor = 'var(--border-strong)';
+          e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
         }}
         onBlur={(e) => {
-          e.currentTarget.style.borderColor = 'hsl(220 13% 91%)';
+          e.currentTarget.style.borderColor = 'var(--border)';
           e.currentTarget.style.boxShadow = 'none';
         }}
       />
