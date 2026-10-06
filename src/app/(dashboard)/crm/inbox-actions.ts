@@ -91,23 +91,25 @@ export async function getConversations(filters?: {
   const leadMap = new Map((leadsRes.data || []).map((l) => [l.id, l]));
   const employeeMap = new Map((employeesRes.data || []).map((e) => [e.id, e as Employee]));
 
-  // Auto-resolve any generic identity names in the background
+  // Auto-resolve any generic identity names
   const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
   const igToken = process.env.INSTAGRAM_ACCESS_TOKEN?.trim() || pageToken;
 
-  for (const conv of convs) {
-    const ident = identityMap.get(conv.channel_identity_id);
-    if (
-      ident &&
-      isGenericDisplayName(ident.display_name) &&
-      ident.external_id &&
-      ident.external_id !== 'Unknown'
-    ) {
-      if (conv.channel === 'messenger' && pageToken) {
-        void (async () => {
+  await Promise.all(
+    convs.map(async (conv) => {
+      const ident = identityMap.get(conv.channel_identity_id);
+      if (
+        ident &&
+        isGenericDisplayName(ident.display_name) &&
+        ident.external_id &&
+        ident.external_id !== 'Unknown'
+      ) {
+        if (conv.channel === 'messenger' && pageToken) {
           try {
             const profile = await fetchFacebookProfile(ident.external_id, pageToken);
             if (profile?.name && !isGenericDisplayName(profile.name)) {
+              ident.display_name = profile.name;
+              if (profile.avatar_url) ident.avatar_url = profile.avatar_url;
               await admin
                 .from('channel_identities')
                 .update({
@@ -116,16 +118,23 @@ export async function getConversations(filters?: {
                   updated_at: new Date().toISOString(),
                 })
                 .eq('id', ident.id);
+              if (conv.lead_id) {
+                await admin
+                  .from('leads')
+                  .update({ full_name: profile.name, updated_at: new Date().toISOString() })
+                  .eq('id', conv.lead_id)
+                  .in('full_name', ['Facebook User', 'Instagram User', 'WhatsApp User', 'Contact', 'Unknown']);
+              }
             }
           } catch {
             // ignore
           }
-        })();
-      } else if (conv.channel === 'instagram' && igToken) {
-        void (async () => {
+        } else if (conv.channel === 'instagram' && igToken) {
           try {
             const profile = await fetchInstagramProfile(ident.external_id, igToken);
             if (profile?.name && !isGenericDisplayName(profile.name)) {
+              ident.display_name = profile.name;
+              if (profile.avatar_url) ident.avatar_url = profile.avatar_url;
               await admin
                 .from('channel_identities')
                 .update({
@@ -134,14 +143,21 @@ export async function getConversations(filters?: {
                   updated_at: new Date().toISOString(),
                 })
                 .eq('id', ident.id);
+              if (conv.lead_id) {
+                await admin
+                  .from('leads')
+                  .update({ full_name: profile.name, updated_at: new Date().toISOString() })
+                  .eq('id', conv.lead_id)
+                  .in('full_name', ['Facebook User', 'Instagram User', 'WhatsApp User', 'Contact', 'Unknown']);
+              }
             }
           } catch {
             // ignore
           }
-        })();
+        }
       }
-    }
-  }
+    })
+  );
 
   let enriched: ConversationWithDetails[] = convs.map((c) => {
     const ident = identityMap.get(c.channel_identity_id);

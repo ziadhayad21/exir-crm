@@ -26,9 +26,11 @@ export interface FetchedProfile {
   avatar_url: string | null;
 }
 
+const fbProfileCache = new Map<string, { profile: FetchedProfile; expiresAt: number }>();
+
 /**
  * Fetches the Facebook account display name and avatar for a given PSID using Meta Graph API.
- * Returns null if unavailable or if Graph API request fails.
+ * Uses direct PSID lookup with fallback to Page conversations endpoint and in-memory TTL caching.
  */
 export async function fetchFacebookProfile(
   psid: string,
@@ -36,28 +38,81 @@ export async function fetchFacebookProfile(
   apiVersion = 'v21.0'
 ): Promise<FetchedProfile | null> {
   if (!psid || !pageToken) return null;
+
+  // 1. Check in-memory cache
+  const cached = fbProfileCache.get(psid);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.profile;
+  }
+
+  // 2. Try direct PSID Graph API
   try {
     const url = `https://graph.facebook.com/${apiVersion}/${psid}?fields=first_name,last_name,name,profile_pic&access_token=${encodeURIComponent(pageToken)}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      name?: string;
-      first_name?: string;
-      last_name?: string;
-      profile_pic?: string;
-    };
-    const name =
-      data.name?.trim() ||
-      (data.first_name || data.last_name
-        ? `${data.first_name || ''} ${data.last_name || ''}`.trim()
-        : null);
-    return {
-      name: name || null,
-      avatar_url: data.profile_pic || null,
-    };
+    if (res.ok) {
+      const data = (await res.json()) as {
+        name?: string;
+        first_name?: string;
+        last_name?: string;
+        profile_pic?: string;
+      };
+      const name =
+        data.name?.trim() ||
+        (data.first_name || data.last_name
+          ? `${data.first_name || ''} ${data.last_name || ''}`.trim()
+          : null);
+      if (name) {
+        const result: FetchedProfile = {
+          name,
+          avatar_url: data.profile_pic || null,
+        };
+        fbProfileCache.set(psid, { profile: result, expiresAt: Date.now() + 15 * 60 * 1000 });
+        return result;
+      }
+    }
   } catch {
-    return null;
+    // Continue to fallback
   }
+
+  // 3. Fallback: Query Page's conversations endpoint (returns participants & senders across all conversations)
+  try {
+    const convUrl = `https://graph.facebook.com/${apiVersion}/me/conversations?fields=id,participants{id,name},senders{id,name}&limit=50&access_token=${encodeURIComponent(pageToken)}`;
+    const res = await fetch(convUrl, { signal: AbortSignal.timeout(4000) });
+    if (res.ok) {
+      const data = (await res.json()) as {
+        data?: Array<{
+          participants?: { data?: Array<{ id?: string; name?: string }> };
+          senders?: { data?: Array<{ id?: string; name?: string }> };
+        }>;
+      };
+
+      if (Array.isArray(data?.data)) {
+        for (const item of data.data) {
+          const persons = [
+            ...(item.participants?.data || []),
+            ...(item.senders?.data || []),
+          ];
+          for (const p of persons) {
+            if (p.id && p.name && p.name.trim()) {
+              fbProfileCache.set(p.id, {
+                profile: { name: p.name.trim(), avatar_url: null },
+                expiresAt: Date.now() + 15 * 60 * 1000,
+              });
+            }
+          }
+        }
+      }
+
+      const match = fbProfileCache.get(psid);
+      if (match) {
+        return match.profile;
+      }
+    }
+  } catch {
+    // Return null on failure
+  }
+
+  return null;
 }
 
 export async function fetchFacebookProfileName(
