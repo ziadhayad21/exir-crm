@@ -1,9 +1,9 @@
 // src/app/api/webhooks/inbound/route.ts
-// Inbound Webhook API Route for Facebook Messenger & Unified Messaging.
-// Implements GET Meta verification challenge, POST HMAC-SHA256 signature validation,
-// raw-first persistence, atomic DB ingestion, and 100% concurrency safety against duplicate/lost leads.
+// Inbound Webhook API Route for Facebook Messenger, Instagram & WhatsApp Cloud API.
+// Features sub-300ms fast HTTP 200 ACK with next/server after() for background ingestion,
+// constant-time HMAC-SHA256 signature verification, raw-first persistence, and concurrency safety.
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { writeAuditLog } from '@/lib/audit';
@@ -12,15 +12,17 @@ import {
   normalizeInboundPayload,
   fetchFacebookProfile,
   fetchInstagramProfile,
+  type NormalizedInboundEvent,
 } from '@/lib/messaging/meta-adapter';
 import { processInboundMedia } from '@/lib/messaging/media-manager';
 import type { MessageAttachmentType } from '@/types';
 import { isGenericDisplayName } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 /**
- * GET Handler — Meta Webhook Subscription Verification (Messenger & Instagram)
+ * GET Handler — Meta Webhook Subscription Verification (Messenger, Instagram, WhatsApp)
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -38,19 +40,7 @@ export async function GET(req: NextRequest) {
      (expectedIgToken && token === expectedIgToken) ||
      (expectedWaToken && token === expectedWaToken));
 
-  console.log('[Inbound Webhook GET] Verification check:', {
-    mode,
-    hasReceivedToken: !!token,
-    hasExpectedMetaToken: !!expectedMetaToken,
-    hasExpectedIgToken: !!expectedIgToken,
-    hasExpectedWaToken: !!expectedWaToken,
-    tokenMatches,
-    hasChallenge: !!challenge,
-  });
-
   if (mode === 'subscribe' && tokenMatches) {
-    console.log('[Inbound Webhook GET] Meta verification successful');
-
     return new NextResponse(challenge || '', {
       status: 200,
       headers: { 'Content-Type': 'text/plain' },
@@ -66,14 +56,228 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST Handler — Secure Inbound Event Ingestion & Invariant Protection
+ * Background worker executing post-ACK via Next.js after()
+ */
+async function processInboundEventBackground(
+  rawEventId: string,
+  event: NormalizedInboundEvent,
+  admin: ReturnType<typeof createAdminClient>
+) {
+  try {
+    // 1. Mark event as processing
+    await admin
+      .from('webhook_events')
+      .update({ status: 'processing', updated_at: new Date().toISOString() })
+      .eq('id', rawEventId);
+
+    // 2. Fetch social profile for Messenger & Instagram if display name is missing or generic
+    let fetchedAvatarUrl: string | null = null;
+    if (!event.senderDisplayName || isGenericDisplayName(event.senderDisplayName)) {
+      if (event.channel === 'messenger' && event.externalSenderId) {
+        const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
+        if (pageToken) {
+          try {
+            const profile = await fetchFacebookProfile(event.externalSenderId, pageToken);
+            if (profile?.name && !isGenericDisplayName(profile.name)) {
+              event.senderDisplayName = profile.name;
+              fetchedAvatarUrl = profile.avatar_url;
+            }
+          } catch {
+            // Non-critical network error
+          }
+        }
+      } else if (event.channel === 'instagram' && event.externalSenderId) {
+        const igToken =
+          process.env.INSTAGRAM_ACCESS_TOKEN?.trim() ||
+          process.env.META_PAGE_ACCESS_TOKEN?.trim();
+        if (igToken) {
+          try {
+            const profile = await fetchInstagramProfile(event.externalSenderId, igToken);
+            if (profile?.name && !isGenericDisplayName(profile.name)) {
+              event.senderDisplayName = profile.name;
+              fetchedAvatarUrl = profile.avatar_url;
+            }
+          } catch {
+            // Non-critical network error
+          }
+        }
+      }
+    }
+
+    // Fallback display names
+    if (!event.senderDisplayName) {
+      if (event.channel === 'whatsapp') {
+        event.senderDisplayName = event.senderPhone || 'WhatsApp User';
+      } else if (event.channel === 'messenger') {
+        event.senderDisplayName = 'Facebook User';
+      } else if (event.channel === 'instagram') {
+        event.senderDisplayName = 'Instagram User';
+      } else {
+        event.senderDisplayName = 'Contact';
+      }
+    }
+
+    // 3. Atomic Database Ingestion via PL/pgSQL RPC
+    const { data: ingestResult, error: ingestErr } = await admin.rpc(
+      'ingest_inbound_message',
+      {
+        p_raw_event_id: rawEventId,
+        p_channel: event.channel,
+        p_external_sender_id: event.externalSenderId,
+        p_sender_display_name: event.senderDisplayName || null,
+        p_sender_phone: event.senderPhone || null,
+        p_external_thread_id: event.externalThreadId,
+        p_external_message_id: event.externalMessageId || null,
+        p_message_type: event.messageType,
+        p_content: event.content,
+        p_media_url: event.mediaUrl || null,
+        p_business_tz: 'Africa/Cairo',
+      }
+    );
+
+    if (ingestErr) {
+      throw new Error(ingestErr.message);
+    }
+
+    // 4. Update channel_identities avatar and display name if available
+    if (event.senderDisplayName && !isGenericDisplayName(event.senderDisplayName)) {
+      await Promise.all([
+        admin
+          .from('channel_identities')
+          .update({
+            display_name: event.senderDisplayName,
+            ...(fetchedAvatarUrl ? { avatar_url: fetchedAvatarUrl } : {}),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('channel', event.channel)
+          .eq('external_id', event.externalSenderId),
+        ingestResult?.lead_id
+          ? admin
+              .from('leads')
+              .update({
+                full_name: event.senderDisplayName,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', ingestResult.lead_id)
+              .in('full_name', [
+                'Facebook User',
+                'Instagram User',
+                'WhatsApp User',
+                'Contact',
+                'Unknown',
+              ])
+          : Promise.resolve(),
+      ]);
+    } else if (fetchedAvatarUrl) {
+      await admin
+        .from('channel_identities')
+        .update({
+          avatar_url: fetchedAvatarUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('channel', event.channel)
+        .eq('external_id', event.externalSenderId);
+    }
+
+    // 5. Asynchronously process media attachment if present
+    if (
+      ingestResult?.message_id &&
+      (event.messageType !== 'text' || event.mediaUrl || event.externalMediaId)
+    ) {
+      const targetMediaType = (['image', 'audio', 'video', 'document'].includes(event.messageType)
+        ? event.messageType
+        : 'document') as MessageAttachmentType;
+
+      void processInboundMedia({
+        conversationId: ingestResult.conversation_id,
+        messageId: ingestResult.message_id,
+        channel: event.channel,
+        mediaType: targetMediaType,
+        externalMediaId: event.externalMediaId,
+        mediaUrl: event.mediaUrl,
+        fileName: event.mediaFileName,
+        mimeType: event.mediaMimeType,
+        caption: event.caption || (event.content && !event.content.startsWith('[') ? event.content : null),
+      }).catch((err) => {
+        console.error('[Inbound Webhook after()] Media download error:', err);
+      });
+    }
+
+    // 6. Audit Logging
+    if (ingestResult?.message_id && !ingestResult.is_duplicate_message) {
+      void writeAuditLog({
+        actor_id: null,
+        action: 'inbox.message_received',
+        module: 'crm',
+        entity_type: 'message',
+        entity_id: ingestResult.message_id,
+        new_value: {
+          channel: event.channel,
+          conversation_id: ingestResult.conversation_id,
+          direction: 'inbound',
+          message_type: event.messageType,
+          lead_id: ingestResult.lead_id,
+        },
+      }).catch((err) => console.error('[Inbound Webhook after()] Audit log error:', err));
+    }
+
+    if (ingestResult?.assigned_to) {
+      void writeAuditLog({
+        actor_id: null,
+        action: 'inbox.conversation_assigned',
+        module: 'crm',
+        entity_type: 'conversation',
+        entity_id: ingestResult.conversation_id,
+        old_value: { assigned_to: null },
+        new_value: {
+          lead_id: ingestResult.lead_id,
+          conversation_id: ingestResult.conversation_id,
+          previous_owner: null,
+          new_owner: ingestResult.assigned_to,
+          timestamp: new Date().toISOString(),
+          source: 'automatic_inbound',
+        },
+      }).catch((err) => console.error('[Inbound Webhook after()] Audit log error:', err));
+    }
+
+    // 7. Mark event as processed
+    await admin
+      .from('webhook_events')
+      .update({
+        status: 'processed',
+        processed_at: new Date().toISOString(),
+        error_message: null,
+      })
+      .eq('id', rawEventId);
+
+  } catch (err: unknown) {
+    const errorObj = err as Error;
+    console.error('[Inbound Webhook after()] Background processing error:', {
+      rawEventId,
+      eventId: event.eventId,
+      error: errorObj?.message || String(err),
+    });
+
+    await admin
+      .from('webhook_events')
+      .update({
+        status: 'failed',
+        error_message: errorObj?.message || String(err),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', rawEventId);
+  }
+}
+
+/**
+ * POST Handler — Fast Sub-300ms Webhook ACK with Background Processing
  */
 export async function POST(req: NextRequest) {
   const admin = createAdminClient();
   const rawBody = await req.text();
   const headers = Object.fromEntries(req.headers.entries());
 
-  // 1. Signature & Authorization Verification
+  // 1. Signature & Authorization Verification (Constant-Time HMAC)
   const signatureHeader =
     req.headers.get('x-hub-signature-256') ||
     req.headers.get('x-hub-signature');
@@ -84,39 +288,18 @@ export async function POST(req: NextRequest) {
   const waAppSecret = process.env.WHATSAPP_APP_SECRET?.trim();
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
-  console.log('[Inbound Webhook POST] Inbound request received:', {
-    bodyLength: rawBody.length,
-    hasSig256: !!req.headers.get('x-hub-signature-256'),
-    hasSigSha1: !!req.headers.get('x-hub-signature'),
-    hasAppSecret: !!(appSecret || igAppSecret || waAppSecret),
-    hasAuthHeader: !!authHeader,
-    hasWebhookSecretHeader: !!webhookSecretHeader,
-  });
-
   let isAuthorized = false;
   let signatureVerified = false;
 
   if (signatureHeader && (appSecret || igAppSecret || waAppSecret)) {
     if (appSecret) {
-      signatureVerified = verifyMetaSignature(
-        rawBody,
-        signatureHeader,
-        appSecret
-      );
+      signatureVerified = verifyMetaSignature(rawBody, signatureHeader, appSecret);
     }
     if (!signatureVerified && igAppSecret) {
-      signatureVerified = verifyMetaSignature(
-        rawBody,
-        signatureHeader,
-        igAppSecret
-      );
+      signatureVerified = verifyMetaSignature(rawBody, signatureHeader, igAppSecret);
     }
     if (!signatureVerified && waAppSecret) {
-      signatureVerified = verifyMetaSignature(
-        rawBody,
-        signatureHeader,
-        waAppSecret
-      );
+      signatureVerified = verifyMetaSignature(rawBody, signatureHeader, waAppSecret);
     }
     isAuthorized = signatureVerified;
   } else if (
@@ -124,7 +307,7 @@ export async function POST(req: NextRequest) {
     serviceKey &&
     (authHeader === `Bearer ${serviceKey}` || authHeader === serviceKey)
   ) {
-    isAuthorized = true; // Internal service key authorization (test scripts)
+    isAuthorized = true; // Internal service key authorization
   } else if (
     webhookSecretHeader &&
     process.env.WEBHOOK_SECRET &&
@@ -145,52 +328,34 @@ export async function POST(req: NextRequest) {
   }
 
   if (!isAuthorized) {
-    const sigPrefix = signatureHeader ? signatureHeader.trim().slice(0, 15) : 'none';
-    console.warn('[Inbound Webhook POST] Authorization failed diagnostics:', {
-      hasSig256: !!req.headers.get('x-hub-signature-256'),
-      hasSigSha1: !!req.headers.get('x-hub-signature'),
-      hasAppSecret: !!(appSecret || igAppSecret || waAppSecret),
-      appSecretLength: appSecret?.length ?? 0,
-      bodyLength: rawBody.length,
-      sigPrefix,
-      signatureVerified,
-    });
-
+    console.warn('[Inbound Webhook POST] Unauthorized request rejected');
     return NextResponse.json(
       { error: 'Unauthorized: Invalid signature or access token' },
       { status: 401 }
     );
   }
 
+  // 2. Parse JSON Payload
   let rawPayload: Record<string, unknown>;
-
   try {
     rawPayload = JSON.parse(rawBody) as Record<string, unknown>;
   } catch (err: unknown) {
     const errorObj = err as Error;
-    console.error('[Inbound Webhook POST] Malformed JSON payload received:', {
-      errorName: errorObj?.name || 'SyntaxError',
-      errorMessage: errorObj?.message || String(err),
-    });
+    console.error('[Inbound Webhook POST] Malformed JSON payload:', errorObj?.message);
     return NextResponse.json(
       { error: 'Bad Request: Malformed JSON body' },
       { status: 400 }
     );
   }
 
-  // 2. Normalize Payload (Meta Messenger / Instagram / WhatsApp Cloud API vs Mock/Generic)
+  // 3. Normalize Inbound Events
   const normalizedEvents = normalizeInboundPayload(rawPayload);
-
-  console.log('[Inbound Webhook POST] Normalized events count:', normalizedEvents.length);
 
   if (!normalizedEvents || normalizedEvents.length === 0) {
     const isWhatsAppStatus =
       rawPayload?.object === 'whatsapp_business_account' &&
       Array.isArray((rawPayload as Record<string, unknown>)?.entry);
 
-    console.warn('[Inbound Webhook POST] Webhook payload ignored: No supported messaging events found', {
-      isWhatsAppStatus,
-    });
     return NextResponse.json({
       success: true,
       status: 'ignored',
@@ -198,100 +363,23 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  console.log('[Inbound Webhook POST] Starting event processing:', {
-    eventsCount: normalizedEvents.length,
-  });
-
-  const results = [];
+  // 4. Raw-First Persistence in app.webhook_events
+  const acceptedTasks: Array<{ rawEventId: string; event: NormalizedInboundEvent }> = [];
 
   for (const event of normalizedEvents) {
-    // 2B. Fetch profile name & avatar inline for Messenger & Instagram
-    let fetchedAvatarUrl: string | null = null;
-
-    if (!event.senderDisplayName || isGenericDisplayName(event.senderDisplayName)) {
-      if (event.channel === 'messenger' && event.externalSenderId) {
-        const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
-        if (pageToken) {
-          try {
-            const profile = await fetchFacebookProfile(event.externalSenderId, pageToken);
-            if (profile?.name && !isGenericDisplayName(profile.name)) {
-              event.senderDisplayName = profile.name;
-              fetchedAvatarUrl = profile.avatar_url;
-            }
-          } catch {
-            // ignore network errors
-          }
-        }
-      } else if (event.channel === 'instagram' && event.externalSenderId) {
-        const igToken =
-          process.env.INSTAGRAM_ACCESS_TOKEN?.trim() ||
-          process.env.META_PAGE_ACCESS_TOKEN?.trim();
-        if (igToken) {
-          try {
-            const profile = await fetchInstagramProfile(event.externalSenderId, igToken);
-            if (profile?.name && !isGenericDisplayName(profile.name)) {
-              event.senderDisplayName = profile.name;
-              fetchedAvatarUrl = profile.avatar_url;
-            }
-          } catch {
-            // ignore network errors
-          }
-        }
-      }
-    }
-
-    // Fast In-Memory Display Name Fallback
-    if (!event.senderDisplayName) {
-      if (event.channel === 'whatsapp') {
-        event.senderDisplayName = event.senderPhone || 'WhatsApp User';
-      } else if (event.channel === 'messenger') {
-        event.senderDisplayName = 'Facebook User';
-      } else if (event.channel === 'instagram') {
-        event.senderDisplayName = 'Instagram User';
-      } else {
-        event.senderDisplayName = 'Contact';
-      }
-    }
-
-    // 3. Raw-First Persistence in app.webhook_events
-    console.log('[Inbound Webhook POST] Before webhook_events insert:', {
-      channel: event.channel,
-      eventId: event.eventId,
-    });
-
-    let rawEventId: string | null = null;
-
+    // Check if duplicate already processed
     const { data: existingEvent } = await admin
       .from('webhook_events')
-      .select('id, status, retry_count')
+      .select('id, status')
       .eq('channel', event.channel)
       .eq('event_id', event.eventId)
       .maybeSingle();
 
     if (existingEvent) {
       if (existingEvent.status === 'processed') {
-        console.log('[Inbound Webhook POST] Duplicate event skipped:', {
-          eventId: event.eventId,
-          status: existingEvent.status,
-        });
-        results.push({
-          event_id: event.eventId,
-          status: 'ignored',
-          reason: 'duplicate_event',
-        });
-        continue;
+        continue; // Already processed idempotently
       }
-
-      rawEventId = existingEvent.id;
-
-      await admin
-        .from('webhook_events')
-        .update({
-          status: 'processing',
-          error_message: null,
-          retry_count: (existingEvent.retry_count || 0) + 1,
-        })
-        .eq('id', existingEvent.id);
+      acceptedTasks.push({ rawEventId: existingEvent.id, event });
     } else {
       const { data: newEvt, error: evtErr } = await admin
         .from('webhook_events')
@@ -300,263 +388,41 @@ export async function POST(req: NextRequest) {
           event_id: event.eventId,
           payload: rawPayload,
           headers,
-          status: 'processing',
+          status: 'received',
         })
         .select('id')
-        .single();
+        .maybeSingle();
 
-      if (evtErr || !newEvt) {
-        if (
-          evtErr?.code === '23505' ||
-          evtErr?.message?.includes('duplicate key') ||
-          evtErr?.message?.includes('unique constraint')
-        ) {
-          const { data: reEvt } = await admin
-            .from('webhook_events')
-            .select('id, status')
-            .eq('channel', event.channel)
-            .eq('event_id', event.eventId)
-            .maybeSingle();
-
-          if (reEvt) {
-            if (reEvt.status === 'processed') {
-              results.push({
-                event_id: event.eventId,
-                status: 'ignored',
-                reason: 'duplicate_event',
-              });
-              continue;
-            }
-            rawEventId = reEvt.id;
-          }
-        }
-
-        if (!rawEventId) {
-          console.error('[Inbound Webhook POST] Failed to record raw event in DB:', {
-            errorName: evtErr?.code || 'PostgrestError',
-            errorMessage: evtErr?.message || 'Failed to record raw webhook event',
-          });
-
-          return NextResponse.json(
-            { error: 'Failed to record raw webhook event' },
-            { status: 500 }
-          );
-        }
-      } else {
-        rawEventId = newEvt.id;
-      }
-    }
-
-    console.log('[Inbound Webhook POST] After webhook_events insert:', {
-      rawEventId,
-      eventId: event.eventId,
-    });
-
-    // 4. Atomic Database Ingestion via PL/pgSQL RPC
-    console.log('[Inbound Webhook POST] Before inbound message processing:', {
-      rawEventId,
-      channel: event.channel,
-      externalSenderId: event.externalSenderId,
-      externalThreadId: event.externalThreadId,
-      hasExternalMessageId: !!event.externalMessageId,
-      displayName: event.senderDisplayName,
-    });
-
-    try {
-      const { data: ingestResult, error: ingestErr } = await admin.rpc(
-        'ingest_inbound_message',
-        {
-          p_raw_event_id: rawEventId,
-          p_channel: event.channel,
-          p_external_sender_id: event.externalSenderId,
-          p_sender_display_name: event.senderDisplayName || null,
-          p_sender_phone: event.senderPhone || null,
-          p_external_thread_id: event.externalThreadId,
-          p_external_message_id: event.externalMessageId || null,
-          p_message_type: event.messageType,
-          p_content: event.content,
-          p_media_url: event.mediaUrl || null,
-          p_business_tz: 'Africa/Cairo',
-        }
-      );
-
-      if (ingestErr) {
-        throw new Error(ingestErr.message);
-      }
-
-      console.log('[Inbound Webhook POST] After inbound message processing:', {
-        rawEventId,
-        status: ingestResult?.status,
-        conversationId: ingestResult?.conversation_id,
-        messageId: ingestResult?.message_id,
-        leadId: ingestResult?.lead_id,
-        assignedTo: ingestResult?.assigned_to,
-      });
-
-      // Update channel_identities avatar and display name if available
-      if (
-        event.senderDisplayName &&
-        !isGenericDisplayName(event.senderDisplayName)
-      ) {
-        await Promise.all([
-          admin
-            .from('channel_identities')
-            .update({
-              display_name: event.senderDisplayName,
-              ...(fetchedAvatarUrl ? { avatar_url: fetchedAvatarUrl } : {}),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('channel', event.channel)
-            .eq('external_id', event.externalSenderId),
-          ingestResult?.lead_id
-            ? admin
-                .from('leads')
-                .update({
-                  full_name: event.senderDisplayName,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('id', ingestResult.lead_id)
-                .in('full_name', [
-                  'Facebook User',
-                  'Instagram User',
-                  'WhatsApp User',
-                  'Contact',
-                  'Unknown',
-                ])
-            : Promise.resolve(),
-        ]);
-      } else if (fetchedAvatarUrl) {
-        await admin
-          .from('channel_identities')
-          .update({
-            avatar_url: fetchedAvatarUrl,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('channel', event.channel)
-          .eq('external_id', event.externalSenderId);
-      }
-
-      // Process media attachment asynchronously & resiliently if message contains media
-      if (
-        ingestResult?.message_id &&
-        (event.messageType !== 'text' || event.mediaUrl || event.externalMediaId)
-      ) {
-        const targetMediaType = (['image', 'audio', 'video', 'document'].includes(event.messageType)
-          ? event.messageType
-          : 'document') as MessageAttachmentType;
-
-        void processInboundMedia({
-          conversationId: ingestResult.conversation_id,
-          messageId: ingestResult.message_id,
-          channel: event.channel,
-          mediaType: targetMediaType,
-          externalMediaId: event.externalMediaId,
-          mediaUrl: event.mediaUrl,
-          fileName: event.mediaFileName,
-          mimeType: event.mediaMimeType,
-          caption: event.caption || (event.content && !event.content.startsWith('[') ? event.content : null),
-        }).catch((err) => {
-          console.error('[Inbound Webhook POST] Error processing media attachment:', err);
-        });
-      }
-
-      // Write Audit Logs cleanly in background
-      if (
-        ingestResult?.message_id &&
-        !ingestResult.is_duplicate_message
-      ) {
-        void writeAuditLog({
-          actor_id: null,
-          action: 'inbox.message_received',
-          module: 'crm',
-          entity_type: 'message',
-          entity_id: ingestResult.message_id,
-          new_value: {
-            channel: event.channel,
-            conversation_id: ingestResult.conversation_id,
-            direction: 'inbound',
-            message_type: event.messageType,
-            lead_id: ingestResult.lead_id,
-          },
-        }).catch((err) => console.error('[Inbound Webhook POST] Audit log error:', err));
-      }
-
-      if (ingestResult?.assigned_to) {
-        void writeAuditLog({
-          actor_id: null,
-          action: 'inbox.conversation_assigned',
-          module: 'crm',
-          entity_type: 'conversation',
-          entity_id: ingestResult.conversation_id,
-          old_value: { assigned_to: null },
-          new_value: {
-            lead_id: ingestResult.lead_id,
-            conversation_id: ingestResult.conversation_id,
-            previous_owner: null,
-            new_owner: ingestResult.assigned_to,
-            timestamp: new Date().toISOString(),
-            source: 'automatic_inbound',
-          },
-        }).catch((err) => console.error('[Inbound Webhook POST] Audit log error:', err));
-      }
-
-      results.push({
-        event_id: event.eventId,
-        conversation_id: ingestResult.conversation_id,
-        message_id: ingestResult.message_id,
-        lead_id: ingestResult.lead_id,
-        assigned_to: ingestResult.assigned_to,
-        status: ingestResult.status,
-      });
-    } catch (err: unknown) {
-      const errorObj = err as Error;
-
-      console.error('[Inbound Webhook POST] Processing error caught:', {
-        eventId: event.eventId,
-        errorName: errorObj?.name || 'Error',
-        errorMessage: errorObj?.message || String(err),
-      });
-
-      if (rawEventId) {
-        const { data: currEvt } = await admin
+      if (newEvt?.id) {
+        acceptedTasks.push({ rawEventId: newEvt.id, event });
+      } else if (evtErr?.code === '23505') {
+        const { data: reEvt } = await admin
           .from('webhook_events')
-          .select('retry_count')
-          .eq('id', rawEventId)
+          .select('id, status')
+          .eq('channel', event.channel)
+          .eq('event_id', event.eventId)
           .maybeSingle();
 
-        await admin
-          .from('webhook_events')
-          .update({
-            status: 'failed',
-            error_message: errorObj?.message || String(err),
-            retry_count: (currEvt?.retry_count || 0) + 1,
-          })
-          .eq('id', rawEventId);
+        if (reEvt && reEvt.status !== 'processed') {
+          acceptedTasks.push({ rawEventId: reEvt.id, event });
+        }
       }
-
-      return NextResponse.json(
-        { error: errorObj?.message || String(err) },
-        { status: 500 }
-      );
     }
   }
 
-  const primaryResult = results[0] || {};
+  // 5. Schedule background execution via next/server after()
+  if (acceptedTasks.length > 0) {
+    after(async () => {
+      for (const task of acceptedTasks) {
+        await processInboundEventBackground(task.rawEventId, task.event, admin);
+      }
+    });
+  }
 
-  console.log('[Inbound Webhook POST] Returning 200:', {
-    resultsCount: results.length,
-    primaryConversationId: primaryResult?.conversation_id,
-    primaryStatus: primaryResult?.status,
-  });
-
+  // 6. Return sub-300ms HTTP 200 Response immediately to Meta
   return NextResponse.json({
     success: true,
-    processed_count: results.length,
-    conversation_id: primaryResult.conversation_id,
-    message_id: primaryResult.message_id,
-    lead_id: primaryResult.lead_id,
-    assigned_to: primaryResult.assigned_to,
-    status: primaryResult.status,
-    results,
+    status: 'received',
+    accepted_count: acceptedTasks.length,
   });
 }
