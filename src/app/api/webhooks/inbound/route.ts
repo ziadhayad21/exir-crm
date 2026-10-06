@@ -13,6 +13,7 @@ import {
   fetchFacebookProfileName,
   fetchInstagramProfileName,
 } from '@/lib/messaging/meta-adapter';
+import { isGenericDisplayName } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -202,67 +203,16 @@ export async function POST(req: NextRequest) {
   const results = [];
 
   for (const event of normalizedEvents) {
-    // If Messenger/Instagram sender name is missing, check channel_identities DB cache first before calling Meta Graph API
-    if (event.channel === 'messenger' && !event.senderDisplayName && event.externalSenderId) {
-      const { data: existingIdentity } = await admin
-        .from('channel_identities')
-        .select('display_name')
-        .eq('channel', 'messenger')
-        .eq('external_id', event.externalSenderId)
-        .maybeSingle();
-
-      if (existingIdentity?.display_name) {
-        event.senderDisplayName = existingIdentity.display_name;
-      } else {
-        const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
-        const apiVersion = process.env.META_API_VERSION?.trim() || 'v21.0';
-        if (pageToken) {
-          const fetchedName = await fetchFacebookProfileName(
-            event.externalSenderId,
-            pageToken,
-            apiVersion
-          );
-          event.senderDisplayName = fetchedName || 'Facebook User';
-        } else {
-          event.senderDisplayName = 'Facebook User';
-        }
-      }
-    } else if (event.channel === 'instagram' && !event.senderDisplayName && event.externalSenderId) {
-      const { data: existingIdentity } = await admin
-        .from('channel_identities')
-        .select('display_name')
-        .eq('channel', 'instagram')
-        .eq('external_id', event.externalSenderId)
-        .maybeSingle();
-
-      if (existingIdentity?.display_name) {
-        event.senderDisplayName = existingIdentity.display_name;
-      } else {
-        const token = process.env.INSTAGRAM_ACCESS_TOKEN?.trim() || process.env.META_PAGE_ACCESS_TOKEN?.trim();
-        const apiVersion = process.env.META_API_VERSION?.trim() || 'v21.0';
-        if (token) {
-          const fetchedName = await fetchInstagramProfileName(
-            event.externalSenderId,
-            token,
-            apiVersion
-          );
-          event.senderDisplayName = fetchedName || 'Instagram User';
-        } else {
-          event.senderDisplayName = 'Instagram User';
-        }
-      }
-    } else if (event.channel === 'whatsapp' && !event.senderDisplayName && event.externalSenderId) {
-      const { data: existingIdentity } = await admin
-        .from('channel_identities')
-        .select('display_name')
-        .eq('channel', 'whatsapp')
-        .eq('external_id', event.externalSenderId)
-        .maybeSingle();
-
-      if (existingIdentity?.display_name) {
-        event.senderDisplayName = existingIdentity.display_name;
-      } else {
+    // 2B. Fast In-Memory Display Name Default (0ms non-blocking path)
+    if (!event.senderDisplayName) {
+      if (event.channel === 'whatsapp') {
         event.senderDisplayName = event.senderPhone || 'WhatsApp User';
+      } else if (event.channel === 'messenger') {
+        event.senderDisplayName = 'Facebook User';
+      } else if (event.channel === 'instagram') {
+        event.senderDisplayName = 'Instagram User';
+      } else {
+        event.senderDisplayName = 'Contact';
       }
     }
 
@@ -443,6 +393,42 @@ export async function POST(req: NextRequest) {
             source: 'automatic_inbound',
           },
         }).catch((err) => console.error('[Inbound Webhook POST] Audit log error:', err));
+      }
+
+      // Background Profile Enrichment for Messenger / Instagram (non-blocking, zero latency on message delivery)
+      if (
+        (event.channel === 'messenger' || event.channel === 'instagram') &&
+        event.externalSenderId
+      ) {
+        const extSenderId = event.externalSenderId;
+        const chan = event.channel;
+        void (async () => {
+          try {
+            let fetchedName: string | null = null;
+            if (chan === 'messenger') {
+              const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
+              if (pageToken) {
+                fetchedName = await fetchFacebookProfileName(extSenderId, pageToken);
+              }
+            } else {
+              const igToken =
+                process.env.INSTAGRAM_ACCESS_TOKEN?.trim() ||
+                process.env.META_PAGE_ACCESS_TOKEN?.trim();
+              if (igToken) {
+                fetchedName = await fetchInstagramProfileName(extSenderId, igToken);
+              }
+            }
+            if (fetchedName && !isGenericDisplayName(fetchedName)) {
+              await admin
+                .from('channel_identities')
+                .update({ display_name: fetchedName, updated_at: new Date().toISOString() })
+                .eq('channel', chan)
+                .eq('external_id', extSenderId);
+            }
+          } catch {
+            // Ignore background profile fetch errors
+          }
+        })();
       }
 
       results.push({
