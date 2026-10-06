@@ -1,12 +1,12 @@
 // src/app/(dashboard)/crm/inbox/inbox-client.tsx
-// Phase 4A: Unified Inbox 3-pane responsive interface.
-// Left: Conversation List & Filters
-// Center: Message History & Interactive Composer
-// Right: Customer & Lead Context Sidebar with Linking
+// Unified Messaging Inbox: Modern 3-pane responsive interface.
+// Left: Conversation List, Search, Channel & Status Filters, Realtime Previews & Unread Badges
+// Center: Message History, Delivery Statuses, Date Separators, Auto-scroll & Multi-line Composer
+// Right: Customer Profile, Channel Identity, Linked Customer & Sales Lead Context
 
 'use client';
 
-import React, { useState, useEffect, useTransition, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useTransition, useCallback, useRef, useMemo } from 'react';
 import {
   MessageSquare,
   Search,
@@ -19,6 +19,10 @@ import {
   ExternalLink,
   AlertCircle,
   X,
+  Clock,
+  Layers,
+  Copy,
+  CheckCircle2,
 } from 'lucide-react';
 import type {
   CurrentUser,
@@ -35,6 +39,7 @@ import {
   updateConversationStatus,
   linkConversationCustomer,
   simulateInboundMessage,
+  markConversationAsRead,
 } from '../inbox-actions';
 import { createClient } from '@/lib/supabase/client';
 
@@ -44,29 +49,113 @@ interface InboxClientProps {
   user: CurrentUser;
 }
 
-const CHANNEL_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  whatsapp: { bg: 'rgba(37, 211, 102, 0.12)', text: '#25D366', border: 'rgba(37, 211, 102, 0.3)' },
-  instagram: { bg: 'rgba(225, 48, 108, 0.12)', text: '#E1306C', border: 'rgba(225, 48, 108, 0.3)' },
-  messenger: { bg: 'rgba(0, 132, 255, 0.12)', text: '#0084FF', border: 'rgba(0, 132, 255, 0.3)' },
-  mock: { bg: 'rgba(168, 85, 247, 0.12)', text: '#A855F7', border: 'rgba(168, 85, 247, 0.3)' },
-  other: { bg: 'rgba(148, 163, 184, 0.12)', text: '#94A3B8', border: 'rgba(148, 163, 184, 0.3)' },
+const CHANNEL_THEMES: Record<
+  string,
+  {
+    name: string;
+    bg: string;
+    text: string;
+    border: string;
+    badgeBg: string;
+  }
+> = {
+  whatsapp: {
+    name: 'WhatsApp',
+    bg: 'rgba(37, 211, 102, 0.12)',
+    text: '#25D366',
+    border: 'rgba(37, 211, 102, 0.25)',
+    badgeBg: '#25D366',
+  },
+  instagram: {
+    name: 'Instagram',
+    bg: 'rgba(225, 48, 108, 0.12)',
+    text: '#E1306C',
+    border: 'rgba(225, 48, 108, 0.25)',
+    badgeBg: 'linear-gradient(135deg, #F58529, #DD2A7B, #8134AF)',
+  },
+  messenger: {
+    name: 'Messenger',
+    bg: 'rgba(0, 132, 255, 0.12)',
+    text: '#0084FF',
+    border: 'rgba(0, 132, 255, 0.25)',
+    badgeBg: '#0084FF',
+  },
+  mock: {
+    name: 'Mock',
+    bg: 'rgba(168, 85, 247, 0.12)',
+    text: '#A855F7',
+    border: 'rgba(168, 85, 247, 0.25)',
+    badgeBg: '#A855F7',
+  },
+  other: {
+    name: 'Channel',
+    bg: 'rgba(148, 163, 184, 0.12)',
+    text: '#94A3B8',
+    border: 'rgba(148, 163, 184, 0.25)',
+    badgeBg: '#94A3B8',
+  },
 };
+
+function getInitials(name?: string | null): string {
+  if (!name || !name.trim()) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function formatDateSeparator(dateString: string): string {
+  const d = new Date(dateString);
+  const now = new Date();
+  const isToday =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    d.getDate() === yesterday.getDate() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getFullYear() === yesterday.getFullYear();
+
+  if (isToday) return 'Today';
+  if (isYesterday) return 'Yesterday';
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+  });
+}
+
+function formatMessageTime(dateString: string): string {
+  const d = new Date(dateString);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 export function InboxClient({ initialConversations, customers, user }: InboxClientProps) {
   const [conversations, setConversations] = useState<ConversationWithDetails[]>(initialConversations);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(
     initialConversations[0]?.id || null
   );
-  const [activeConv, setActiveConv] = useState<ConversationWithDetails | null>(null);
+  const [activeConv, setActiveConv] = useState<ConversationWithDetails | null>(
+    initialConversations[0] || null
+  );
   const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [replyText, setReplyText] = useState<string>('');
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showRightSidebar, setShowRightSidebar] = useState<boolean>(true);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
 
-  // Keep latest refs for realtime callbacks without recreating channels
+  // In-memory caching for zero-delay instant chat switching
+  const messagesCacheRef = useRef<Map<string, Message[]>>(new Map());
+  const convDetailsCacheRef = useRef<Map<string, ConversationWithDetails>>(new Map());
+
+  // Ref tracking for realtime listeners without hook teardown
   const selectedConvIdRef = useRef<string | null>(selectedConvId);
   useEffect(() => {
     selectedConvIdRef.current = selectedConvId;
@@ -76,6 +165,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   useEffect(() => {
     filtersRef.current = { channel: channelFilter, status: statusFilter, search: searchTerm };
   }, [channelFilter, statusFilter, searchTerm]);
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   // Link Customer state
   const [showLinkModal, setShowLinkModal] = useState<boolean>(false);
@@ -88,24 +179,28 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   const [simPhone, setSimPhone] = useState<string>('+201012345678');
   const [simContent, setSimContent] = useState<string>('Hello, I am inquiring about your services.');
 
-  const isAdmin = user.permissions.includes('crm.inbox.read_all') || user.permissions.includes('admin.system');
+  const isAdmin =
+    user.permissions.includes('crm.inbox.read_all') || user.permissions.includes('admin.system');
 
-  // Load selected conversation details
-  const loadConversationDetails = useCallback(async (convId: string) => {
-    const data = await getConversationDetails(convId);
-    if (data && selectedConvIdRef.current === convId) {
-      setActiveConv(data);
-      setMessages(data.messages || []);
+  // Auto-scroll message list to bottom
+  const scrollToBottom = useCallback((smooth = true) => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
     }
   }, []);
 
   useEffect(() => {
-    if (selectedConvId) {
-      loadConversationDetails(selectedConvId);
-    }
-  }, [selectedConvId, loadConversationDetails]);
+    scrollToBottom(false);
+  }, [messages.length, scrollToBottom]);
 
-  // Refresh conversation list without resetting WebSocket connections
+  // Copy helper
+  const handleCopy = (text: string, label: string) => {
+    void navigator.clipboard.writeText(text);
+    setCopiedText(label);
+    setTimeout(() => setCopiedText(null), 2000);
+  };
+
+  // Refresh conversation list from server (used on filters or new conversations)
   const refreshConversations = useCallback(async (autoSelectIfNone = false) => {
     try {
       const data = await getConversations({
@@ -113,10 +208,22 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         status: filtersRef.current.status,
         search: filtersRef.current.search,
       });
-      setConversations(data);
+
+      setConversations(() => {
+        // Retain unread_count === 0 for the currently open conversation
+        return data.map((c) => {
+          if (c.id === selectedConvIdRef.current) {
+            return { ...c, unread_count: 0 };
+          }
+          return c;
+        });
+      });
+
       setSelectedConvId((currentSelected) => {
         if ((autoSelectIfNone || !currentSelected) && data.length > 0) {
-          return currentSelected && data.some((c) => c.id === currentSelected) ? currentSelected : data[0].id;
+          return currentSelected && data.some((c) => c.id === currentSelected)
+            ? currentSelected
+            : data[0].id;
         }
         if (currentSelected && !data.some((c) => c.id === currentSelected) && data.length > 0) {
           return data[0].id;
@@ -124,149 +231,290 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         return currentSelected;
       });
     } catch (err) {
-      console.error('[Inbox] Error fetching conversations:', err);
+      console.error('[Inbox] Error refreshing conversations:', err);
     }
   }, []);
 
   // Filter & search changes trigger conversation refresh
   useEffect(() => {
     startTransition(() => {
-      refreshConversations(false);
+      void refreshConversations(false);
     });
   }, [channelFilter, statusFilter, searchTerm, refreshConversations]);
 
-  // Supabase Realtime Subscription (Connected ONCE on mount, zero memory leaks)
+  // Load selected conversation details with in-memory caching & auto-read reset
+  const loadConversationData = useCallback(
+    (convId: string, isInitial = false) => {
+      // 1. Immediately reset unread count in local conversations state
+      setConversations((prev) =>
+        prev.map((c) => (c.id === convId ? { ...c, unread_count: 0 } : c))
+      );
+
+      // 2. Check client-side message cache for instant 0ms render
+      const cachedMsgs = messagesCacheRef.current.get(convId);
+      const cachedDetails = convDetailsCacheRef.current.get(convId);
+
+      if (cachedMsgs) {
+        setMessages(cachedMsgs);
+        if (cachedDetails) setActiveConv(cachedDetails);
+        setIsLoadingMessages(false);
+      } else if (!isInitial) {
+        setIsLoadingMessages(true);
+      }
+
+      // 3. Dispatch mark as read on the server in background
+      void markConversationAsRead(convId).catch((err) =>
+        console.warn('[Inbox] markConversationAsRead error:', err)
+      );
+
+      // 4. Fetch fresh details and messages in background
+      void getConversationDetails(convId)
+        .then((freshDetails) => {
+          if (freshDetails && selectedConvIdRef.current === convId) {
+            setActiveConv(freshDetails);
+            const freshMsgs = freshDetails.messages || [];
+            setMessages(freshMsgs);
+            messagesCacheRef.current.set(convId, freshMsgs);
+            convDetailsCacheRef.current.set(convId, freshDetails);
+          }
+        })
+        .catch((err) => {
+          console.error('[Inbox] Error loading conversation details:', err);
+        })
+        .finally(() => {
+          setIsLoadingMessages(false);
+        });
+    },
+    []
+  );
+
+  // Switch conversation immediately on click
+  const handleSelectConversation = useCallback(
+    (conv: ConversationWithDetails) => {
+      if (selectedConvId === conv.id) return;
+      setSelectedConvId(conv.id);
+      setActiveConv(conv);
+      loadConversationData(conv.id);
+    },
+    [selectedConvId, loadConversationData]
+  );
+
+  // Initial load on mount
+  useEffect(() => {
+    if (!initialConversations[0]?.id) return;
+    const initialId = initialConversations[0].id;
+    void getConversationDetails(initialId)
+      .then((freshDetails) => {
+        if (freshDetails) {
+          setActiveConv(freshDetails);
+          const freshMsgs = freshDetails.messages || [];
+          setMessages(freshMsgs);
+          messagesCacheRef.current.set(initialId, freshMsgs);
+          convDetailsCacheRef.current.set(initialId, freshDetails);
+        }
+      })
+      .catch((err) => {
+        console.error('[Inbox] Error loading initial conversation details:', err);
+      });
+  }, [initialConversations]);
+
+  // Supabase Realtime Subscription (Singleton across component lifetime)
   useEffect(() => {
     const supabase = createClient();
 
-    const handleMessageEvent = async (payload: { new?: unknown }) => {
+    const handleMessageEvent = (payload: { new?: unknown; old?: unknown; eventType?: string }) => {
       const newMsg = payload.new as Message | undefined;
       if (!newMsg || !newMsg.id) return;
 
-      // 1. If new message belongs to currently active thread, update messages array in real time
-      if (newMsg.conversation_id === selectedConvIdRef.current) {
+      const currentOpenConvId = selectedConvIdRef.current;
+      const belongsToActiveConv = newMsg.conversation_id === currentOpenConvId;
+
+      // 1. If message belongs to currently active thread:
+      if (belongsToActiveConv) {
         setMessages((prev) => {
+          // Avoid duplicate messages
           const exists = prev.some(
             (m) =>
               m.id === newMsg.id ||
               (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
           );
+          let updated: Message[];
           if (exists) {
-            return prev.map((m) =>
+            updated = prev.map((m) =>
               m.id === newMsg.id ||
               (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
                 ? newMsg
                 : m
             );
+          } else {
+            updated = [...prev, newMsg];
           }
-          return [...prev, newMsg];
+          // Update cache
+          messagesCacheRef.current.set(newMsg.conversation_id, updated);
+          return updated;
         });
+
+        // If inbound message arrives while chat is open, immediately mark as read
+        if (newMsg.direction === 'inbound') {
+          void markConversationAsRead(newMsg.conversation_id);
+        }
+      } else {
+        // Update cached messages if previously opened
+        const cached = messagesCacheRef.current.get(newMsg.conversation_id);
+        if (cached) {
+          const exists = cached.some(
+            (m) =>
+              m.id === newMsg.id ||
+              (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
+          );
+          const next = exists
+            ? cached.map((m) => (m.id === newMsg.id ? newMsg : m))
+            : [...cached, newMsg];
+          messagesCacheRef.current.set(newMsg.conversation_id, next);
+        }
       }
 
-      // 2. Refresh conversation previews, timestamps, and unread counts immediately
-      await refreshConversations(false);
+      // 2. Instant in-memory conversation list update & reordering (0ms delay)
+      setConversations((prev) => {
+        const targetIdx = prev.findIndex((c) => c.id === newMsg.conversation_id);
+        const previewText = (newMsg.content || (newMsg.media_url ? '[Media attachment]' : '')).slice(
+          0,
+          100
+        );
+
+        if (targetIdx === -1) {
+          // New conversation not in local list -> trigger background fetch
+          void refreshConversations(false);
+          return prev;
+        }
+
+        const existing = prev[targetIdx];
+        const updatedConv: ConversationWithDetails = {
+          ...existing,
+          last_message_at: newMsg.created_at || new Date().toISOString(),
+          last_message_preview: previewText,
+          unread_count: belongsToActiveConv
+            ? 0
+            : (existing.unread_count || 0) + (newMsg.direction === 'inbound' ? 1 : 0),
+        };
+
+        // Move updated conversation to top of list
+        return [updatedConv, ...prev.slice(0, targetIdx), ...prev.slice(targetIdx + 1)];
+      });
     };
 
-    const handleConversationEvent = async (payload: { new?: unknown }) => {
-      // Refresh list and auto-select if no conversation was previously open
-      await refreshConversations(true);
-
+    const handleConversationEvent = (payload: { new?: unknown; old?: unknown; eventType?: string }) => {
       const newConv = payload.new as ConversationWithDetails | undefined;
-      if (newConv && selectedConvIdRef.current === newConv.id) {
-        loadConversationDetails(newConv.id);
+      if (!newConv || !newConv.id) return;
+
+      const currentOpenConvId = selectedConvIdRef.current;
+
+      setConversations((prev) => {
+        const exists = prev.some((c) => c.id === newConv.id);
+        if (!exists) {
+          // Fresh conversation -> refresh list
+          void refreshConversations(false);
+          return prev;
+        }
+        return prev.map((c) => {
+          if (c.id === newConv.id) {
+            return {
+              ...c,
+              ...newConv,
+              unread_count: c.id === currentOpenConvId ? 0 : newConv.unread_count,
+            };
+          }
+          return c;
+        });
+      });
+
+      if (newConv.id === currentOpenConvId) {
+        setActiveConv((prev) => (prev ? { ...prev, ...newConv } : prev));
       }
     };
 
     const channel = supabase
-      .channel('inbox-realtime-singleton')
+      .channel('inbox-realtime-master')
       .on(
         'postgres_changes',
         { event: '*', schema: 'app', table: 'messages' },
-        (payload) => {
-          handleMessageEvent(payload);
-        }
+        handleMessageEvent
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'app', table: 'conversations' },
-        (payload) => {
-          handleConversationEvent(payload);
-        }
+        handleConversationEvent
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'messages' },
-        (payload) => {
-          handleMessageEvent(payload);
-        }
+        handleMessageEvent
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations' },
-        (payload) => {
-          handleConversationEvent(payload);
-        }
+        handleConversationEvent
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Inbox Realtime] Subscribed to realtime updates');
+        }
+      });
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
-  }, [refreshConversations, loadConversationDetails]);
+  }, [refreshConversations]);
 
-  // Background Outbound Message Dispatcher (Non-blocking)
-  const dispatchOutboundMessage = useCallback(async (convId: string, content: string, tempId: string) => {
-    const res = await sendOutboundReply({
-      conversation_id: convId,
-      content,
-    });
+  // Outbound Message Dispatcher (Non-blocking background sync)
+  const dispatchOutboundMessage = useCallback(
+    async (convId: string, content: string, tempId: string) => {
+      const res = await sendOutboundReply({
+        conversation_id: convId,
+        content,
+      });
 
-    if (res.success && res.data) {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === tempId ? res.data! : m))
-      );
-      setActiveConv((prev) =>
-        prev && prev.id === convId
-          ? {
-              ...prev,
-              last_message_at: res.data!.created_at,
-              last_message_preview: content.slice(0, 100),
-            }
-          : prev
-      );
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === convId
+      if (res.success && res.data) {
+        setMessages((prev) => {
+          const next = prev.map((m) => (m.id === tempId ? res.data! : m));
+          messagesCacheRef.current.set(convId, next);
+          return next;
+        });
+        setActiveConv((prev) =>
+          prev && prev.id === convId
             ? {
-                ...c,
+                ...prev,
                 last_message_at: res.data!.created_at,
                 last_message_preview: content.slice(0, 100),
               }
-            : c
-        )
-      );
-    } else {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === tempId
-            ? {
-                ...m,
-                status: 'failed',
-                error_detail: res.error || 'Failed to deliver message',
-              }
-            : m
-        )
-      );
-    }
-  }, []);
+            : prev
+        );
+      } else {
+        setMessages((prev) => {
+          const next = prev.map((m) =>
+            m.id === tempId
+              ? {
+                  ...m,
+                  status: 'failed' as const,
+                  error_detail: res.error || 'Failed to deliver message to customer',
+                }
+              : m
+          );
+          messagesCacheRef.current.set(convId, next);
+          return next;
+        });
+      }
+    },
+    []
+  );
 
-  // Handle Send Reply (Instant 0ms Optimistic UI)
-  const handleSendReply = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Send reply handler (Optimistic UI - 0ms response)
+  const handleSendReply = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const content = replyText.trim();
-    if (!selectedConvId || !content) return;
+    if (!selectedConvId || !content || activeConv?.status === 'closed') return;
 
-    const tempId = `temp_msg_${Date.now()}_${Math.random()}`;
+    const tempId = `temp_${Date.now()}_${Math.random()}`;
     const optimisticMsg: Message = {
       id: tempId,
       conversation_id: selectedConvId,
@@ -286,53 +534,45 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       external_message_id: null,
     };
 
-    // 1. Instant UI update (0ms delay)
-    setMessages((prev) => [...prev, optimisticMsg]);
+    // 1. Instant optimistic state update
+    setMessages((prev) => {
+      const next = [...prev, optimisticMsg];
+      messagesCacheRef.current.set(selectedConvId, next);
+      return next;
+    });
     setReplyText('');
     setErrorMsg(null);
 
-    // Update active conversation & list preview locally
-    setActiveConv((prev) =>
-      prev
-        ? {
-            ...prev,
-            last_message_at: optimisticMsg.created_at,
-            last_message_preview: content.slice(0, 100),
-          }
-        : null
-    );
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === selectedConvId
-          ? {
-              ...c,
-              last_message_at: optimisticMsg.created_at,
-              last_message_preview: content.slice(0, 100),
-            }
-          : c
-      )
-    );
+    // Update conversation list preview & timestamp immediately
+    setConversations((prev) => {
+      const idx = prev.findIndex((c) => c.id === selectedConvId);
+      if (idx === -1) return prev;
+      const updated: ConversationWithDetails = {
+        ...prev[idx],
+        last_message_at: optimisticMsg.created_at,
+        last_message_preview: content.slice(0, 100),
+      };
+      return [updated, ...prev.slice(0, idx), ...prev.slice(idx + 1)];
+    });
 
-    // 2. Dispatch background server action without blocking UI typing
-    dispatchOutboundMessage(selectedConvId, content, tempId);
+    // 2. Dispatch background server action
+    void dispatchOutboundMessage(selectedConvId, content, tempId);
   };
 
-  // Handle Retry Failed Outbound Message
-  const handleRetryMessage = async (msgToRetry: Message) => {
+  // Retry failed message
+  const handleRetryMessage = (msgToRetry: Message) => {
     if (!selectedConvId || msgToRetry.direction !== 'outbound' || !msgToRetry.content) return;
 
     setMessages((prev) =>
       prev.map((m) =>
-        m.id === msgToRetry.id
-          ? { ...m, status: 'sending', error_detail: null }
-          : m
+        m.id === msgToRetry.id ? { ...m, status: 'sending', error_detail: null } : m
       )
     );
 
-    dispatchOutboundMessage(selectedConvId, msgToRetry.content, msgToRetry.id);
+    void dispatchOutboundMessage(selectedConvId, msgToRetry.content, msgToRetry.id);
   };
 
-  // Handle Status Change
+  // Status Change
   const handleStatusChange = async (newStatus: ConversationStatus) => {
     if (!selectedConvId) return;
     const res = await updateConversationStatus({
@@ -341,11 +581,15 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     });
     if (res.success) {
       setActiveConv((prev) => (prev ? { ...prev, status: newStatus } : null));
-      refreshConversations();
+      setConversations((prev) =>
+        prev.map((c) => (c.id === selectedConvId ? { ...c, status: newStatus } : c))
+      );
+    } else {
+      setErrorMsg(res.error || 'Failed to update status');
     }
   };
 
-  // Handle Link Customer
+  // Link Customer
   const handleLinkCustomer = async () => {
     if (!selectedConvId || !selectedCustomerId) return;
     const res = await linkConversationCustomer({
@@ -356,14 +600,17 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     if (res.success) {
       setShowLinkModal(false);
       const updated = await getConversationDetails(selectedConvId);
-      if (updated) setActiveConv(updated);
-      refreshConversations();
+      if (updated) {
+        setActiveConv(updated);
+        convDetailsCacheRef.current.set(selectedConvId, updated);
+      }
+      void refreshConversations();
     } else {
       setErrorMsg(res.error || 'Failed to link customer');
     }
   };
 
-  // Handle Simulate Inbound Message
+  // Simulate Inbound Message
   const handleSimulateMessage = async () => {
     const res = await simulateInboundMessage({
       channel: simChannel,
@@ -375,25 +622,110 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
 
     if (res.success) {
       setShowSimulateModal(false);
-      refreshConversations();
       if (res.data?.conversation_id) {
-        setSelectedConvId(res.data.conversation_id);
+        const convId = res.data.conversation_id;
+        setSelectedConvId(convId);
+        void refreshConversations(false);
+        loadConversationData(convId);
       }
     } else {
       setErrorMsg(res.error || 'Simulation failed');
     }
   };
 
+  // Group messages by date for date separators
+  const groupedMessages = useMemo(() => {
+    const groups: { dateLabel: string; msgs: Message[] }[] = [];
+    let currentLabel = '';
+    let currentBatch: Message[] = [];
+
+    messages.forEach((msg) => {
+      const label = formatDateSeparator(msg.created_at || msg.received_at);
+      if (label !== currentLabel) {
+        if (currentBatch.length > 0) {
+          groups.push({ dateLabel: currentLabel, msgs: currentBatch });
+        }
+        currentLabel = label;
+        currentBatch = [msg];
+      } else {
+        currentBatch.push(msg);
+      }
+    });
+
+    if (currentBatch.length > 0) {
+      groups.push({ dateLabel: currentLabel, msgs: currentBatch });
+    }
+
+    return groups;
+  }, [messages]);
+
+  // Total unread count across visible conversations
+  const totalUnreadCount = useMemo(() => {
+    return conversations.reduce((acc, c) => acc + (c.unread_count || 0), 0);
+  }, [conversations]);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', background: '#0F172A', color: '#F8FAFC' }}>
-      {/* Top Banner / Controls */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: '#1E293B' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <MessageSquare size={22} style={{ color: '#38BDF8' }} />
-          <h1 style={{ fontSize: '18px', fontWeight: 600, margin: 0 }}>Unified Messaging Inbox</h1>
-          <span style={{ fontSize: '12px', background: 'rgba(56, 189, 248, 0.15)', color: '#38BDF8', padding: '2px 8px', borderRadius: '12px', fontWeight: 500 }}>
-            Phase 4A
-          </span>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: 'calc(100vh - 72px)',
+        background: '#0B0F19',
+        color: '#F8FAFC',
+        fontFamily: 'inherit',
+      }}
+    >
+      {/* ─── Top Header & Controls ──────────────────────────────── */}
+      <header
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '10px 20px',
+          background: '#111827',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          minHeight: '56px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div
+            style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '9px',
+              background: 'linear-gradient(135deg, #0284C7, #0369A1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
+            }}
+          >
+            <MessageSquare size={18} style={{ color: '#FFF' }} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h1 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: '#F8FAFC' }}>
+                Unified Inbox
+              </h1>
+              {totalUnreadCount > 0 && (
+                <span
+                  style={{
+                    background: '#0284C7',
+                    color: '#FFF',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                  }}
+                >
+                  {totalUnreadCount} unread
+                </span>
+              )}
+            </div>
+            <span style={{ fontSize: '11px', color: '#94A3B8' }}>
+              WhatsApp, Instagram & Facebook Messenger
+            </span>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -406,210 +738,524 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
               color: '#FFF',
               border: 'none',
-              padding: '6px 14px',
+              padding: '7px 14px',
               borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: 500,
+              fontSize: '12px',
+              fontWeight: 600,
               cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+              transition: 'all 0.15s ease',
             }}
           >
             <Sparkles size={14} /> Simulate Inbound Message
           </button>
           <button
-            onClick={() => refreshConversations(false)}
+            onClick={() => void refreshConversations(false)}
             disabled={isPending}
             style={{
               background: 'rgba(255,255,255,0.06)',
               border: '1px solid rgba(255,255,255,0.1)',
               color: '#CBD5E1',
-              padding: '6px 10px',
+              padding: '7px 12px',
               borderRadius: '8px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              fontWeight: 500,
             }}
             title="Refresh Conversations"
           >
-            <RefreshCw size={15} style={{ animation: isPending ? 'spin 1s linear infinite' : 'none' }} />
+            <RefreshCw
+              size={13}
+              style={{ animation: isPending ? 'spin 1s linear infinite' : 'none' }}
+            />
+            <span>Refresh</span>
           </button>
         </div>
-      </div>
+      </header>
 
+      {/* Error notification bar */}
       {errorMsg && (
-        <div style={{ background: 'rgba(239, 68, 68, 0.15)', borderLeft: '4px solid #EF4444', color: '#FCA5A5', padding: '8px 16px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div
+          style={{
+            background: 'rgba(239, 68, 68, 0.15)',
+            borderLeft: '4px solid #EF4444',
+            color: '#FCA5A5',
+            padding: '8px 16px',
+            fontSize: '13px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <AlertCircle size={16} /> {errorMsg}
           </div>
-          <button onClick={() => setErrorMsg(null)} style={{ background: 'none', border: 'none', color: '#FCA5A5', cursor: 'pointer' }}>
+          <button
+            onClick={() => setErrorMsg(null)}
+            style={{ background: 'none', border: 'none', color: '#FCA5A5', cursor: 'pointer' }}
+          >
             <X size={14} />
           </button>
         </div>
       )}
 
-      {/* 3-Pane Responsive Layout */}
+      {/* ─── 3-Pane Responsive Layout ───────────────────────────── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* ─── PANE 1: Conversation List (320px) ────────────────── */}
-        <div style={{ width: '320px', borderRight: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', background: '#111827' }}>
-          {/* Filters & Search */}
-          <div style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        {/* ═══════════════════════════════════════════════════════════
+            PANE 1: Conversation List (Left, 340px)
+        ═══════════════════════════════════════════════════════════ */}
+        <aside
+          style={{
+            width: '340px',
+            borderRight: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            background: '#0F172A',
+            flexShrink: 0,
+          }}
+        >
+          {/* Search & Filters */}
+          <div
+            style={{
+              padding: '12px 14px',
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              background: '#0F172A',
+            }}
+          >
+            {/* Search Input */}
             <div style={{ position: 'relative', marginBottom: '10px' }}>
-              <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: '#64748B' }} />
+              <Search
+                size={14}
+                style={{
+                  position: 'absolute',
+                  left: '11px',
+                  top: '10px',
+                  color: '#64748B',
+                }}
+              />
               <input
                 type="text"
-                placeholder="Search conversations..."
+                placeholder="Search name, phone, or message..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
                   width: '100%',
-                  background: 'rgba(255,255,255,0.05)',
+                  background: 'rgba(255,255,255,0.04)',
                   border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   padding: '7px 10px 7px 32px',
-                  color: '#FFF',
-                  fontSize: '13px',
+                  color: '#F8FAFC',
+                  fontSize: '12px',
                   outline: 'none',
+                  transition: 'border 0.15s ease',
                 }}
               />
             </div>
 
-            {/* Channel Filters */}
-            <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '4px', marginBottom: '8px' }}>
-              {['all', 'whatsapp', 'instagram', 'messenger', 'mock'].map((ch) => (
-                <button
-                  key={ch}
-                  onClick={() => setChannelFilter(ch)}
-                  style={{
-                    background: channelFilter === ch ? '#38BDF8' : 'rgba(255,255,255,0.05)',
-                    color: channelFilter === ch ? '#0F172A' : '#94A3B8',
-                    border: 'none',
-                    borderRadius: '12px',
-                    padding: '3px 10px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    textTransform: 'capitalize',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {ch}
-                </button>
-              ))}
+            {/* Channel Pills */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '5px',
+                overflowX: 'auto',
+                paddingBottom: '4px',
+                marginBottom: '8px',
+                scrollbarWidth: 'none',
+              }}
+            >
+              {['all', 'whatsapp', 'instagram', 'messenger'].map((ch) => {
+                const isSelected = channelFilter === ch;
+                const theme = CHANNEL_THEMES[ch] || CHANNEL_THEMES.other;
+                return (
+                  <button
+                    key={ch}
+                    onClick={() => setChannelFilter(ch)}
+                    style={{
+                      background: isSelected ? theme.bg : 'rgba(255,255,255,0.03)',
+                      color: isSelected ? theme.text : '#94A3B8',
+                      border: isSelected
+                        ? `1px solid ${theme.border}`
+                        : '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: '16px',
+                      padding: '3px 10px',
+                      fontSize: '11px',
+                      fontWeight: isSelected ? 700 : 500,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.12s ease',
+                    }}
+                  >
+                    {ch === 'all' ? 'All Channels' : theme.name}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Status Filter */}
-            <div style={{ display: 'flex', gap: '4px', fontSize: '11px' }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: '4px',
+                background: 'rgba(255,255,255,0.03)',
+                padding: '2px',
+                borderRadius: '6px',
+              }}
+            >
               {['all', 'open', 'closed', ...(isAdmin ? ['pending_assignment'] : [])].map((st) => (
                 <button
                   key={st}
                   onClick={() => setStatusFilter(st)}
                   style={{
-                    background: statusFilter === st ? 'rgba(255,255,255,0.15)' : 'transparent',
+                    flex: 1,
+                    background: statusFilter === st ? 'rgba(255,255,255,0.1)' : 'transparent',
                     color: statusFilter === st ? '#F8FAFC' : '#64748B',
                     border: 'none',
                     borderRadius: '4px',
-                    padding: '2px 8px',
+                    padding: '3px 6px',
                     cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: statusFilter === st ? 600 : 400,
                     textTransform: 'capitalize',
+                    transition: 'all 0.12s ease',
                   }}
                 >
-                  {st.replace('_', ' ')}
+                  {st === 'pending_assignment' ? 'Pending' : st}
                 </button>
               ))}
             </div>
           </div>
 
           {/* Conversation Cards List */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '6px 8px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+          >
             {conversations.length === 0 ? (
-              <div style={{ padding: '30px 20px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
-                No conversations found.
+              <div
+                style={{
+                  padding: '40px 20px',
+                  textAlign: 'center',
+                  color: '#64748B',
+                  fontSize: '13px',
+                }}
+              >
+                <MessageSquare size={32} style={{ opacity: 0.2, margin: '0 auto 10px' }} />
+                <p style={{ margin: 0, fontWeight: 500 }}>No conversations found</p>
+                <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#475569' }}>
+                  Inbound messages will appear here automatically.
+                </p>
               </div>
             ) : (
               conversations.map((conv) => {
                 const isSelected = conv.id === selectedConvId;
-                const chColor = CHANNEL_COLORS[conv.channel] || CHANNEL_COLORS.other;
+                const theme = CHANNEL_THEMES[conv.channel] || CHANNEL_THEMES.other;
+                const displayName =
+                  conv.channel_identity?.display_name ||
+                  conv.channel_identity?.phone ||
+                  conv.lead?.full_name ||
+                  conv.customer?.full_name ||
+                  'Customer';
+                const initials = getInitials(displayName);
+                const hasUnread = (conv.unread_count || 0) > 0 && !isSelected;
 
                 return (
                   <div
                     key={conv.id}
-                    onClick={() => setSelectedConvId(conv.id)}
+                    onClick={() => handleSelectConversation(conv)}
                     style={{
-                      padding: '12px 14px',
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
-                      background: isSelected ? 'rgba(56, 189, 248, 0.08)' : 'transparent',
-                      borderLeft: isSelected ? '3px solid #38BDF8' : '3px solid transparent',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      background: isSelected
+                        ? 'rgba(2, 132, 199, 0.12)'
+                        : hasUnread
+                        ? 'rgba(255,255,255,0.03)'
+                        : 'transparent',
+                      border: isSelected
+                        ? '1px solid rgba(2, 132, 199, 0.3)'
+                        : '1px solid transparent',
                       cursor: 'pointer',
-                      transition: 'background 0.15s ease',
+                      transition: 'all 0.12s ease',
+                      position: 'relative',
+                      display: 'flex',
+                      gap: '10px',
+                      alignItems: 'center',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {/* Contact Avatar with Channel Badge */}
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <div
+                        style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '12px',
+                          background: isSelected
+                            ? 'linear-gradient(135deg, #0284C7, #0369A1)'
+                            : 'linear-gradient(135deg, #1E293B, #334155)',
+                          color: '#FFF',
+                          fontWeight: 700,
+                          fontSize: '13px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {conv.channel_identity?.avatar_url ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={conv.channel_identity.avatar_url}
+                            alt={displayName}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <span>{initials}</span>
+                        )}
+                      </div>
+                      {/* Channel Badge Overlay */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '-2px',
+                          right: '-2px',
+                          width: '14px',
+                          height: '14px',
+                          borderRadius: '50%',
+                          background: theme.badgeBg,
+                          border: '2px solid #0F172A',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        title={theme.name}
+                      />
+                    </div>
+
+                    {/* Middle Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'baseline',
+                          marginBottom: '2px',
+                        }}
+                      >
                         <span
                           style={{
-                            background: chColor.bg,
-                            color: chColor.text,
-                            border: `1px solid ${chColor.border}`,
-                            padding: '1px 6px',
-                            borderRadius: '4px',
-                            fontSize: '10px',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
+                            fontWeight: hasUnread ? 700 : isSelected ? 600 : 500,
+                            fontSize: '13px',
+                            color: isSelected ? '#38BDF8' : '#F8FAFC',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
                           }}
                         >
-                          {conv.channel}
+                          {displayName}
                         </span>
-                        <span style={{ fontWeight: 600, fontSize: '13px', color: '#F1F5F9' }}>
-                          {conv.channel_identity?.display_name || conv.channel_identity?.phone || 'Unknown Contact'}
+                        <span style={{ fontSize: '10px', color: '#64748B', flexShrink: 0 }}>
+                          {formatMessageTime(conv.last_message_at)}
                         </span>
                       </div>
-                      <span style={{ fontSize: '11px', color: '#64748B' }}>
-                        {new Date(conv.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <p style={{ margin: 0, fontSize: '12px', color: '#94A3B8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '210px' }}>
-                        {conv.last_message_preview || 'No messages yet'}
-                      </p>
-                      {conv.unread_count > 0 && (
-                        <span style={{ background: '#38BDF8', color: '#0F172A', borderRadius: '10px', fontSize: '10px', fontWeight: 700, padding: '1px 6px' }}>
-                          {conv.unread_count}
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: '11px',
+                            color: hasUnread ? '#E2E8F0' : '#94A3B8',
+                            fontWeight: hasUnread ? 600 : 400,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {conv.last_message_preview || 'No messages yet'}
+                        </p>
+                        {hasUnread && (
+                          <span
+                            style={{
+                              background: '#0284C7',
+                              color: '#FFF',
+                              borderRadius: '10px',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              padding: '1px 6px',
+                              flexShrink: 0,
+                              boxShadow: '0 1px 4px rgba(2, 132, 199, 0.4)',
+                            }}
+                          >
+                            {conv.unread_count}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Rep & Status Tag */}
+                      <div
+                        style={{
+                          marginTop: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '10px',
+                          color: '#64748B',
+                        }}
+                      >
+                        <span>
+                          {conv.assigned_to_employee?.full_name ||
+                            (conv.status === 'pending_assignment' ? 'Pending Routing' : 'Unassigned')}
                         </span>
-                      )}
-                    </div>
-
-                    {/* Assigned Rep Badge */}
-                    <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#64748B' }}>
-                      <User size={11} />
-                      <span>{conv.assigned_to_employee?.full_name || (conv.status === 'pending_assignment' ? 'Pending Routing' : 'Unassigned')}</span>
+                        {conv.status === 'closed' && (
+                          <span
+                            style={{
+                              background: 'rgba(255,255,255,0.06)',
+                              color: '#94A3B8',
+                              padding: '0 4px',
+                              borderRadius: '3px',
+                              fontSize: '9px',
+                            }}
+                          >
+                            Closed
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
               })
             )}
           </div>
-        </div>
+        </aside>
 
-        {/* ─── PANE 2: Message Thread & Composer (Flex 1) ────────── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#0F172A' }}>
+        {/* ═══════════════════════════════════════════════════════════
+            PANE 2: Message Thread & Composer (Center, Flex 1)
+        ═══════════════════════════════════════════════════════════ */}
+        <main
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            background: '#0B0F19',
+            minWidth: 0,
+          }}
+        >
           {activeConv ? (
             <>
               {/* Thread Header */}
-              <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: '#1E293B', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>
-                      {activeConv.channel_identity?.display_name || activeConv.channel_identity?.phone || 'Contact'}
-                    </h2>
-                    <span style={{ fontSize: '11px', color: '#64748B' }}>({activeConv.channel_identity?.external_id})</span>
+              <div
+                style={{
+                  padding: '10px 20px',
+                  borderBottom: '1px solid rgba(255,255,255,0.08)',
+                  background: '#111827',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  minHeight: '56px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                  <div
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #1E293B, #334155)',
+                      color: '#FFF',
+                      fontWeight: 700,
+                      fontSize: '13px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {getInitials(activeConv.channel_identity?.display_name)}
                   </div>
-                  <div style={{ display: 'flex', gap: '12px', marginTop: '4px', fontSize: '12px', color: '#94A3B8' }}>
-                    <span>Rep: <strong style={{ color: '#E2E8F0' }}>{activeConv.assigned_to_employee?.full_name || (activeConv.status === 'pending_assignment' ? 'Pending Routing' : 'Unassigned')}</strong></span>
-                    <span>Channel: <strong style={{ color: '#E2E8F0', textTransform: 'capitalize' }}>{activeConv.channel}</strong></span>
+
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h2
+                        style={{
+                          fontSize: '14px',
+                          fontWeight: 700,
+                          margin: 0,
+                          color: '#F8FAFC',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {activeConv.channel_identity?.display_name ||
+                          activeConv.channel_identity?.phone ||
+                          'Customer'}
+                      </h2>
+                      <span
+                        style={{
+                          background:
+                            (CHANNEL_THEMES[activeConv.channel] || CHANNEL_THEMES.other).bg,
+                          color: (CHANNEL_THEMES[activeConv.channel] || CHANNEL_THEMES.other).text,
+                          border: `1px solid ${
+                            (CHANNEL_THEMES[activeConv.channel] || CHANNEL_THEMES.other).border
+                          }`,
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {activeConv.channel}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: '12px',
+                        marginTop: '2px',
+                        fontSize: '11px',
+                        color: '#94A3B8',
+                      }}
+                    >
+                      <span>
+                        Rep:{' '}
+                        <strong style={{ color: '#CBD5E1' }}>
+                          {activeConv.assigned_to_employee?.full_name ||
+                            (activeConv.status === 'pending_assignment'
+                              ? 'Pending Routing'
+                              : 'Unassigned')}
+                        </strong>
+                      </span>
+                      {activeConv.channel_identity?.phone && (
+                        <span>
+                          Phone:{' '}
+                          <strong style={{ color: '#CBD5E1' }}>
+                            {activeConv.channel_identity.phone}
+                          </strong>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Status Selector */}
+                {/* Right controls: Status selector & Sidebar toggle */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <select
                     value={activeConv.status}
@@ -617,10 +1263,12 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                     style={{
                       background: 'rgba(255,255,255,0.06)',
                       border: '1px solid rgba(255,255,255,0.12)',
-                      color: '#FFF',
+                      color: '#F8FAFC',
                       borderRadius: '6px',
                       padding: '5px 10px',
                       fontSize: '12px',
+                      outline: 'none',
+                      cursor: 'pointer',
                     }}
                   >
                     {activeConv.status === 'pending_assignment' && (
@@ -630,166 +1278,489 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                     <option value="closed">Closed</option>
                     <option value="archived">Archived</option>
                   </select>
+
+                  <button
+                    onClick={() => setShowRightSidebar((prev) => !prev)}
+                    style={{
+                      background: showRightSidebar ? 'rgba(255,255,255,0.1)' : 'transparent',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: '#CBD5E1',
+                      padding: '6px 8px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                    title={showRightSidebar ? 'Hide Details' : 'Show Details'}
+                  >
+                    <Layers size={14} />
+                  </button>
                 </div>
               </div>
 
-              {/* Messages History */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {messages.length === 0 ? (
-                  <div style={{ margin: 'auto', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
-                    No messages in this conversation.
+              {/* Message History */}
+              <div
+                style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  padding: '20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                {isLoadingMessages ? (
+                  <div
+                    style={{
+                      margin: 'auto',
+                      textAlign: 'center',
+                      color: '#64748B',
+                      fontSize: '13px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                    <span>Loading conversation history...</span>
+                  </div>
+                ) : groupedMessages.length === 0 ? (
+                  <div
+                    style={{
+                      margin: 'auto',
+                      textAlign: 'center',
+                      color: '#64748B',
+                      fontSize: '13px',
+                    }}
+                  >
+                    <MessageSquare size={36} style={{ opacity: 0.2, margin: '0 auto 8px' }} />
+                    <p style={{ margin: 0, fontWeight: 500 }}>No messages in this conversation yet</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#475569' }}>
+                      Send an outbound message below to start chatting.
+                    </p>
                   </div>
                 ) : (
-                  messages.map((msg) => {
-                    const isOutbound = msg.direction === 'outbound';
-
-                    return (
+                  groupedMessages.map((group) => (
+                    <React.Fragment key={group.dateLabel}>
+                      {/* Date Separator Chip */}
                       <div
-                        key={msg.id}
                         style={{
                           display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: isOutbound ? 'flex-end' : 'flex-start',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          margin: '10px 0',
                         }}
                       >
-                        <div
+                        <span
                           style={{
-                            maxWidth: '65%',
-                            padding: '10px 14px',
-                            borderRadius: isOutbound ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
-                            background: isOutbound ? '#2563EB' : 'rgba(255,255,255,0.08)',
-                            color: '#F8FAFC',
-                            fontSize: '13px',
-                            lineHeight: 1.45,
-                            border: isOutbound ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                            background: 'rgba(255,255,255,0.06)',
+                            color: '#94A3B8',
+                            fontSize: '10px',
+                            fontWeight: 600,
+                            padding: '3px 12px',
+                            borderRadius: '12px',
+                            border: '1px solid rgba(255,255,255,0.06)',
                           }}
                         >
-                          {msg.content}
-                          {msg.media_url && (
-                            <div style={{ marginTop: '8px' }}>
-                              <a href={msg.media_url} target="_blank" rel="noopener noreferrer" style={{ color: '#93C5FD', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                View Attached Media <ExternalLink size={12} />
-                              </a>
-                            </div>
-                          )}
-                        </div>
+                          {group.dateLabel}
+                        </span>
+                      </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', fontSize: '10px', color: '#64748B' }}>
-                          <span>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          {isOutbound && (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              {msg.status === 'sending' ? (
-                                <RefreshCw size={11} style={{ color: '#94A3B8', animation: 'spin 1s linear infinite' }} />
-                              ) : msg.status === 'failed' ? (
-                                <span style={{ color: '#EF4444', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <AlertCircle size={12} />
-                                  <span>Failed</span>
-                                  <button
-                                    onClick={() => handleRetryMessage(msg)}
+                      {/* Messages within this date group */}
+                      {group.msgs.map((msg) => {
+                        const isOutbound = msg.direction === 'outbound';
+
+                        return (
+                          <div
+                            key={msg.id}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: isOutbound ? 'flex-end' : 'flex-start',
+                              maxWidth: '100%',
+                            }}
+                          >
+                            {/* Message Bubble */}
+                            <div
+                              style={{
+                                maxWidth: '72%',
+                                padding: '10px 14px',
+                                borderRadius: isOutbound
+                                  ? '16px 16px 2px 16px'
+                                  : '16px 16px 16px 2px',
+                                background: isOutbound
+                                  ? msg.status === 'failed'
+                                    ? 'rgba(239, 68, 68, 0.2)'
+                                    : 'linear-gradient(135deg, #0284C7, #0369A1)'
+                                  : '#1E293B',
+                                color: '#F8FAFC',
+                                fontSize: '13px',
+                                lineHeight: 1.5,
+                                border: isOutbound
+                                  ? msg.status === 'failed'
+                                    ? '1px solid #EF4444'
+                                    : 'none'
+                                  : '1px solid rgba(255,255,255,0.06)',
+                                boxShadow: isOutbound
+                                  ? '0 2px 8px rgba(2, 132, 199, 0.25)'
+                                  : '0 2px 6px rgba(0,0,0,0.2)',
+                                wordBreak: 'break-word',
+                                whiteSpace: 'pre-wrap',
+                              }}
+                            >
+                              {msg.content}
+                              {msg.media_url && (
+                                <div style={{ marginTop: '8px' }}>
+                                  <a
+                                    href={msg.media_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
                                     style={{
-                                      background: 'rgba(239, 68, 68, 0.2)',
-                                      border: '1px solid #EF4444',
-                                      color: '#FFF',
-                                      borderRadius: '4px',
-                                      padding: '1px 6px',
-                                      fontSize: '10px',
-                                      cursor: 'pointer',
-                                      marginLeft: '4px',
+                                      color: '#38BDF8',
+                                      fontSize: '12px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      textDecoration: 'none',
+                                      fontWeight: 600,
                                     }}
                                   >
-                                    Retry
-                                  </button>
-                                </span>
-                              ) : msg.status === 'read' ? (
-                                <CheckCheck size={12} style={{ color: '#38BDF8' }} />
-                              ) : msg.status === 'delivered' ? (
-                                <CheckCheck size={12} />
-                              ) : (
-                                <Check size={12} />
+                                    View Media Attachment <ExternalLink size={12} />
+                                  </a>
+                                </div>
                               )}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
+                            </div>
+
+                            {/* Timestamp & Status Icon */}
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                marginTop: '3px',
+                                fontSize: '10px',
+                                color: '#64748B',
+                              }}
+                            >
+                              <span>{formatMessageTime(msg.created_at || msg.received_at)}</span>
+                              {isOutbound && (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                  {msg.status === 'sending' ? (
+                                    <Clock
+                                      size={11}
+                                      style={{ color: '#94A3B8', animation: 'pulse 1s infinite' }}
+                                    />
+                                  ) : msg.status === 'failed' ? (
+                                    <span
+                                      style={{
+                                        color: '#EF4444',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                      }}
+                                    >
+                                      <AlertCircle size={11} />
+                                      <span>Failed</span>
+                                      <button
+                                        onClick={() => handleRetryMessage(msg)}
+                                        style={{
+                                          background: 'rgba(239, 68, 68, 0.2)',
+                                          border: '1px solid #EF4444',
+                                          color: '#FFF',
+                                          borderRadius: '3px',
+                                          padding: '1px 5px',
+                                          fontSize: '9px',
+                                          cursor: 'pointer',
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        Retry
+                                      </button>
+                                    </span>
+                                  ) : msg.status === 'read' ? (
+                                    <CheckCheck size={12} style={{ color: '#38BDF8' }} />
+                                  ) : msg.status === 'delivered' ? (
+                                    <CheckCheck size={12} style={{ color: '#94A3B8' }} />
+                                  ) : (
+                                    <Check size={12} style={{ color: '#94A3B8' }} />
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))
                 )}
+                <div ref={messagesEndRef} />
               </div>
 
               {/* Message Composer */}
-              <form onSubmit={handleSendReply} style={{ padding: '14px 20px', borderTop: '1px solid rgba(255,255,255,0.08)', background: '#1E293B', display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <input
-                  type="text"
-                  placeholder="Type an outbound reply..."
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  disabled={activeConv.status === 'closed'}
-                  style={{
-                    flex: 1,
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: '8px',
-                    padding: '10px 14px',
-                    color: '#FFF',
-                    fontSize: '13px',
-                    outline: 'none',
-                  }}
-                />
-                <button
-                  type="submit"
-                  disabled={!replyText.trim() || activeConv.status === 'closed'}
-                  style={{
-                    background: '#2563EB',
-                    color: '#FFF',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '10px 18px',
-                    cursor: replyText.trim() ? 'pointer' : 'not-allowed',
-                    opacity: replyText.trim() ? 1 : 0.5,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                  }}
-                >
-                  <Send size={15} /> Send
-                </button>
-              </form>
+              <div
+                style={{
+                  padding: '12px 20px',
+                  borderTop: '1px solid rgba(255,255,255,0.08)',
+                  background: '#111827',
+                }}
+              >
+                {activeConv.status === 'closed' ? (
+                  <div
+                    style={{
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      textAlign: 'center',
+                      fontSize: '12px',
+                      color: '#94A3B8',
+                    }}
+                  >
+                    This conversation is closed. Reopen it using the status selector above to reply.
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={handleSendReply}
+                    style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}
+                  >
+                    <textarea
+                      placeholder={`Type a reply to ${
+                        activeConv.channel_identity?.display_name || 'contact'
+                      } (Press Enter to send, Shift+Enter for new line)...`}
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendReply();
+                        }
+                      }}
+                      rows={2}
+                      style={{
+                        flex: 1,
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: '8px',
+                        padding: '10px 14px',
+                        color: '#F8FAFC',
+                        fontSize: '13px',
+                        outline: 'none',
+                        resize: 'none',
+                        fontFamily: 'inherit',
+                        lineHeight: 1.4,
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!replyText.trim()}
+                      style={{
+                        background: replyText.trim()
+                          ? 'linear-gradient(135deg, #0284C7, #0369A1)'
+                          : 'rgba(255,255,255,0.06)',
+                        color: replyText.trim() ? '#FFF' : '#64748B',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '12px 18px',
+                        cursor: replyText.trim() ? 'pointer' : 'not-allowed',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        boxShadow: replyText.trim()
+                          ? '0 2px 8px rgba(2, 132, 199, 0.3)'
+                          : 'none',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Send size={15} /> Send
+                    </button>
+                  </form>
+                )}
+              </div>
             </>
           ) : (
-            <div style={{ margin: 'auto', textAlign: 'center', color: '#64748B' }}>
-              <MessageSquare size={48} style={{ opacity: 0.2, marginBottom: '10px' }} />
-              <p style={{ fontSize: '14px' }}>Select a conversation to start messaging</p>
+            <div
+              style={{
+                margin: 'auto',
+                textAlign: 'center',
+                color: '#64748B',
+              }}
+            >
+              <MessageSquare size={48} style={{ opacity: 0.2, margin: '0 auto 12px' }} />
+              <p style={{ fontSize: '15px', fontWeight: 600, color: '#94A3B8' }}>
+                Select a conversation
+              </p>
+              <p style={{ fontSize: '12px', color: '#64748B' }}>
+                Choose a customer thread from the left pane to view messages.
+              </p>
             </div>
           )}
-        </div>
+        </main>
 
-        {/* ─── PANE 3: Context Sidebar (320px) ──────────────────── */}
-        {activeConv && (
-          <div style={{ width: '320px', borderLeft: '1px solid rgba(255,255,255,0.08)', background: '#111827', padding: '18px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            <h3 style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748B', margin: 0 }}>
-              Conversation Context
-            </h3>
+        {/* ═══════════════════════════════════════════════════════════
+            PANE 3: Customer & Context Sidebar (Right, 320px)
+        ═══════════════════════════════════════════════════════════ */}
+        {activeConv && showRightSidebar && (
+          <aside
+            style={{
+              width: '320px',
+              borderLeft: '1px solid rgba(255,255,255,0.08)',
+              background: '#0F172A',
+              padding: '16px',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              flexShrink: 0,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  color: '#64748B',
+                  margin: 0,
+                }}
+              >
+                Customer & Thread Context
+              </h3>
+            </div>
 
-            {/* Contact Profile */}
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                <User size={16} style={{ color: '#38BDF8' }} />
+            {/* 1. Channel Profile Card */}
+            <div
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '10px',
+                padding: '14px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '10px',
+                }}
+              >
+                <User size={15} style={{ color: '#38BDF8' }} />
                 <span style={{ fontWeight: 600, fontSize: '13px' }}>Channel Profile</span>
               </div>
-              <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px', color: '#94A3B8' }}>
-                <div>Display Name: <strong style={{ color: '#E2E8F0' }}>{activeConv.channel_identity?.display_name || 'N/A'}</strong></div>
-                <div>Phone: <strong style={{ color: '#E2E8F0' }}>{activeConv.channel_identity?.phone || 'N/A'}</strong></div>
-                <div>Platform ID: <strong style={{ color: '#E2E8F0', wordBreak: 'break-all' }}>{activeConv.channel_identity?.external_id}</strong></div>
+
+              <div
+                style={{
+                  fontSize: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  color: '#94A3B8',
+                }}
+              >
+                <div>
+                  <span style={{ color: '#64748B', display: 'block', fontSize: '10px' }}>
+                    Display Name
+                  </span>
+                  <strong style={{ color: '#F8FAFC', fontSize: '13px' }}>
+                    {activeConv.channel_identity?.display_name || 'Unknown Contact'}
+                  </strong>
+                </div>
+
+                {activeConv.channel_identity?.phone && (
+                  <div>
+                    <span style={{ color: '#64748B', display: 'block', fontSize: '10px' }}>
+                      Phone / Handle
+                    </span>
+                    <strong style={{ color: '#E2E8F0' }}>
+                      {activeConv.channel_identity.phone}
+                    </strong>
+                  </div>
+                )}
+
+                {activeConv.channel_identity?.email && (
+                  <div>
+                    <span style={{ color: '#64748B', display: 'block', fontSize: '10px' }}>
+                      Email
+                    </span>
+                    <strong style={{ color: '#E2E8F0' }}>
+                      {activeConv.channel_identity.email}
+                    </strong>
+                  </div>
+                )}
+
+                <div>
+                  <span style={{ color: '#64748B', display: 'block', fontSize: '10px' }}>
+                    Platform External ID
+                  </span>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: 'rgba(0,0,0,0.3)',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      marginTop: '2px',
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: '#CBD5E1',
+                        fontSize: '11px',
+                        wordBreak: 'break-all',
+                        fontFamily: 'monospace',
+                      }}
+                    >
+                      {activeConv.channel_identity?.external_id}
+                    </span>
+                    <button
+                      onClick={() =>
+                        handleCopy(activeConv.channel_identity?.external_id || '', 'id')
+                      }
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: copiedText === 'id' ? '#38BDF8' : '#64748B',
+                        cursor: 'pointer',
+                        padding: '2px',
+                      }}
+                      title="Copy ID"
+                    >
+                      {copiedText === 'id' ? <CheckCircle2 size={12} /> : <Copy size={12} />}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Linked Customer Profile */}
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            {/* 2. Linked Customer Card */}
+            <div
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '10px',
+                padding: '14px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '10px',
+                }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <User size={16} style={{ color: '#10B981' }} />
+                  <User size={15} style={{ color: '#10B981' }} />
                   <span style={{ fontWeight: 600, fontSize: '13px' }}>Linked Customer</span>
                 </div>
                 {!activeConv.customer && (
@@ -812,31 +1783,88 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               </div>
 
               {activeConv.customer ? (
-                <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px', color: '#94A3B8' }}>
-                  <div>Name: <strong style={{ color: '#E2E8F0' }}>{activeConv.customer.full_name}</strong></div>
-                  <div>Phone: <strong style={{ color: '#E2E8F0' }}>{activeConv.customer.phone || 'N/A'}</strong></div>
-                  <div>Email: <strong style={{ color: '#E2E8F0' }}>{activeConv.customer.email || 'N/A'}</strong></div>
-                  <a href={`/crm/customers`} style={{ color: '#38BDF8', fontSize: '11px', marginTop: '4px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    View in Customers <ExternalLink size={11} />
+                <div
+                  style={{
+                    fontSize: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    color: '#94A3B8',
+                  }}
+                >
+                  <div>
+                    Name: <strong style={{ color: '#E2E8F0' }}>{activeConv.customer.full_name}</strong>
+                  </div>
+                  {activeConv.customer.phone && (
+                    <div>
+                      Phone:{' '}
+                      <strong style={{ color: '#E2E8F0' }}>{activeConv.customer.phone}</strong>
+                    </div>
+                  )}
+                  {activeConv.customer.email && (
+                    <div>
+                      Email:{' '}
+                      <strong style={{ color: '#E2E8F0' }}>{activeConv.customer.email}</strong>
+                    </div>
+                  )}
+                  <a
+                    href={`/crm/customers`}
+                    style={{
+                      color: '#38BDF8',
+                      fontSize: '11px',
+                      marginTop: '4px',
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    View in Customer Directory <ExternalLink size={11} />
                   </a>
                 </div>
               ) : (
-                <div style={{ fontSize: '12px', color: '#64748B', fontStyle: 'italic' }}>
-                  No customer linked yet. Strict separation active (no auto-merge by name).
+                <div style={{ fontSize: '11px', color: '#64748B', fontStyle: 'italic' }}>
+                  No customer linked yet. Link an existing customer record to persist CRM history.
                 </div>
               )}
             </div>
 
-            {/* Associated Lead Card */}
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                <Sparkles size={16} style={{ color: '#F59E0B' }} />
-                <span style={{ fontWeight: 600, fontSize: '13px' }}>Active Sales Opportunity</span>
+            {/* 3. Sales Lead Opportunity Card */}
+            <div
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '10px',
+                padding: '14px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '10px',
+                }}
+              >
+                <Sparkles size={15} style={{ color: '#F59E0B' }} />
+                <span style={{ fontWeight: 600, fontSize: '13px' }}>Sales Lead Opportunity</span>
               </div>
 
               {activeConv.lead ? (
-                <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px', color: '#94A3B8' }}>
-                  <div>Lead: <strong style={{ color: '#E2E8F0' }}>{activeConv.lead.full_name}</strong></div>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    color: '#94A3B8',
+                  }}
+                >
+                  <div>
+                    Lead:{' '}
+                    <strong style={{ color: '#E2E8F0' }}>{activeConv.lead.full_name}</strong>
+                  </div>
                   <div>
                     Status:{' '}
                     <span
@@ -846,15 +1874,25 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                         padding: '1px 6px',
                         borderRadius: '4px',
                         fontWeight: 600,
-                        fontSize: '11px',
+                        fontSize: '10px',
                         textTransform: 'uppercase',
                       }}
                     >
                       {activeConv.lead.status}
                     </span>
                   </div>
-                  <div>Source: <strong style={{ color: '#E2E8F0', textTransform: 'capitalize' }}>{activeConv.lead.source}</strong></div>
-                  <div>Assigned Rep: <strong style={{ color: '#E2E8F0' }}>{activeConv.assigned_to_employee?.full_name || 'Unassigned'}</strong></div>
+                  <div>
+                    Source:{' '}
+                    <strong style={{ color: '#E2E8F0', textTransform: 'capitalize' }}>
+                      {activeConv.lead.source}
+                    </strong>
+                  </div>
+                  <div>
+                    Assigned Rep:{' '}
+                    <strong style={{ color: '#E2E8F0' }}>
+                      {activeConv.assigned_to_employee?.full_name || 'Unassigned'}
+                    </strong>
+                  </div>
                   <a
                     href={`/crm/leads`}
                     style={{
@@ -868,43 +1906,91 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                       fontWeight: 600,
                     }}
                   >
-                    Manage Lead & Convert <ExternalLink size={11} />
+                    Manage Lead in Pipeline <ExternalLink size={11} />
                   </a>
                 </div>
               ) : (
-                <div style={{ fontSize: '12px', color: '#64748B', fontStyle: 'italic' }}>
-                  No active lead associated with this thread.
+                <div style={{ fontSize: '11px', color: '#64748B', fontStyle: 'italic' }}>
+                  No active sales lead associated with this thread.
                 </div>
               )}
             </div>
-          </div>
+          </aside>
         )}
       </div>
 
       {/* ─── Modal: Link Customer ───────────────────────────────── */}
       {showLinkModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#1E293B', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', width: '420px', padding: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Link Customer to Thread</h3>
-              <button onClick={() => setShowLinkModal(false)} style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50,
+            backdropFilter: 'blur(2px)',
+          }}
+        >
+          <div
+            style={{
+              background: '#1E293B',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '12px',
+              width: '440px',
+              padding: '20px',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '14px',
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#F8FAFC' }}>
+                Link Customer to Thread
+              </h3>
+              <button
+                onClick={() => setShowLinkModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94A3B8',
+                  cursor: 'pointer',
+                }}
+              >
                 <X size={16} />
               </button>
             </div>
 
             <p style={{ fontSize: '12px', color: '#94A3B8', marginBottom: '16px' }}>
-              Select an existing Customer record to permanently associate with this channel identity and chat thread.
+              Select an existing Customer record to associate with this channel identity and chat
+              thread.
             </p>
 
             <select
               value={selectedCustomerId}
               onChange={(e) => setSelectedCustomerId(e.target.value)}
-              style={{ width: '100%', background: '#0F172A', border: '1px solid rgba(255,255,255,0.12)', color: '#FFF', borderRadius: '8px', padding: '9px 12px', fontSize: '13px', marginBottom: '20px' }}
+              style={{
+                width: '100%',
+                background: '#0F172A',
+                border: '1px solid rgba(255,255,255,0.12)',
+                color: '#FFF',
+                borderRadius: '8px',
+                padding: '9px 12px',
+                fontSize: '13px',
+                marginBottom: '20px',
+                outline: 'none',
+              }}
             >
               <option value="">Select a customer...</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.full_name} ({c.phone || c.email || 'No contact'})
+                  {c.full_name} ({c.phone || c.email || 'No contact details'})
                 </option>
               ))}
             </select>
@@ -912,14 +1998,32 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 onClick={() => setShowLinkModal(false)}
-                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#CBD5E1', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#CBD5E1',
+                  padding: '7px 14px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleLinkCustomer}
                 disabled={!selectedCustomerId}
-                style={{ background: '#38BDF8', color: '#0F172A', border: 'none', fontWeight: 600, padding: '7px 16px', borderRadius: '6px', fontSize: '13px', cursor: selectedCustomerId ? 'pointer' : 'not-allowed' }}
+                style={{
+                  background: '#0284C7',
+                  color: '#FFF',
+                  border: 'none',
+                  fontWeight: 600,
+                  padding: '7px 16px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  cursor: selectedCustomerId ? 'pointer' : 'not-allowed',
+                  opacity: selectedCustomerId ? 1 : 0.5,
+                }}
               >
                 Confirm Link
               </button>
@@ -930,29 +2034,93 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
 
       {/* ─── Modal: Simulate Inbound Message ────────────────────── */}
       {showSimulateModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#1E293B', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', width: '460px', padding: '22px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50,
+            backdropFilter: 'blur(2px)',
+          }}
+        >
+          <div
+            style={{
+              background: '#1E293B',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '12px',
+              width: '460px',
+              padding: '22px',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '14px',
+              }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Sparkles size={18} style={{ color: '#A855F7' }} />
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Simulate Inbound Message</h3>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#F8FAFC' }}>
+                  Simulate Inbound Message
+                </h3>
               </div>
-              <button onClick={() => setShowSimulateModal(false)} style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
+              <button
+                onClick={() => setShowSimulateModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94A3B8',
+                  cursor: 'pointer',
+                }}
+              >
                 <X size={16} />
               </button>
             </div>
 
             <p style={{ fontSize: '12px', color: '#94A3B8', marginBottom: '16px' }}>
-              Tests the full Phase 4A ingestion pipeline: raw webhook persistence, identity resolution, conversation creation, lead generation, and atomic sales routing.
+              Simulates a live inbound customer message from WhatsApp, Instagram, or Facebook
+              Messenger to test realtime inbox updates, lead creation, and sales routing.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                marginBottom: '20px',
+              }}
+            >
               <div>
-                <label style={{ fontSize: '11px', color: '#CBD5E1', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Channel</label>
+                <label
+                  style={{
+                    fontSize: '11px',
+                    color: '#CBD5E1',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: '4px',
+                  }}
+                >
+                  Channel
+                </label>
                 <select
                   value={simChannel}
                   onChange={(e) => setSimChannel(e.target.value as ChannelType)}
-                  style={{ width: '100%', background: '#0F172A', border: '1px solid rgba(255,255,255,0.12)', color: '#FFF', borderRadius: '6px', padding: '8px 10px', fontSize: '13px' }}
+                  style={{
+                    width: '100%',
+                    background: '#0F172A',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: '#FFF',
+                    borderRadius: '6px',
+                    padding: '8px 10px',
+                    fontSize: '13px',
+                    outline: 'none',
+                  }}
                 >
                   <option value="whatsapp">WhatsApp</option>
                   <option value="instagram">Instagram</option>
@@ -962,32 +2130,91 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               </div>
 
               <div>
-                <label style={{ fontSize: '11px', color: '#CBD5E1', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Sender Name</label>
+                <label
+                  style={{
+                    fontSize: '11px',
+                    color: '#CBD5E1',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: '4px',
+                  }}
+                >
+                  Sender Name
+                </label>
                 <input
                   type="text"
                   value={simSender}
                   onChange={(e) => setSimSender(e.target.value)}
-                  style={{ width: '100%', background: '#0F172A', border: '1px solid rgba(255,255,255,0.12)', color: '#FFF', borderRadius: '6px', padding: '8px 10px', fontSize: '13px' }}
+                  style={{
+                    width: '100%',
+                    background: '#0F172A',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: '#FFF',
+                    borderRadius: '6px',
+                    padding: '8px 10px',
+                    fontSize: '13px',
+                    outline: 'none',
+                  }}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: '11px', color: '#CBD5E1', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Phone / External ID</label>
+                <label
+                  style={{
+                    fontSize: '11px',
+                    color: '#CBD5E1',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: '4px',
+                  }}
+                >
+                  Phone / External ID
+                </label>
                 <input
                   type="text"
                   value={simPhone}
                   onChange={(e) => setSimPhone(e.target.value)}
-                  style={{ width: '100%', background: '#0F172A', border: '1px solid rgba(255,255,255,0.12)', color: '#FFF', borderRadius: '6px', padding: '8px 10px', fontSize: '13px' }}
+                  style={{
+                    width: '100%',
+                    background: '#0F172A',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: '#FFF',
+                    borderRadius: '6px',
+                    padding: '8px 10px',
+                    fontSize: '13px',
+                    outline: 'none',
+                  }}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: '11px', color: '#CBD5E1', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Message Content</label>
+                <label
+                  style={{
+                    fontSize: '11px',
+                    color: '#CBD5E1',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: '4px',
+                  }}
+                >
+                  Message Content
+                </label>
                 <textarea
                   value={simContent}
                   onChange={(e) => setSimContent(e.target.value)}
                   rows={3}
-                  style={{ width: '100%', background: '#0F172A', border: '1px solid rgba(255,255,255,0.12)', color: '#FFF', borderRadius: '6px', padding: '8px 10px', fontSize: '13px' }}
+                  style={{
+                    width: '100%',
+                    background: '#0F172A',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: '#FFF',
+                    borderRadius: '6px',
+                    padding: '8px 10px',
+                    fontSize: '13px',
+                    outline: 'none',
+                    resize: 'none',
+                    fontFamily: 'inherit',
+                  }}
                 />
               </div>
             </div>
@@ -995,13 +2222,30 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 onClick={() => setShowSimulateModal(false)}
-                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#CBD5E1', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#CBD5E1',
+                  padding: '7px 14px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSimulateMessage}
-                style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', color: '#FFF', border: 'none', fontWeight: 600, padding: '7px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}
+                style={{
+                  background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                  color: '#FFF',
+                  border: 'none',
+                  fontWeight: 600,
+                  padding: '7px 16px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
               >
                 Dispatch Inbound Event
               </button>

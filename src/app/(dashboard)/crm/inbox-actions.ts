@@ -31,6 +31,39 @@ import { revalidatePath } from 'next/cache';
 // READ OPERATIONS (RLS-ENFORCED)
 // ═══════════════════════════════════════════════════════════════
 
+function resolveDisplayName(
+  channel: string,
+  identity?: { display_name?: string | null; phone?: string | null; external_id?: string | null } | null,
+  lead?: { full_name?: string | null } | null,
+  customer?: { full_name?: string | null } | null
+): string {
+  if (identity?.display_name && identity.display_name.trim() && identity.display_name.trim() !== 'Contact') {
+    return identity.display_name.trim();
+  }
+  if (customer?.full_name && customer.full_name.trim()) {
+    return customer.full_name.trim();
+  }
+  if (lead?.full_name && lead.full_name.trim()) {
+    return lead.full_name.trim();
+  }
+  if (identity?.phone && identity.phone.trim()) {
+    return identity.phone.trim();
+  }
+  if (identity?.external_id && identity.external_id.trim() && identity.external_id !== 'Unknown') {
+    if (channel === 'messenger') return 'Facebook User';
+    if (channel === 'instagram') return 'Instagram User';
+    if (channel === 'whatsapp') return 'WhatsApp User';
+    return identity.external_id.trim();
+  }
+  return channel === 'messenger'
+    ? 'Facebook User'
+    : channel === 'instagram'
+    ? 'Instagram User'
+    : channel === 'whatsapp'
+    ? 'WhatsApp User'
+    : 'Contact';
+}
+
 /**
  * Get conversations visible to current user based on RLS (Behavior B).
  * Sales reps see only their assigned conversations; Admin sees all.
@@ -89,25 +122,39 @@ export async function getConversations(filters?: {
   const leadMap = new Map((leadsRes.data || []).map((l) => [l.id, l]));
   const employeeMap = new Map((employeesRes.data || []).map((e) => [e.id, e as Employee]));
 
-  let enriched: ConversationWithDetails[] = convs.map((c) => ({
-    ...c,
-    channel_identity: identityMap.get(c.channel_identity_id) || {
-      id: c.channel_identity_id,
-      channel: c.channel,
-      external_id: 'Unknown',
-      display_name: 'Contact',
-      phone: null,
-      email: null,
-      avatar_url: null,
-      customer_id: null,
-      metadata: {},
-      created_at: c.created_at,
-      updated_at: c.updated_at,
-    },
-    customer: c.customer_id ? customerMap.get(c.customer_id) || null : null,
-    lead: c.lead_id ? leadMap.get(c.lead_id) || null : null,
-    assigned_to_employee: c.assigned_to ? employeeMap.get(c.assigned_to) || null : null,
-  }));
+  let enriched: ConversationWithDetails[] = convs.map((c) => {
+    const ident = identityMap.get(c.channel_identity_id);
+    const lead = c.lead_id ? leadMap.get(c.lead_id) || null : null;
+    const customer = c.customer_id ? customerMap.get(c.customer_id) || null : null;
+    const resolvedName = resolveDisplayName(c.channel, ident, lead, customer);
+
+    return {
+      ...c,
+      channel_identity: ident
+        ? {
+            ...ident,
+            display_name: resolvedName,
+            phone: ident.phone || lead?.phone || customer?.phone || null,
+            email: ident.email || lead?.email || customer?.email || null,
+          }
+        : {
+            id: c.channel_identity_id,
+            channel: c.channel,
+            external_id: 'Unknown',
+            display_name: resolvedName,
+            phone: lead?.phone || customer?.phone || null,
+            email: lead?.email || customer?.email || null,
+            avatar_url: null,
+            customer_id: c.customer_id || null,
+            metadata: {},
+            created_at: c.created_at,
+            updated_at: c.updated_at,
+          },
+      customer,
+      lead,
+      assigned_to_employee: c.assigned_to ? employeeMap.get(c.assigned_to) || null : null,
+    };
+  });
 
   // Client search filtering
   if (filters?.search && filters.search.trim()) {
@@ -156,26 +203,89 @@ export async function getConversationDetails(
     admin.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true }),
   ]);
 
+  const ident = identityRes.data;
+  const lead = leadRes.data || null;
+  const customer = customerRes.data || null;
+  const resolvedName = resolveDisplayName(conv.channel, ident, lead, customer);
+
   return {
     ...conv,
-    channel_identity: identityRes.data || {
-      id: conv.channel_identity_id,
-      channel: conv.channel,
-      external_id: 'Unknown',
-      display_name: 'Contact',
-      phone: null,
-      email: null,
-      avatar_url: null,
-      customer_id: null,
-      metadata: {},
-      created_at: conv.created_at,
-      updated_at: conv.updated_at,
-    },
-    customer: customerRes.data || null,
-    lead: leadRes.data || null,
+    channel_identity: ident
+      ? {
+          ...ident,
+          display_name: resolvedName,
+          phone: ident.phone || lead?.phone || customer?.phone || null,
+          email: ident.email || lead?.email || customer?.email || null,
+        }
+      : {
+          id: conv.channel_identity_id,
+          channel: conv.channel,
+          external_id: 'Unknown',
+          display_name: resolvedName,
+          phone: lead?.phone || customer?.phone || null,
+          email: lead?.email || customer?.email || null,
+          avatar_url: null,
+          customer_id: conv.customer_id || null,
+          metadata: {},
+          created_at: conv.created_at,
+          updated_at: conv.updated_at,
+        },
+    customer,
+    lead,
     assigned_to_employee: (empRes.data as Employee) || null,
     messages: msgRes.data || [],
   };
+}
+
+/**
+ * Mark a conversation as read and reset its unread count to 0 (RLS-enforced).
+ */
+export async function markConversationAsRead(
+  conversationId: string
+): Promise<ActionResult<void>> {
+  try {
+    const profile = await requireAnyPermission(['crm.inbox.read_own', 'crm.inbox.read_all', 'crm.inbox.write']);
+    const employee = profile.employee;
+    const admin = createAdminClient();
+
+    // Verify ownership if Sales (non-admin)
+    const isAdmin = hasPermission(profile, 'crm.inbox.read_all');
+    if (!isAdmin && employee) {
+      const { data: conv } = await admin
+        .from('conversations')
+        .select('assigned_to')
+        .eq('id', conversationId)
+        .maybeSingle();
+
+      if (!conv || (conv.assigned_to && conv.assigned_to !== employee.id)) {
+        return { success: false, error: 'Unauthorized: Conversation not assigned to you' };
+      }
+    }
+
+    // Reset unread count on conversation and mark inbound messages as read
+    await Promise.all([
+      admin
+        .from('conversations')
+        .update({
+          unread_count: 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', conversationId),
+      admin
+        .from('messages')
+        .update({
+          status: 'read',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('conversation_id', conversationId)
+        .eq('direction', 'inbound')
+        .neq('status', 'read'),
+    ]);
+
+    return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unexpected error' };
+  }
 }
 
 /**
