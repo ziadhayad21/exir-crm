@@ -1,0 +1,127 @@
+{
+  "timestamp": "2026-10-06T10:38:10.167Z",
+  "target_base_url": "https://exir-crm.vercel.app",
+  "supabase_url": "https://mpfhfugcwgcylqoedmge.supabase.co",
+  "regions": {
+    "supabase_region": "eu-north-1 (Stockholm, AWS)",
+    "vercel_edge_observed": "fra1 (Frankfurt)",
+    "vercel_function_observed": "iad1 (Washington D.C., US East)",
+    "mismatch_latency_est_ms": 120
+  },
+  "receive_path": {
+    "cold_start_ack_ms": 2962,
+    "warm_ack_stats": {
+      "count": 30,
+      "min": 585,
+      "avg": 1042,
+      "p50": 1009,
+      "p95": 1575,
+      "p99": 1633,
+      "max": 1633
+    },
+    "db_persistence_stats": {
+      "count": 30,
+      "min": 673,
+      "avg": 1188,
+      "p50": 1221,
+      "p95": 1671,
+      "p99": 2147,
+      "max": 2147
+    },
+    "burst_50": {
+      "count": 50,
+      "total_duration_ms": 3345,
+      "success_count": 50,
+      "persisted_in_db": 50,
+      "stats": {
+        "count": 50,
+        "min": 1430,
+        "avg": 2513,
+        "p50": 2539,
+        "p95": 3143,
+        "p99": 3344,
+        "max": 3344
+      }
+    },
+    "burst_200": {
+      "count": 200,
+      "total_duration_ms": 5168,
+      "success_count": 200,
+      "persisted_in_db": 200,
+      "stats": {
+        "count": 200,
+        "min": 2043,
+        "avg": 3830,
+        "p50": 3813,
+        "p95": 4871,
+        "p99": 5124,
+        "max": 5136
+      }
+    }
+  },
+  "send_path": {
+    "whatsapp_24h_window_rejection_latency_ms": 197,
+    "rapid_send_ordering": "chronological_verified",
+    "optimistic_bubble_target_ms": "<50ms"
+  },
+  "media_path": {
+    "vercel_serverless_body_limit_bytes": 4718592,
+    "evaluated_sizes": [
+      {
+        "label": "100KB Image",
+        "bytes": 102400,
+        "exceedsVercelLimit": false,
+        "current_architecture": "SUCCEEDS_BUT_SLOW_SERVER_ACTION_MULTIPART",
+        "target_direct_storage": "SUCCEEDS_VIA_SIGNED_URL_DIRECT_TO_S3"
+      },
+      {
+        "label": "1MB Image",
+        "bytes": 1048576,
+        "exceedsVercelLimit": false,
+        "current_architecture": "SUCCEEDS_BUT_SLOW_SERVER_ACTION_MULTIPART",
+        "target_direct_storage": "SUCCEEDS_VIA_SIGNED_URL_DIRECT_TO_S3"
+      },
+      {
+        "label": "4MB Image",
+        "bytes": 4194304,
+        "exceedsVercelLimit": false,
+        "current_architecture": "SUCCEEDS_BUT_SLOW_SERVER_ACTION_MULTIPART",
+        "target_direct_storage": "SUCCEEDS_VIA_SIGNED_URL_DIRECT_TO_S3"
+      },
+      {
+        "label": "5MB Image (Exceeds Vercel Serverless 4.5MB)",
+        "bytes": 5242880,
+        "exceedsVercelLimit": true,
+        "current_architecture": "FAILS_ON_VERCEL_413_PAYLOAD_TOO_LARGE",
+        "target_direct_storage": "SUCCEEDS_VIA_SIGNED_URL_DIRECT_TO_S3"
+      },
+      {
+        "label": "10MB Image (Exceeds Vercel Serverless 4.5MB)",
+        "bytes": 10485760,
+        "exceedsVercelLimit": true,
+        "current_architecture": "FAILS_ON_VERCEL_413_PAYLOAD_TOO_LARGE",
+        "target_direct_storage": "SUCCEEDS_VIA_SIGNED_URL_DIRECT_TO_S3"
+      },
+      {
+        "label": "25MB Audio (Exceeds Vercel Serverless 4.5MB)",
+        "bytes": 26214400,
+        "exceedsVercelLimit": true,
+        "current_architecture": "FAILS_ON_VERCEL_413_PAYLOAD_TOO_LARGE",
+        "target_direct_storage": "SUCCEEDS_VIA_SIGNED_URL_DIRECT_TO_S3"
+      },
+      {
+        "label": "50MB Document/Video (Exceeds Vercel Serverless 4.5MB)",
+        "bytes": 52428800,
+        "exceedsVercelLimit": true,
+        "current_architecture": "FAILS_ON_VERCEL_413_PAYLOAD_TOO_LARGE",
+        "target_direct_storage": "SUCCEEDS_VIA_SIGNED_URL_DIRECT_TO_S3"
+      }
+    ]
+  },
+  "inbox_ux": {
+    "cold_conversation_db_fetch_ms": 97,
+    "cached_swr_conversation_open_ms": 0.003,
+    "target_cached_open_ms": 50
+  },
+  "bundle_and_build": {}
+}
