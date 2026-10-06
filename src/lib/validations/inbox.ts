@@ -10,6 +10,7 @@ export const CONVERSATION_STATUSES = ['open', 'pending_assignment', 'closed', 'a
 export const MESSAGE_TYPES = ['text', 'image', 'audio', 'video', 'document', 'location', 'template', 'system'] as const;
 
 export const sendReplySchema = z.object({
+  id: z.string().regex(uuidRegex).optional(),
   conversation_id: z.string().regex(uuidRegex, 'Invalid conversation ID'),
   content: z.string().min(1, 'Message content cannot be empty').max(10000, 'Message content is too long'),
   message_type: z.enum(MESSAGE_TYPES).optional().default('text'),

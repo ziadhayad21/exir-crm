@@ -518,6 +518,7 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
     const { data: newMsg, error: msgError } = await supabase
       .from('messages')
       .insert({
+        id: parsed.data.id || undefined,
         conversation_id: parsed.data.conversation_id,
         direction: 'outbound',
         sender_type: 'employee',
@@ -691,6 +692,7 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
       entity_type: 'message',
       entity_id: newMsg.id,
       new_value: {
+        id: parsed.data.id || undefined,
         conversation_id: parsed.data.conversation_id,
         message_type: newMsg.message_type,
         content_preview: parsed.data.content.slice(0, 50),
@@ -970,6 +972,7 @@ export async function sendOutboundMediaReply(
       return { success: false, error: 'Current employee record not found' };
     }
 
+    const msgId = formData.get('id') as string | null;
     const conversationId = formData.get('conversation_id') as string;
     const caption = ((formData.get('caption') as string) || '').trim();
     const file = formData.get('file') as File | null;
@@ -1013,6 +1016,7 @@ export async function sendOutboundMediaReply(
     const { data: newMsg, error: msgError } = await supabase
       .from('messages')
       .insert({
+        id: msgId || undefined,
         conversation_id: conversationId,
         direction: 'outbound',
         sender_type: 'employee',
@@ -1292,6 +1296,7 @@ export async function sendOutboundMediaReply(
       entity_type: 'message',
       entity_id: newMsg.id,
       new_value: {
+        id: msgId || undefined,
         conversation_id: conversationId,
         channel: conv.channel,
         media_type: validation.mediaType,

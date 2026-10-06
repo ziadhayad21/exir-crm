@@ -744,7 +744,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
 
         const targetMsg = prev[msgIdx];
         const existingAtts = targetMsg.attachments || [];
-        const attIdx = existingAtts.findIndex((a) => a.id === newAtt.id);
+        const attIdx = existingAtts.findIndex((a) => a.id === newAtt.id || a.id.startsWith('temp_att_'));
 
         let nextAtts: MessageAttachment[];
         if (attIdx === -1) {
@@ -969,7 +969,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     if (fileInputRef.current) fileInputRef.current.value = '';
     setErrorMsg(null);
 
-    const tempId = `temp_${Date.now()}_${Math.random()}`;
+    const tempId = crypto.randomUUID();
 
     if (fileToSend) {
       // ─── OUTBOUND MEDIA FLOW ───
@@ -1056,6 +1056,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       // 2. Dispatch background media upload & send action
       const formData = new FormData();
       formData.append('conversation_id', selectedConvId);
+    formData.append('id', tempId);
       formData.append('file', fileToSend);
       if (content) {
         formData.append('caption', content);
@@ -1064,7 +1065,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       void sendOutboundMediaReply(formData).then((res) => {
         if (res.success && res.data) {
           setMessages((prev) => {
-            const next = prev.map((m) => (m.id === tempId ? res.data! : m));
+            const next = prev.map((m) => (m.id === tempId ? { ...res.data!, attachments: m.attachments } : m));
             messagesCacheRef.current.set(selectedConvId, { messages: next, fetchedAt: Date.now(), loading: false });
             return next;
           });
