@@ -249,6 +249,31 @@ export type MessageSenderType = 'contact' | 'employee' | 'system' | 'bot';
 export type MessageType = 'text' | 'image' | 'audio' | 'video' | 'document' | 'location' | 'template' | 'system';
 export type MessageStatus = 'received' | 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
+export type MessageAttachmentStatus = 'pending' | 'processing' | 'stored' | 'failed';
+export type MessageAttachmentType = 'image' | 'audio' | 'video' | 'document' | 'other';
+
+export interface MessageAttachment {
+  id: string;
+  message_id: string;
+  storage_path: string;
+  provider: 'whatsapp' | 'messenger' | 'instagram' | 'mock' | 'local' | 'other';
+  external_media_id: string | null;
+  media_type: MessageAttachmentType;
+  mime_type: string;
+  file_name: string | null;
+  file_size: number | null;
+  width: number | null;
+  height: number | null;
+  duration_ms: number | null;
+  caption: string | null;
+  checksum: string | null;
+  status: MessageAttachmentStatus;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  // Optional signed URL computed for client display
+  signed_url?: string | null;
+}
+
 export interface Message {
   id: string;
   conversation_id: string;
@@ -266,6 +291,7 @@ export interface Message {
   received_at: string;
   created_at: string;
   updated_at: string;
+  attachments?: MessageAttachment[];
 }
 
 // Inbox view / joined types

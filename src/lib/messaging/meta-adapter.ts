@@ -17,6 +17,10 @@ export interface NormalizedInboundEvent {
   messageType: MessageType;
   content: string;
   mediaUrl?: string | null;
+  externalMediaId?: string | null;
+  mediaMimeType?: string | null;
+  mediaFileName?: string | null;
+  caption?: string | null;
   timestamp: string;
   rawPayload: Record<string, unknown>;
 }
@@ -429,6 +433,10 @@ export function normalizeInboundPayload(
       let messageType: MessageType = 'text';
       let content = messagingObj.message.text || '';
       let mediaUrl: string | null = null;
+      let externalMediaId: string | null = null;
+      let mediaFileName: string | null = null;
+      let mediaMimeType: string | null = null;
+      const caption: string | null = messagingObj.message.text || null;
 
       // Check attachments metadata
       if (Array.isArray(messagingObj.message.attachments) && messagingObj.message.attachments.length > 0) {
@@ -442,6 +450,18 @@ export function normalizeInboundPayload(
         if (att.payload?.url) {
           mediaUrl = att.payload.url;
         }
+        if (att.payload && 'id' in att.payload) {
+          externalMediaId = String((att.payload as { id?: string }).id);
+        }
+        if (att.payload && 'name' in att.payload) {
+          mediaFileName = String((att.payload as { name?: string }).name);
+        } else if (att.payload && 'title' in att.payload) {
+          mediaFileName = String((att.payload as { title?: string }).title);
+        }
+        if (att.payload && 'mime_type' in att.payload) {
+          mediaMimeType = String((att.payload as { mime_type?: string }).mime_type);
+        }
+
         if (!content && attType) {
           content = `[${attType.toUpperCase()} Attachment]`;
         }
@@ -459,6 +479,10 @@ export function normalizeInboundPayload(
         messageType,
         content,
         mediaUrl,
+        externalMediaId,
+        mediaFileName,
+        mediaMimeType,
+        caption,
         timestamp,
         rawPayload: messagingObj as unknown as Record<string, unknown>,
       });
@@ -534,18 +558,35 @@ export function normalizeInboundPayload(
           let messageType: MessageType = 'text';
           let content = msg.text?.body || '';
           const mediaUrl: string | null = null;
+          let externalMediaId: string | null = null;
+          let mediaMimeType: string | null = null;
+          let mediaFileName: string | null = null;
+          let caption: string | null = null;
 
           if (msg.type === 'image') {
             messageType = 'image';
+            externalMediaId = msg.image?.id || null;
+            mediaMimeType = msg.image?.mime_type || null;
+            caption = msg.image?.caption || null;
             content = msg.image?.caption || content || '[IMAGE Attachment]';
           } else if (msg.type === 'audio' || msg.type === 'voice') {
             messageType = 'audio';
+            const audioObj = msg.audio || msg.voice;
+            externalMediaId = audioObj?.id || null;
+            mediaMimeType = audioObj?.mime_type || null;
             content = content || '[AUDIO Attachment]';
           } else if (msg.type === 'video') {
             messageType = 'video';
+            externalMediaId = msg.video?.id || null;
+            mediaMimeType = msg.video?.mime_type || null;
+            caption = msg.video?.caption || null;
             content = msg.video?.caption || content || '[VIDEO Attachment]';
           } else if (msg.type === 'document') {
             messageType = 'document';
+            externalMediaId = msg.document?.id || null;
+            mediaMimeType = msg.document?.mime_type || null;
+            mediaFileName = msg.document?.filename || null;
+            caption = msg.document?.caption || null;
             content = msg.document?.caption || msg.document?.filename || content || '[DOCUMENT Attachment]';
           } else if (msg.type === 'button') {
             content = msg.button?.text || content || '[BUTTON Response]';
@@ -567,6 +608,10 @@ export function normalizeInboundPayload(
             messageType,
             content,
             mediaUrl,
+            externalMediaId,
+            mediaMimeType,
+            mediaFileName,
+            caption,
             timestamp,
             rawPayload: msg as unknown as Record<string, unknown>,
           });

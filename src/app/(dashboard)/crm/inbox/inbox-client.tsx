@@ -5,6 +5,7 @@
 // Right: Customer Profile, Channel Identity, Linked Customer & Sales Lead Context
 
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import React, { useState, useEffect, useTransition, useCallback, useRef, useMemo } from 'react';
 import {
@@ -23,6 +24,12 @@ import {
   Layers,
   Copy,
   CheckCircle2,
+  Paperclip,
+  FileText,
+  Film,
+  Music,
+  Download,
+  Trash2,
 } from 'lucide-react';
 import type {
   CurrentUser,
@@ -31,12 +38,16 @@ import type {
   Customer,
   Message,
   ChannelType,
+  MessageAttachment,
 } from '@/types';
 import {
   getConversations,
   getConversationDetails,
   getMessages,
   sendOutboundReply,
+  sendOutboundMediaReply,
+  retryOutboundMediaReply,
+  getMediaSignedUrl,
   updateConversationStatus,
   linkConversationCustomer,
   simulateInboundMessage,
@@ -143,6 +154,13 @@ function formatMessageTime(dateString?: string | null): string {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatFileSize(bytes?: number | null): string {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function InboxClient({ initialConversations, customers, user }: InboxClientProps) {
   const [conversations, setConversations] = useState<ConversationWithDetails[]>(() => {
     if (initialConversations.length > 0) {
@@ -169,6 +187,97 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showRightSidebar, setShowRightSidebar] = useState<boolean>(true);
   const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  // Phase 4E: Outbound media attachment state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [fileMediaType, setFileMediaType] = useState<'image' | 'video' | 'audio' | 'document' | null>(null);
+  const [previewModalAttachment, setPreviewModalAttachment] = useState<{
+    url: string;
+    title: string;
+    type: string;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const detectClientMediaType = (file: File): 'image' | 'video' | 'audio' | 'document' | null => {
+    const mime = file.type.toLowerCase();
+    const name = file.name.toLowerCase();
+    if (mime.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/.test(name)) return 'image';
+    if (mime.startsWith('video/') || /\.(mp4|quicktime|webm|mov)$/.test(name)) return 'video';
+    if (mime.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac)$/.test(name)) return 'audio';
+    if (
+      mime.includes('pdf') ||
+      mime.includes('word') ||
+      mime.includes('sheet') ||
+      mime.includes('text') ||
+      /\.(pdf|doc|docx|xls|xlsx|txt|csv)$/.test(name)
+    ) {
+      return 'document';
+    }
+    return null;
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.scr', '.msi', '.vbs', '.js', '.sh', '.py', '.php', '.html', '.svg'];
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (dangerousExtensions.includes(ext)) {
+      setErrorMsg(`File extension "${ext}" is restricted for security.`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const detectedType = detectClientMediaType(file);
+    if (!detectedType) {
+      setErrorMsg('Unsupported file format. Please upload an Image, PDF, Document, Audio, or Video.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const maxSizes: Record<string, number> = {
+      image: 20 * 1024 * 1024,
+      audio: 25 * 1024 * 1024,
+      video: 50 * 1024 * 1024,
+      document: 50 * 1024 * 1024,
+    };
+
+    if (file.size > maxSizes[detectedType]) {
+      setErrorMsg(`File exceeds maximum size limit of ${Math.round(maxSizes[detectedType] / (1024 * 1024))}MB.`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    if (filePreviewUrl) {
+      URL.revokeObjectURL(filePreviewUrl);
+    }
+
+    setSelectedFile(file);
+    setFileMediaType(detectedType);
+    setFilePreviewUrl(URL.createObjectURL(file));
+    setErrorMsg(null);
+  };
+
+  const clearSelectedFile = () => {
+    if (filePreviewUrl) {
+      URL.revokeObjectURL(filePreviewUrl);
+    }
+    setSelectedFile(null);
+    setFileMediaType(null);
+    setFilePreviewUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (filePreviewUrl) {
+        URL.revokeObjectURL(filePreviewUrl);
+      }
+    };
+  }, [filePreviewUrl]);
 
   // In-memory caching for instant 0ms chat switching
   const messagesCacheRef = useRef<Map<string, Message[]>>(new Map());
@@ -391,7 +500,17 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
 
       const currentOpenConvId = selectedConvIdRef.current;
       const isCurrentOpen = newMsg.conversation_id === currentOpenConvId;
-      const previewText = (newMsg.content || (newMsg.media_url ? '[Media attachment]' : '')).slice(
+      const mediaLabel =
+        newMsg.message_type === 'image'
+          ? '📷 Image'
+          : newMsg.message_type === 'video'
+          ? '🎥 Video'
+          : newMsg.message_type === 'audio'
+          ? '🎵 Audio'
+          : newMsg.message_type === 'document'
+          ? '📄 Document'
+          : '[Media attachment]';
+      const previewText = (newMsg.content || (newMsg.media_url ? mediaLabel : '')).slice(
         0,
         100
       );
@@ -575,6 +694,50 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       }
     };
 
+    const handleAttachmentEvent = async (payload: { new?: unknown; old?: unknown; eventType?: string }) => {
+      const newAtt = payload.new as MessageAttachment | undefined;
+      if (!newAtt || !newAtt.message_id) return;
+
+      let signedUrl = newAtt.signed_url;
+      if (!signedUrl && newAtt.storage_path) {
+        const signedRes = await getMediaSignedUrl(newAtt.storage_path);
+        if (signedRes.success && signedRes.data) {
+          signedUrl = signedRes.data.signedUrl;
+        }
+      }
+
+      const enrichedAtt: MessageAttachment = { ...newAtt, signed_url: signedUrl };
+
+      setMessages((prev) => {
+        const msgIdx = prev.findIndex((m) => m.id === newAtt.message_id);
+        if (msgIdx === -1) return prev;
+
+        const targetMsg = prev[msgIdx];
+        const existingAtts = targetMsg.attachments || [];
+        const attIdx = existingAtts.findIndex((a) => a.id === newAtt.id);
+
+        let nextAtts: MessageAttachment[];
+        if (attIdx === -1) {
+          nextAtts = [...existingAtts, enrichedAtt];
+        } else {
+          nextAtts = existingAtts.map((a, idx) => (idx === attIdx ? enrichedAtt : a));
+        }
+
+        const updatedMsg: Message = {
+          ...targetMsg,
+          media_url: signedUrl || targetMsg.media_url,
+          attachments: nextAtts,
+        };
+
+        const next = [...prev.slice(0, msgIdx), updatedMsg, ...prev.slice(msgIdx + 1)];
+        const activeId = selectedConvIdRef.current;
+        if (activeId) {
+          messagesCacheRef.current.set(activeId, next);
+        }
+        return next;
+      });
+    };
+
     const channel = supabase
       .channel('inbox-realtime-master')
       .on(
@@ -589,6 +752,11 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       )
       .on(
         'postgres_changes',
+        { event: '*', schema: 'app', table: 'message_attachments' },
+        handleAttachmentEvent
+      )
+      .on(
+        'postgres_changes',
         { event: '*', schema: 'public', table: 'messages' },
         handleMessageEvent
       )
@@ -596,6 +764,11 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations' },
         handleConversationEvent
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'message_attachments' },
+        handleAttachmentEvent
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
@@ -751,9 +924,140 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   const handleSendReply = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const content = replyText.trim();
-    if (!selectedConvId || !content || activeConv?.status === 'closed') return;
+    if (!selectedConvId || activeConv?.status === 'closed') return;
+    if (!content && !selectedFile) return;
+
+    const fileToSend = selectedFile;
+    const fileTypeToSend = fileMediaType;
+    const fileUrlToSend = filePreviewUrl;
+
+    // Reset composer state immediately for instant responsiveness
+    setReplyText('');
+    setSelectedFile(null);
+    setFileMediaType(null);
+    setFilePreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setErrorMsg(null);
 
     const tempId = `temp_${Date.now()}_${Math.random()}`;
+
+    if (fileToSend) {
+      // ─── OUTBOUND MEDIA FLOW ───
+      const optimisticMsg: Message = {
+        id: tempId,
+        conversation_id: selectedConvId,
+        direction: 'outbound',
+        sender_type: 'employee',
+        sender_employee_id: user.employee?.id || null,
+        content: content || fileToSend.name,
+        media_url: fileUrlToSend,
+        message_type: fileTypeToSend || 'image',
+        status: 'sending',
+        sent_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        received_at: new Date().toISOString(),
+        error_detail: null,
+        raw_event_id: null,
+        external_message_id: null,
+        attachments: [
+          {
+            id: `temp_att_${Date.now()}`,
+            message_id: tempId,
+            storage_path: 'pending',
+            provider: activeConv?.channel || 'whatsapp',
+            external_media_id: null,
+            media_type: fileTypeToSend || 'image',
+            mime_type: fileToSend.type,
+            file_name: fileToSend.name,
+            file_size: fileToSend.size,
+            width: null,
+            height: null,
+            duration_ms: null,
+            caption: content || null,
+            checksum: null,
+            status: 'pending',
+            metadata: {},
+            created_at: new Date().toISOString(),
+            signed_url: fileUrlToSend,
+          },
+        ],
+      };
+
+      // 1. Instant optimistic state update
+      setMessages((prev) => {
+        const next = [...prev, optimisticMsg];
+        messagesCacheRef.current.set(selectedConvId, next);
+        return next;
+      });
+      setTimeout(() => scrollToBottom(true), 50);
+
+      const previewLabel =
+        fileTypeToSend === 'image'
+          ? '📷 Image'
+          : fileTypeToSend === 'video'
+          ? '🎥 Video'
+          : fileTypeToSend === 'audio'
+          ? '🎵 Audio'
+          : '📄 Document';
+      const previewText = content || previewLabel;
+
+      setConversations((prev) => {
+        const idx = prev.findIndex((c) => c.id === selectedConvId);
+        if (idx === -1) return prev;
+        const updated: ConversationWithDetails = {
+          ...prev[idx],
+          last_message_at: optimisticMsg.created_at,
+          last_message_preview: previewText.slice(0, 100),
+        };
+        return [updated, ...prev.slice(0, idx), ...prev.slice(idx + 1)];
+      });
+
+      setActiveConv((prev) =>
+        prev && prev.id === selectedConvId
+          ? {
+              ...prev,
+              last_message_at: optimisticMsg.created_at,
+              last_message_preview: previewText.slice(0, 100),
+            }
+          : prev
+      );
+
+      // 2. Dispatch background media upload & send action
+      const formData = new FormData();
+      formData.append('conversation_id', selectedConvId);
+      formData.append('file', fileToSend);
+      if (content) {
+        formData.append('caption', content);
+      }
+
+      void sendOutboundMediaReply(formData).then((res) => {
+        if (res.success && res.data) {
+          setMessages((prev) => {
+            const next = prev.map((m) => (m.id === tempId ? res.data! : m));
+            messagesCacheRef.current.set(selectedConvId, next);
+            return next;
+          });
+        } else {
+          setMessages((prev) => {
+            const next = prev.map((m) =>
+              m.id === tempId
+                ? {
+                    ...m,
+                    status: 'failed' as const,
+                    error_detail: res.error || 'Failed to deliver media message',
+                  }
+                : m
+            );
+            messagesCacheRef.current.set(selectedConvId, next);
+            return next;
+          });
+        }
+      });
+      return;
+    }
+
+    // ─── OUTBOUND TEXT FLOW ───
     const optimisticMsg: Message = {
       id: tempId,
       conversation_id: selectedConvId,
@@ -779,7 +1083,6 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       messagesCacheRef.current.set(selectedConvId, next);
       return next;
     });
-    setReplyText('');
     setErrorMsg(null);
     setTimeout(() => scrollToBottom(true), 50);
 
@@ -810,8 +1113,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   };
 
   // Retry failed message
-  const handleRetryMessage = (msgToRetry: Message) => {
-    if (!selectedConvId || msgToRetry.direction !== 'outbound' || !msgToRetry.content) return;
+  const handleRetryMessage = async (msgToRetry: Message) => {
+    if (!selectedConvId || msgToRetry.direction !== 'outbound') return;
 
     setMessages((prev) =>
       prev.map((m) =>
@@ -819,7 +1122,28 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       )
     );
 
-    void dispatchOutboundMessage(selectedConvId, msgToRetry.content, msgToRetry.id);
+    if (msgToRetry.attachments && msgToRetry.attachments.length > 0) {
+      const res = await retryOutboundMediaReply(msgToRetry.id);
+      if (res.success && res.data) {
+        setMessages((prev) => {
+          const next = prev.map((m) => (m.id === msgToRetry.id ? res.data! : m));
+          messagesCacheRef.current.set(selectedConvId, next);
+          return next;
+        });
+      } else {
+        setMessages((prev) => {
+          const next = prev.map((m) =>
+            m.id === msgToRetry.id
+              ? { ...m, status: 'failed' as const, error_detail: res.error || 'Retry failed' }
+              : m
+          );
+          messagesCacheRef.current.set(selectedConvId, next);
+          return next;
+        });
+      }
+    } else if (msgToRetry.content) {
+      void dispatchOutboundMessage(selectedConvId, msgToRetry.content, msgToRetry.id);
+    }
   };
 
   // Status Change
@@ -1263,7 +1587,6 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                         }}
                       >
                         {conv.channel_identity?.avatar_url ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
                           <img
                             src={conv.channel_identity.avatar_url}
                             alt={displayName}
@@ -1673,9 +1996,207 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                 whiteSpace: 'pre-wrap',
                               }}
                             >
-                              {msg.content}
-                              {msg.media_url && (
-                                <div style={{ marginTop: '8px' }}>
+                              {/* Phase 4E: Render attachments or legacy media */}
+                              {msg.attachments && msg.attachments.length > 0 ? (
+                                msg.attachments.map((att) => {
+                                  if (att.status === 'failed') {
+                                    return (
+                                      <div
+                                        key={att.id}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          padding: '8px 10px',
+                                          background: 'rgba(239, 68, 68, 0.2)',
+                                          border: '1px solid rgba(239, 68, 68, 0.4)',
+                                          borderRadius: '8px',
+                                          color: '#FCA5A5',
+                                          fontSize: '11px',
+                                          marginBottom: msg.content ? '6px' : 0,
+                                        }}
+                                      >
+                                        <AlertCircle size={14} style={{ color: '#EF4444', flexShrink: 0 }} />
+                                        <span>Media unavailable / download failed</span>
+                                      </div>
+                                    );
+                                  }
+
+                                  if (att.status === 'pending') {
+                                    return (
+                                      <div
+                                        key={att.id}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          padding: '8px 10px',
+                                          background: 'rgba(255, 255, 255, 0.05)',
+                                          borderRadius: '8px',
+                                          color: '#94A3B8',
+                                          fontSize: '11px',
+                                          marginBottom: msg.content ? '6px' : 0,
+                                        }}
+                                      >
+                                        <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} />
+                                        <span>Processing media...</span>
+                                      </div>
+                                    );
+                                  }
+
+                                  const mediaSrc = att.signed_url;
+
+                                  if (att.media_type === 'image') {
+                                    return (
+                                      <div key={att.id} style={{ marginBottom: (msg.content || att.caption) ? '6px' : 0 }}>
+                                        <div
+                                          onClick={() => mediaSrc && setPreviewModalAttachment({ url: mediaSrc, title: att.file_name || 'Image', type: 'image' })}
+                                          style={{
+                                            borderRadius: '8px',
+                                            overflow: 'hidden',
+                                            cursor: 'pointer',
+                                            maxWidth: '300px',
+                                            maxHeight: '260px',
+                                            background: '#0F172A',
+                                            position: 'relative',
+                                          }}
+                                          title="Click to view full image"
+                                        >
+                                          {mediaSrc ? (
+                                            <img
+                                              src={mediaSrc}
+                                              alt={att.file_name || 'Attachment'}
+                                              loading="lazy"
+                                              style={{
+                                                display: 'block',
+                                                width: '100%',
+                                                maxHeight: '260px',
+                                                objectFit: 'cover',
+                                                borderRadius: '8px',
+                                              }}
+                                            />
+                                          ) : (
+                                            <div style={{ padding: '20px', textAlign: 'center', color: '#94A3B8', fontSize: '11px' }}>
+                                              Loading image...
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  if (att.media_type === 'video') {
+                                    return (
+                                      <div key={att.id} style={{ marginBottom: (msg.content || att.caption) ? '6px' : 0, maxWidth: '320px' }}>
+                                        {mediaSrc ? (
+                                          <video
+                                            src={mediaSrc}
+                                            controls
+                                            playsInline
+                                            preload="metadata"
+                                            style={{
+                                              width: '100%',
+                                              maxHeight: '260px',
+                                              borderRadius: '8px',
+                                              background: '#000',
+                                            }}
+                                          />
+                                        ) : (
+                                          <div style={{ padding: '16px', background: '#0F172A', borderRadius: '8px', color: '#94A3B8', fontSize: '11px' }}>
+                                            Video preview unavailable
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+
+                                  if (att.media_type === 'audio') {
+                                    return (
+                                      <div key={att.id} style={{ marginBottom: (msg.content || att.caption) ? '6px' : 0, minWidth: '220px', maxWidth: '320px' }}>
+                                        {mediaSrc ? (
+                                          <audio
+                                            src={mediaSrc}
+                                            controls
+                                            preload="none"
+                                            style={{ width: '100%', height: '36px' }}
+                                          />
+                                        ) : (
+                                          <div style={{ padding: '10px', color: '#94A3B8', fontSize: '11px' }}>
+                                            Audio preview unavailable
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+
+                                  // Document attachment
+                                  return (
+                                    <div
+                                      key={att.id}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '12px',
+                                        padding: '8px 12px',
+                                        borderRadius: '8px',
+                                        background: 'rgba(255,255,255,0.08)',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                        marginBottom: (msg.content || att.caption) ? '6px' : 0,
+                                        minWidth: '220px',
+                                        maxWidth: '320px',
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                                        <FileText size={20} style={{ color: '#38BDF8', flexShrink: 0 }} />
+                                        <div style={{ overflow: 'hidden' }}>
+                                          <div
+                                            style={{
+                                              fontSize: '12px',
+                                              fontWeight: 600,
+                                              color: '#F8FAFC',
+                                              textOverflow: 'ellipsis',
+                                              overflow: 'hidden',
+                                              whiteSpace: 'nowrap',
+                                            }}
+                                          >
+                                            {att.file_name || 'Document'}
+                                          </div>
+                                          {att.file_size ? (
+                                            <div style={{ fontSize: '10px', color: '#94A3B8' }}>
+                                              {formatFileSize(att.file_size)}
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                      {mediaSrc && (
+                                        <a
+                                          href={mediaSrc}
+                                          download={att.file_name || 'document'}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            width: '28px',
+                                            height: '28px',
+                                            borderRadius: '6px',
+                                            background: 'rgba(255,255,255,0.1)',
+                                            color: '#F8FAFC',
+                                            textDecoration: 'none',
+                                            flexShrink: 0,
+                                          }}
+                                          title="Download document"
+                                        >
+                                          <Download size={14} />
+                                        </a>
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              ) : msg.media_url ? (
+                                <div style={{ marginBottom: msg.content ? '8px' : 0 }}>
                                   <a
                                     href={msg.media_url}
                                     target="_blank"
@@ -1693,7 +2214,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                     View Media Attachment <ExternalLink size={12} />
                                   </a>
                                 </div>
-                              )}
+                              ) : null}
+
+                              {/* Text content / caption */}
+                              {msg.content && <div>{msg.content}</div>}
                             </div>
 
                             {/* Timestamp & Status Icon */}
@@ -1784,63 +2308,166 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                     This conversation is closed. Reopen it using the status selector above to reply.
                   </div>
                 ) : (
-                  <form
-                    onSubmit={handleSendReply}
-                    style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}
-                  >
-                    <textarea
-                      placeholder={`Type a reply to ${resolveDisplayName(
-                        activeConv
-                      )} (Press Enter to send, Shift+Enter for new line)...`}
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendReply();
-                        }
-                      }}
-                      rows={2}
-                      style={{
-                        flex: 1,
-                        background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        borderRadius: '8px',
-                        padding: '10px 14px',
-                        color: '#F8FAFC',
-                        fontSize: '13px',
-                        outline: 'none',
-                        resize: 'none',
-                        fontFamily: 'inherit',
-                        lineHeight: 1.4,
-                      }}
-                    />
-                    <button
-                      type="submit"
-                      disabled={!replyText.trim()}
-                      style={{
-                        background: replyText.trim()
-                          ? 'linear-gradient(135deg, #0284C7, #0369A1)'
-                          : 'rgba(255,255,255,0.06)',
-                        color: replyText.trim() ? '#FFF' : '#64748B',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '12px 18px',
-                        cursor: replyText.trim() ? 'pointer' : 'not-allowed',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        fontWeight: 600,
-                        fontSize: '13px',
-                        boxShadow: replyText.trim()
-                          ? '0 2px 8px rgba(2, 132, 199, 0.3)'
-                          : 'none',
-                        transition: 'all 0.15s ease',
-                      }}
+                  <>
+                    {/* Phase 4E: Attachment preview bar if file is selected */}
+                    {selectedFile && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 12px',
+                          background: 'rgba(255,255,255,0.06)',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          borderRadius: '8px',
+                          marginBottom: '8px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                          {fileMediaType === 'image' && filePreviewUrl ? (
+                            <img
+                              src={filePreviewUrl}
+                              alt="Preview"
+                              style={{ width: '38px', height: '38px', objectFit: 'cover', borderRadius: '4px' }}
+                            />
+                          ) : fileMediaType === 'video' ? (
+                            <Film size={22} style={{ color: '#38BDF8' }} />
+                          ) : fileMediaType === 'audio' ? (
+                            <Music size={22} style={{ color: '#38BDF8' }} />
+                          ) : (
+                            <FileText size={22} style={{ color: '#38BDF8' }} />
+                          )}
+                          <div style={{ overflow: 'hidden' }}>
+                            <div
+                              style={{
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                color: '#F8FAFC',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {selectedFile.name}
+                            </div>
+                            <div style={{ fontSize: '10px', color: '#94A3B8' }}>
+                              {formatFileSize(selectedFile.size)} • {fileMediaType?.toUpperCase()}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={clearSelectedFile}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#EF4444',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                          }}
+                          title="Remove attachment"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    )}
+
+                    <form
+                      onSubmit={handleSendReply}
+                      style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}
                     >
-                      <Send size={15} /> Send
-                    </button>
-                  </form>
+                      {/* Attachment trigger button */}
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        style={{
+                          background: selectedFile ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255,255,255,0.06)',
+                          border: selectedFile ? '1px solid #38BDF8' : '1px solid rgba(255,255,255,0.12)',
+                          color: selectedFile ? '#38BDF8' : '#94A3B8',
+                          borderRadius: '8px',
+                          padding: '12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.15s ease',
+                          flexShrink: 0,
+                        }}
+                        title="Attach Media (Image, PDF, Document, Audio, Video)"
+                      >
+                        <Paperclip size={18} />
+                      </button>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileSelect}
+                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                        style={{ display: 'none' }}
+                      />
+
+                      <textarea
+                        placeholder={
+                          selectedFile
+                            ? 'Add a caption (optional)...'
+                            : `Type a reply to ${resolveDisplayName(
+                                activeConv
+                              )} (Press Enter to send, Shift+Enter for new line)...`
+                        }
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendReply();
+                          }
+                        }}
+                        rows={2}
+                        style={{
+                          flex: 1,
+                          background: 'rgba(255,255,255,0.05)',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          borderRadius: '8px',
+                          padding: '10px 14px',
+                          color: '#F8FAFC',
+                          fontSize: '13px',
+                          outline: 'none',
+                          resize: 'none',
+                          fontFamily: 'inherit',
+                          lineHeight: 1.4,
+                        }}
+                      />
+                      <button
+                        type="submit"
+                        disabled={!replyText.trim() && !selectedFile}
+                        style={{
+                          background:
+                            replyText.trim() || selectedFile
+                              ? 'linear-gradient(135deg, #0284C7, #0369A1)'
+                              : 'rgba(255,255,255,0.06)',
+                          color: replyText.trim() || selectedFile ? '#FFF' : '#64748B',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '12px 18px',
+                          cursor: replyText.trim() || selectedFile ? 'pointer' : 'not-allowed',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontWeight: 600,
+                          fontSize: '13px',
+                          boxShadow:
+                            replyText.trim() || selectedFile
+                              ? '0 2px 8px rgba(2, 132, 199, 0.3)'
+                              : 'none',
+                          transition: 'all 0.15s ease',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Send size={15} /> Send
+                      </button>
+                    </form>
+                  </>
                 )}
               </div>
             </>
@@ -2514,6 +3141,110 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               >
                 Dispatch Inbound Event
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Media Preview Modal ─────────────────────────────── */}
+      {previewModalAttachment && (
+        <div
+          onClick={() => setPreviewModalAttachment(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.85)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              background: '#0F172A',
+              borderRadius: '12px',
+              border: '1px solid rgba(255,255,255,0.1)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '12px 16px',
+                background: '#1E293B',
+                borderBottom: '1px solid rgba(255,255,255,0.08)',
+              }}
+            >
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#F8FAFC' }}>
+                {previewModalAttachment.title}
+              </span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <a
+                  href={previewModalAttachment.url}
+                  download={previewModalAttachment.title}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: '#94A3B8',
+                    textDecoration: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '4px',
+                  }}
+                  title="Download file"
+                >
+                  <Download size={16} />
+                </a>
+                <button
+                  onClick={() => setPreviewModalAttachment(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#94A3B8',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '4px',
+                  }}
+                  title="Close preview"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <div
+              style={{
+                padding: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                maxHeight: 'calc(90vh - 60px)',
+                overflow: 'auto',
+              }}
+            >
+              {previewModalAttachment.type === 'image' && (
+                <img
+                  src={previewModalAttachment.url}
+                  alt={previewModalAttachment.title}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '80vh',
+                    objectFit: 'contain',
+                    borderRadius: '6px',
+                  }}
+                />
+              )}
             </div>
           </div>
         </div>

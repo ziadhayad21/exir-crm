@@ -13,6 +13,8 @@ import {
   fetchFacebookProfile,
   fetchInstagramProfile,
 } from '@/lib/messaging/meta-adapter';
+import { processInboundMedia } from '@/lib/messaging/media-manager';
+import type { MessageAttachmentType } from '@/types';
 import { isGenericDisplayName } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -432,6 +434,30 @@ export async function POST(req: NextRequest) {
           })
           .eq('channel', event.channel)
           .eq('external_id', event.externalSenderId);
+      }
+
+      // Process media attachment asynchronously & resiliently if message contains media
+      if (
+        ingestResult?.message_id &&
+        (event.messageType !== 'text' || event.mediaUrl || event.externalMediaId)
+      ) {
+        const targetMediaType = (['image', 'audio', 'video', 'document'].includes(event.messageType)
+          ? event.messageType
+          : 'document') as MessageAttachmentType;
+
+        void processInboundMedia({
+          conversationId: ingestResult.conversation_id,
+          messageId: ingestResult.message_id,
+          channel: event.channel,
+          mediaType: targetMediaType,
+          externalMediaId: event.externalMediaId,
+          mediaUrl: event.mediaUrl,
+          fileName: event.mediaFileName,
+          mimeType: event.mediaMimeType,
+          caption: event.caption || (event.content && !event.content.startsWith('[') ? event.content : null),
+        }).catch((err) => {
+          console.error('[Inbound Webhook POST] Error processing media attachment:', err);
+        });
       }
 
       // Write Audit Logs cleanly in background

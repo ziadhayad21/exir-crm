@@ -23,10 +23,16 @@ import type {
   ActionResult,
   ConversationWithDetails,
   Message,
+  MessageAttachment,
   Employee,
 } from '@/types';
 import { resolveConversationDisplayName, isGenericDisplayName } from '@/lib/utils';
 import { fetchFacebookProfile, fetchInstagramProfile } from '@/lib/messaging/meta-adapter';
+import {
+  MEDIA_STORAGE_BUCKET,
+  validateMediaFile,
+  generateStoragePath,
+} from '@/lib/messaging/media-manager';
 import { revalidatePath } from 'next/cache';
 
 // ═══════════════════════════════════════════════════════════════
@@ -330,8 +336,89 @@ export async function getConversationDetails(
     customer,
     lead,
     assigned_to_employee: (empRes.data as Employee) || null,
-    messages: msgRes.data || [],
+    messages: await enrichMessagesWithAttachments(admin, msgRes.data || []),
   };
+}
+
+/**
+ * Enriches messages with attachment metadata and signed display URLs from Supabase Storage.
+ */
+export async function enrichMessagesWithAttachments(
+  admin: ReturnType<typeof createAdminClient>,
+  rawMessages: Message[]
+): Promise<Message[]> {
+  if (!rawMessages || rawMessages.length === 0) return [];
+  const messageIds = rawMessages.map((m) => m.id);
+
+  // 1. Fetch attachments
+  const { data: attachments } = await admin
+    .from('message_attachments')
+    .select('*')
+    .in('message_id', messageIds);
+
+  const attachList = (attachments || []) as MessageAttachment[];
+
+  // 2. Collect storage paths needing signed URLs
+  const storagePaths = new Set<string>();
+  for (const a of attachList) {
+    if (a.storage_path && a.status === 'stored' && !a.storage_path.startsWith('http')) {
+      storagePaths.add(a.storage_path);
+    }
+  }
+  for (const m of rawMessages) {
+    if (m.media_url && !m.media_url.startsWith('http') && !m.media_url.startsWith('blob:')) {
+      storagePaths.add(m.media_url);
+    }
+  }
+
+  const pathArray = Array.from(storagePaths);
+  const signedUrlMap = new Map<string, string>();
+
+  if (pathArray.length > 0) {
+    try {
+      const { data: signedResults } = await admin.storage
+        .from(MEDIA_STORAGE_BUCKET)
+        .createSignedUrls(pathArray, 3600);
+
+      for (const item of signedResults || []) {
+        if (item.path && item.signedUrl) {
+          signedUrlMap.set(item.path, item.signedUrl);
+        }
+      }
+    } catch (err) {
+      console.warn('[Inbox Actions] Error creating signed URLs:', err);
+    }
+  }
+
+  // 3. Group attachments by message_id
+  const attachByMsgId = new Map<string, MessageAttachment[]>();
+  for (const a of attachList) {
+    const signed = signedUrlMap.get(a.storage_path) || null;
+    const enrichedAtt: MessageAttachment = {
+      ...a,
+      signed_url: signed,
+    };
+    const arr = attachByMsgId.get(a.message_id) || [];
+    arr.push(enrichedAtt);
+    attachByMsgId.set(a.message_id, arr);
+  }
+
+  // 4. Return enriched messages
+  return rawMessages.map((m) => {
+    const msgAtts = attachByMsgId.get(m.id) || [];
+    let resolvedMediaUrl = m.media_url;
+    if (m.media_url && signedUrlMap.has(m.media_url)) {
+      resolvedMediaUrl = signedUrlMap.get(m.media_url)!;
+    } else if (msgAtts[0]?.signed_url) {
+      resolvedMediaUrl = msgAtts[0].signed_url;
+    }
+
+    return {
+      ...m,
+      media_url: resolvedMediaUrl,
+      attachments: msgAtts,
+    };
+  });
 }
 
 /**
@@ -391,6 +478,7 @@ export async function markConversationAsRead(
 export async function getMessages(conversationId: string): Promise<Message[]> {
   await requireAnyPermission(['crm.inbox.read_own', 'crm.inbox.read_all']);
   const supabase = await createClient();
+  const admin = createAdminClient();
 
   const { data, error } = await supabase
     .from('messages')
@@ -399,7 +487,7 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
     .order('created_at', { ascending: true });
 
   if (error || !data) return [];
-  return data;
+  return enrichMessagesWithAttachments(admin, data);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -800,6 +888,686 @@ export async function simulateInboundMessage(
 
     revalidatePath('/crm/inbox');
     return { success: true, data };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unexpected error' };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 4E: MEDIA MESSAGING ACTIONS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Generates an authorized, short-lived signed URL for a media file in inbox-media bucket.
+ * Strictly verifies Behavior B permissions: Sales only sees their assigned conversations, Admin sees all.
+ */
+export async function getMediaSignedUrl(
+  storagePath: string
+): Promise<ActionResult<{ signedUrl: string }>> {
+  try {
+    const profile = await requireAnyPermission(['crm.inbox.read_own', 'crm.inbox.read_all']);
+    const employee = profile.employee;
+    const admin = createAdminClient();
+
+    // Verify ownership of conversation if Sales
+    const isAdmin = hasPermission(profile, 'crm.inbox.read_all');
+    if (!isAdmin && employee) {
+      const { data: att } = await admin
+        .from('message_attachments')
+        .select('message_id')
+        .eq('storage_path', storagePath)
+        .maybeSingle();
+
+      if (att) {
+        const { data: msg } = await admin
+          .from('messages')
+          .select('conversation_id')
+          .eq('id', att.message_id)
+          .maybeSingle();
+
+        if (msg) {
+          const { data: conv } = await admin
+            .from('conversations')
+            .select('assigned_to')
+            .eq('id', msg.conversation_id)
+            .maybeSingle();
+
+          if (conv && conv.assigned_to && conv.assigned_to !== employee.id) {
+            return {
+              success: false,
+              error: 'Unauthorized: Media belongs to an unassigned conversation',
+            };
+          }
+        }
+      }
+    }
+
+    const { data, error } = await admin.storage
+      .from(MEDIA_STORAGE_BUCKET)
+      .createSignedUrl(storagePath, 3600);
+
+    if (error || !data?.signedUrl) {
+      return { success: false, error: error?.message || 'Failed to generate signed URL' };
+    }
+
+    return { success: true, data: { signedUrl: data.signedUrl } };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unexpected error' };
+  }
+}
+
+/**
+ * Sends an outbound media reply (image, document, audio, video) to the customer.
+ */
+export async function sendOutboundMediaReply(
+  formData: FormData
+): Promise<ActionResult<Message>> {
+  try {
+    const profile = await requirePermission('crm.inbox.write');
+    const employee = await getCurrentEmployee();
+    if (!employee) {
+      return { success: false, error: 'Current employee record not found' };
+    }
+
+    const conversationId = formData.get('conversation_id') as string;
+    const caption = ((formData.get('caption') as string) || '').trim();
+    const file = formData.get('file') as File | null;
+
+    if (!conversationId) {
+      return { success: false, error: 'Missing conversation ID' };
+    }
+    if (!file || !(file instanceof File) || file.size === 0) {
+      return { success: false, error: 'No media file provided or empty file' };
+    }
+
+    const supabase = await createClient();
+    const admin = createAdminClient();
+
+    // 1. Fetch conversation and verify ownership if Sales
+    const { data: conv, error: convErr } = await admin
+      .from('conversations')
+      .select('id, channel, channel_identity_id, assigned_to, last_message_at, status')
+      .eq('id', conversationId)
+      .single();
+
+    if (convErr || !conv) {
+      return { success: false, error: 'Conversation not found' };
+    }
+
+    const isAdmin = hasPermission(profile, 'crm.inbox.read_all');
+    if (!isAdmin && conv.assigned_to !== employee.id) {
+      return { success: false, error: 'Unauthorized: Conversation not assigned to you' };
+    }
+
+    // 2. Validate file (Size, Extension, Magic Bytes, Path Traversal)
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const validation = validateMediaFile(buffer, file.name, file.type);
+
+    if (!validation.valid) {
+      return { success: false, error: validation.error || 'Invalid file format or size' };
+    }
+
+    // 3. Insert outbound message via session client to verify RLS
+    const { data: newMsg, error: msgError } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversationId,
+        direction: 'outbound',
+        sender_type: 'employee',
+        sender_employee_id: employee.id,
+        message_type: validation.mediaType,
+        content: caption || validation.sanitizedFilename,
+        status: 'sending',
+        sent_at: new Date().toISOString(),
+      })
+      .select('*')
+      .single();
+
+    if (msgError || !newMsg) {
+      return { success: false, error: msgError?.message || 'Failed to insert message via RLS policy' };
+    }
+
+    // 4. Upload file to Supabase Storage private bucket
+    const storagePath = generateStoragePath(conversationId, newMsg.id, validation.sanitizedFilename);
+    const { error: uploadError } = await admin.storage
+      .from(MEDIA_STORAGE_BUCKET)
+      .upload(storagePath, buffer, {
+        contentType: validation.mimeType,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      await admin
+        .from('messages')
+        .update({ status: 'failed', error_detail: uploadError.message })
+        .eq('id', newMsg.id);
+      return { success: false, error: `Failed to upload media to storage: ${uploadError.message}` };
+    }
+
+    // 5. Create message_attachments record
+    const { data: newAtt, error: attError } = await admin
+      .from('message_attachments')
+      .insert({
+        message_id: newMsg.id,
+        storage_path: storagePath,
+        provider: conv.channel,
+        media_type: validation.mediaType,
+        mime_type: validation.mimeType,
+        file_name: validation.sanitizedFilename,
+        file_size: validation.fileSize,
+        checksum: validation.checksum,
+        caption: caption || null,
+        status: 'stored',
+      })
+      .select('*')
+      .single();
+
+    if (attError || !newAtt) {
+      console.error('[Outbound Media] Failed to record attachment:', attError?.message);
+    }
+
+    // Update message media_url to storagePath
+    await admin.from('messages').update({ media_url: storagePath }).eq('id', newMsg.id);
+
+    // 6. Generate signed URL for provider delivery
+    const { data: signed } = await admin.storage
+      .from(MEDIA_STORAGE_BUCKET)
+      .createSignedUrl(storagePath, 3600);
+    const signedUrl = signed?.signedUrl;
+
+    if (!signedUrl) {
+      await admin
+        .from('messages')
+        .update({ status: 'failed', error_detail: 'Failed to generate signed URL for provider dispatch' })
+        .eq('id', newMsg.id);
+      return { success: false, error: 'Failed to generate signed URL for provider dispatch' };
+    }
+
+    // 7. Dispatch to Provider API
+    let externalMsgId: string | null = null;
+    let finalStatus: 'sent' | 'failed' = 'sent';
+    let errorDetail: string | null = null;
+
+    const { data: channelIdent } = await admin
+      .from('channel_identities')
+      .select('external_id, phone')
+      .eq('id', conv.channel_identity_id)
+      .single();
+
+    if (conv.channel === 'whatsapp') {
+      const waToken =
+        process.env.WHATSAPP_ACCESS_TOKEN?.trim() ||
+        process.env.META_PAGE_ACCESS_TOKEN?.trim();
+      const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
+      const recipientPhone = channelIdent?.phone || channelIdent?.external_id;
+
+      // 24-hour customer service window check
+      const lastMsgTime = conv.last_message_at ? new Date(conv.last_message_at).getTime() : 0;
+      const isWithin24Hours = Date.now() - lastMsgTime <= 24 * 60 * 60 * 1000;
+
+      if (!waToken) {
+        finalStatus = 'failed';
+        errorDetail = 'WHATSAPP_ACCESS_TOKEN is missing in server environment';
+      } else if (!phoneNumberId) {
+        finalStatus = 'failed';
+        errorDetail = 'WHATSAPP_PHONE_NUMBER_ID is missing in server environment';
+      } else if (!recipientPhone) {
+        finalStatus = 'failed';
+        errorDetail = 'Missing customer phone number for WhatsApp message';
+      } else if (!isWithin24Hours) {
+        finalStatus = 'failed';
+        errorDetail =
+          'WhatsApp 24-hour customer service window expired. Free-form media can only be sent within 24 hours of customer inquiry.';
+      } else {
+        try {
+          const mediaPayloadKey = validation.mediaType; // 'image', 'document', 'audio', 'video'
+          const mediaBody: Record<string, unknown> = {
+            link: signedUrl,
+          };
+          if (caption && validation.mediaType !== 'audio') {
+            mediaBody.caption = caption;
+          }
+          if (validation.mediaType === 'document') {
+            mediaBody.filename = validation.sanitizedFilename;
+          }
+
+          const metaUrl = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+          const metaRes = await fetch(metaUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${waToken}`,
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: recipientPhone,
+              type: mediaPayloadKey,
+              [mediaPayloadKey]: mediaBody,
+            }),
+          });
+
+          const metaJson = (await metaRes.json()) as {
+            messages?: Array<{ id?: string }>;
+            error?: { message?: string };
+          };
+
+          if (metaRes.ok && metaJson.messages?.[0]?.id) {
+            externalMsgId = metaJson.messages[0].id;
+            finalStatus = 'sent';
+          } else {
+            finalStatus = 'failed';
+            errorDetail = metaJson?.error?.message || 'Failed to dispatch WhatsApp media via Meta Cloud API';
+          }
+        } catch (err) {
+          finalStatus = 'failed';
+          errorDetail = err instanceof Error ? err.message : 'Network error dispatching WhatsApp media';
+        }
+      }
+    } else if (conv.channel === 'messenger') {
+      const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
+      const psid = channelIdent?.external_id;
+
+      if (!pageToken) {
+        finalStatus = 'failed';
+        errorDetail = 'META_PAGE_ACCESS_TOKEN is missing in server environment';
+      } else if (!psid) {
+        finalStatus = 'failed';
+        errorDetail = 'Missing customer PSID for Messenger message';
+      } else {
+        try {
+          const attType = validation.mediaType === 'document' ? 'file' : validation.mediaType;
+          const metaUrl = `https://graph.facebook.com/v21.0/me/messages?access_token=${encodeURIComponent(pageToken)}`;
+          const metaRes = await fetch(metaUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipient: { id: psid },
+              messaging_type: 'RESPONSE',
+              message: {
+                attachment: {
+                  type: attType,
+                  payload: {
+                    url: signedUrl,
+                    is_reusable: true,
+                  },
+                },
+              },
+            }),
+          });
+
+          const metaJson = (await metaRes.json()) as {
+            message_id?: string;
+            error?: { message?: string };
+          };
+
+          if (metaRes.ok && metaJson.message_id) {
+            externalMsgId = metaJson.message_id;
+            finalStatus = 'sent';
+          } else {
+            finalStatus = 'failed';
+            errorDetail = metaJson?.error?.message || 'Failed to dispatch Messenger media via Meta Graph API';
+          }
+        } catch (err) {
+          finalStatus = 'failed';
+          errorDetail = err instanceof Error ? err.message : 'Network error dispatching Messenger media';
+        }
+      }
+    } else if (conv.channel === 'instagram') {
+      const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
+      const igsid = channelIdent?.external_id;
+
+      if (validation.mediaType === 'document') {
+        finalStatus = 'failed';
+        errorDetail =
+          'Instagram Messaging API does not support document attachments. Only images and videos are supported by Instagram Direct.';
+      } else if (!pageToken || !igsid) {
+        finalStatus = 'failed';
+        errorDetail = 'Missing credentials or Instagram sender ID';
+      } else {
+        try {
+          const metaUrl = `https://graph.facebook.com/v21.0/me/messages?access_token=${encodeURIComponent(pageToken)}`;
+          const metaRes = await fetch(metaUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipient: { id: igsid },
+              message: {
+                attachment: {
+                  type: validation.mediaType,
+                  payload: { url: signedUrl },
+                },
+              },
+            }),
+          });
+
+          const metaJson = (await metaRes.json()) as {
+            message_id?: string;
+            error?: { message?: string };
+          };
+
+          if (metaRes.ok && metaJson.message_id) {
+            externalMsgId = metaJson.message_id;
+            finalStatus = 'sent';
+          } else {
+            finalStatus = 'failed';
+            errorDetail = metaJson?.error?.message || 'Failed to dispatch Instagram media via Graph API';
+          }
+        } catch (err) {
+          finalStatus = 'failed';
+          errorDetail = err instanceof Error ? err.message : 'Network error dispatching Instagram media';
+        }
+      }
+    }
+
+    // 8. Update message status & conversation preview
+    const { data: updatedMsg } = await admin
+      .from('messages')
+      .update({
+        status: finalStatus,
+        external_message_id: externalMsgId,
+        error_detail: errorDetail,
+      })
+      .eq('id', newMsg.id)
+      .select('*')
+      .single();
+
+    const previewText = caption || `[${validation.mediaType.toUpperCase()}] ${validation.sanitizedFilename}`;
+    await admin
+      .from('conversations')
+      .update({
+        last_message_at: new Date().toISOString(),
+        last_message_preview: previewText.slice(0, 100),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', conversationId);
+
+    // 9. Write audit log
+    void writeAuditLog({
+      actor_id: employee.id,
+      action: finalStatus === 'sent' ? 'inbox.media_sent' : 'inbox.media_failed',
+      module: 'crm',
+      entity_type: 'message',
+      entity_id: newMsg.id,
+      new_value: {
+        conversation_id: conversationId,
+        channel: conv.channel,
+        media_type: validation.mediaType,
+        status: finalStatus,
+        error_detail: errorDetail,
+      },
+    });
+
+    revalidatePath('/crm/inbox');
+
+    const resultMsg: Message = {
+      ...(updatedMsg || newMsg),
+      media_url: signedUrl,
+      attachments: newAtt ? [{ ...(newAtt as MessageAttachment), signed_url: signedUrl }] : [],
+    };
+
+    if (finalStatus === 'failed') {
+      return { success: false, error: errorDetail || 'Failed to dispatch media to customer', data: resultMsg };
+    }
+
+    return { success: true, data: resultMsg };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unexpected error' };
+  }
+}
+
+/**
+ * Retries dispatching a failed outbound media message without creating duplicate records.
+ */
+export async function retryOutboundMediaReply(
+  messageId: string
+): Promise<ActionResult<Message>> {
+  try {
+    const profile = await requirePermission('crm.inbox.write');
+    const employee = await getCurrentEmployee();
+    if (!employee) {
+      return { success: false, error: 'Current employee record not found' };
+    }
+
+    const admin = createAdminClient();
+
+    // 1. Fetch message and verify it is outbound and failed
+    const { data: msg, error: msgErr } = await admin
+      .from('messages')
+      .select('*')
+      .eq('id', messageId)
+      .single();
+
+    if (msgErr || !msg) {
+      return { success: false, error: 'Message not found' };
+    }
+
+    if (msg.direction !== 'outbound') {
+      return { success: false, error: 'Only outbound messages can be retried' };
+    }
+
+    if (msg.status === 'sent') {
+      return { success: true, data: msg }; // Idempotent no-op
+    }
+
+    // 2. Fetch conversation
+    const { data: conv, error: convErr } = await admin
+      .from('conversations')
+      .select('id, channel, channel_identity_id, assigned_to, last_message_at')
+      .eq('id', msg.conversation_id)
+      .single();
+
+    if (convErr || !conv) {
+      return { success: false, error: 'Conversation not found' };
+    }
+
+    const isAdmin = hasPermission(profile, 'crm.inbox.read_all');
+    if (!isAdmin && conv.assigned_to !== employee.id) {
+      return { success: false, error: 'Unauthorized: Conversation not assigned to you' };
+    }
+
+    // 3. Fetch attachment
+    const { data: att } = await admin
+      .from('message_attachments')
+      .select('*')
+      .eq('message_id', msg.id)
+      .maybeSingle();
+
+    if (!att || !att.storage_path) {
+      return { success: false, error: 'Attachment storage record not found for retry' };
+    }
+
+    // 4. Generate signed URL for provider
+    const { data: signed } = await admin.storage
+      .from(MEDIA_STORAGE_BUCKET)
+      .createSignedUrl(att.storage_path, 3600);
+    const signedUrl = signed?.signedUrl;
+
+    if (!signedUrl) {
+      return { success: false, error: 'Failed to generate signed URL for provider dispatch' };
+    }
+
+    // 5. Re-dispatch to Provider
+    let externalMsgId: string | null = null;
+    let finalStatus: 'sent' | 'failed' = 'sent';
+    let errorDetail: string | null = null;
+
+    const { data: channelIdent } = await admin
+      .from('channel_identities')
+      .select('external_id, phone')
+      .eq('id', conv.channel_identity_id)
+      .single();
+
+    if (conv.channel === 'whatsapp') {
+      const waToken =
+        process.env.WHATSAPP_ACCESS_TOKEN?.trim() ||
+        process.env.META_PAGE_ACCESS_TOKEN?.trim();
+      const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
+      const recipientPhone = channelIdent?.phone || channelIdent?.external_id;
+
+      const lastMsgTime = conv.last_message_at ? new Date(conv.last_message_at).getTime() : 0;
+      const isWithin24Hours = Date.now() - lastMsgTime <= 24 * 60 * 60 * 1000;
+
+      if (!waToken || !phoneNumberId || !recipientPhone) {
+        finalStatus = 'failed';
+        errorDetail = 'Missing WhatsApp configuration or recipient phone';
+      } else if (!isWithin24Hours) {
+        finalStatus = 'failed';
+        errorDetail = 'WhatsApp 24-hour customer service window expired.';
+      } else {
+        try {
+          const mediaKey = att.media_type;
+          const metaUrl = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+          const metaRes = await fetch(metaUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${waToken}`,
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: recipientPhone,
+              type: mediaKey,
+              [mediaKey]: {
+                link: signedUrl,
+                ...(att.caption ? { caption: att.caption } : {}),
+                ...(att.media_type === 'document' ? { filename: att.file_name } : {}),
+              },
+            }),
+          });
+          const metaJson = (await metaRes.json()) as { messages?: Array<{ id?: string }>; error?: { message?: string } };
+          if (metaRes.ok && metaJson.messages?.[0]?.id) {
+            externalMsgId = metaJson.messages[0].id;
+            finalStatus = 'sent';
+          } else {
+            finalStatus = 'failed';
+            errorDetail = metaJson?.error?.message || 'Meta Cloud API rejected retry';
+          }
+        } catch (err) {
+          finalStatus = 'failed';
+          errorDetail = err instanceof Error ? err.message : 'Network error during retry';
+        }
+      }
+    } else if (conv.channel === 'messenger') {
+      const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
+      const psid = channelIdent?.external_id;
+
+      if (!pageToken || !psid) {
+        finalStatus = 'failed';
+        errorDetail = 'Missing Messenger credentials or recipient PSID';
+      } else {
+        try {
+          const attType = att.media_type === 'document' ? 'file' : att.media_type;
+          const metaUrl = `https://graph.facebook.com/v21.0/me/messages?access_token=${encodeURIComponent(pageToken)}`;
+          const metaRes = await fetch(metaUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipient: { id: psid },
+              messaging_type: 'RESPONSE',
+              message: {
+                attachment: {
+                  type: attType,
+                  payload: { url: signedUrl, is_reusable: true },
+                },
+              },
+            }),
+          });
+          const metaJson = (await metaRes.json()) as { message_id?: string; error?: { message?: string } };
+          if (metaRes.ok && metaJson.message_id) {
+            externalMsgId = metaJson.message_id;
+            finalStatus = 'sent';
+          } else {
+            finalStatus = 'failed';
+            errorDetail = metaJson?.error?.message || 'Meta Messenger API rejected retry';
+          }
+        } catch (err) {
+          finalStatus = 'failed';
+          errorDetail = err instanceof Error ? err.message : 'Network error during retry';
+        }
+      }
+    } else if (conv.channel === 'instagram') {
+      const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
+      const igsid = channelIdent?.external_id;
+
+      if (att.media_type === 'document') {
+        finalStatus = 'failed';
+        errorDetail = 'Instagram Messaging does not support document attachments.';
+      } else if (!pageToken || !igsid) {
+        finalStatus = 'failed';
+        errorDetail = 'Missing credentials or Instagram recipient ID';
+      } else {
+        try {
+          const metaUrl = `https://graph.facebook.com/v21.0/me/messages?access_token=${encodeURIComponent(pageToken)}`;
+          const metaRes = await fetch(metaUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipient: { id: igsid },
+              message: {
+                attachment: {
+                  type: att.media_type,
+                  payload: { url: signedUrl },
+                },
+              },
+            }),
+          });
+          const metaJson = (await metaRes.json()) as { message_id?: string; error?: { message?: string } };
+          if (metaRes.ok && metaJson.message_id) {
+            externalMsgId = metaJson.message_id;
+            finalStatus = 'sent';
+          } else {
+            finalStatus = 'failed';
+            errorDetail = metaJson?.error?.message || 'Instagram API rejected retry';
+          }
+        } catch (err) {
+          finalStatus = 'failed';
+          errorDetail = err instanceof Error ? err.message : 'Network error during retry';
+        }
+      }
+    }
+
+    // 6. Update message record
+    const { data: updatedMsg } = await admin
+      .from('messages')
+      .update({
+        status: finalStatus,
+        external_message_id: externalMsgId,
+        error_detail: errorDetail,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', msg.id)
+      .select('*')
+      .single();
+
+    void writeAuditLog({
+      actor_id: employee.id,
+      action: 'inbox.media_retry',
+      module: 'crm',
+      entity_type: 'message',
+      entity_id: msg.id,
+      new_value: {
+        conversation_id: conv.id,
+        status: finalStatus,
+        error_detail: errorDetail,
+      },
+    });
+
+    revalidatePath('/crm/inbox');
+
+    const resultMsg: Message = {
+      ...(updatedMsg || msg),
+      media_url: signedUrl,
+      attachments: [{ ...(att as MessageAttachment), signed_url: signedUrl }],
+    };
+
+    if (finalStatus === 'failed') {
+      return { success: false, error: errorDetail || 'Retry failed', data: resultMsg };
+    }
+
+    return { success: true, data: resultMsg };
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : 'Unexpected error' };
   }

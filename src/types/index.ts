@@ -41,6 +41,10 @@ export type {
   MessageStatus,
   Message,
   ConversationWithDetails,
+  // Phase 4E: Media Message Attachment types
+  MessageAttachment,
+  MessageAttachmentStatus,
+  MessageAttachmentType,
 } from './database';
 
 // Generic API response types
