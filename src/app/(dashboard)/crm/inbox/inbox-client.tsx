@@ -45,7 +45,6 @@ import {
   getConversationDetails,
   getMessages,
   sendOutboundReply,
-  sendOutboundMediaReply,
   createMediaUploadUrl,
   finalizeOutboundMediaReply,
   retryOutboundMediaReply,

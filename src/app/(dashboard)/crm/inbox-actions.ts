@@ -35,7 +35,6 @@ import {
   MEDIA_STORAGE_BUCKET,
   validateMediaFile,
   generateStoragePath,
-  detectMagicBytes,
   DANGEROUS_EXTENSIONS,
   MEDIA_SIZE_LIMITS,
 } from '@/lib/messaging/media-manager';
@@ -990,6 +989,7 @@ export async function createMediaUploadUrl(input: {
     }
 
     const { conversationId, fileName, fileType, fileSize } = input;
+    void fileType;
     if (!conversationId) {
       return { success: false, error: 'Missing conversation ID' };
     }

@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "type-check": "tsc --noEmit",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "test:chat-perf": "tsx --conditions=react-server scripts/test_chat_perf.ts",
+    "test:security": "tsx --conditions=react-server scripts/test_security_suite.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
