@@ -65,9 +65,10 @@ async function processInboundEventBackground(
 ) {
   try {
     // 1. Mark event as processing
+    console.log(`[Inbound Webhook after()] Processing event ${event.eventId} (channel: ${event.channel})...`);
     await admin
       .from('webhook_events')
-      .update({ status: 'processing', updated_at: new Date().toISOString() })
+      .update({ status: 'processing' })
       .eq('id', rawEventId);
 
     // 2. Fetch social profile for Messenger & Instagram if display name is missing or generic
@@ -250,6 +251,7 @@ async function processInboundEventBackground(
       })
       .eq('id', rawEventId);
 
+    console.log(`[Inbound Webhook after()] Successfully processed event ${event.eventId} (msgId: ${ingestResult?.message_id}, convId: ${ingestResult?.conversation_id})`);
   } catch (err: unknown) {
     const errorObj = err as Error;
     console.error('[Inbound Webhook after()] Background processing error:', {
@@ -263,7 +265,6 @@ async function processInboundEventBackground(
       .update({
         status: 'failed',
         error_message: errorObj?.message || String(err),
-        updated_at: new Date().toISOString(),
       })
       .eq('id', rawEventId);
   }
@@ -276,6 +277,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
   const rawBody = await req.text();
   const headers = Object.fromEntries(req.headers.entries());
+  console.log(`[Inbound Webhook POST] Inbound request received (payload size: ${rawBody.length} bytes, hasSignature: ${!!req.headers.get('x-hub-signature-256') || !!req.headers.get('x-hub-signature')})`);
 
   // 1. Signature & Authorization Verification (Constant-Time HMAC)
   const signatureHeader =
@@ -388,7 +390,7 @@ export async function POST(req: NextRequest) {
           event_id: event.eventId,
           payload: rawPayload,
           headers,
-          status: 'received',
+          status: 'pending',
         })
         .select('id')
         .maybeSingle();
@@ -406,15 +408,27 @@ export async function POST(req: NextRequest) {
         if (reEvt && reEvt.status !== 'processed') {
           acceptedTasks.push({ rawEventId: reEvt.id, event });
         }
+      } else {
+        console.error('[Inbound Webhook POST] Failed to insert raw webhook event into DB:', {
+          channel: event.channel,
+          eventId: event.eventId,
+          error: evtErr,
+        });
       }
     }
   }
 
+  console.log(`[Inbound Webhook POST] Ingestion accepted ${acceptedTasks.length} task(s) out of ${normalizedEvents.length} event(s)`);
+
   // 5. Schedule background execution via next/server after()
   if (acceptedTasks.length > 0) {
     after(async () => {
-      for (const task of acceptedTasks) {
-        await processInboundEventBackground(task.rawEventId, task.event, admin);
+      try {
+        for (const task of acceptedTasks) {
+          await processInboundEventBackground(task.rawEventId, task.event, admin);
+        }
+      } catch (fatalErr) {
+        console.error('[Inbound Webhook after()] Fatal background execution error:', fatalErr);
       }
     });
   }
