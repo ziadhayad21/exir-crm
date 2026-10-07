@@ -1,7 +1,8 @@
 // src/app/(dashboard)/admin/employees/employees-client.tsx
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useEffect, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { createEmployee, toggleEmployeeStatus, assignRole } from '../actions';
 import { formatDate } from '@/lib/utils';
@@ -994,12 +995,25 @@ function Modal({
   subtitle?: string;
   icon?: React.ReactNode;
 }) {
-  return (
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 100,
+        zIndex: 9999,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -1032,8 +1046,9 @@ function Modal({
           backgroundColor: 'var(--card)',
           borderRadius: '16px',
           border: '1px solid var(--border)',
-          boxShadow: '0 20px 40px -8px rgba(76, 69, 65, 0.22), 0 0 0 1px rgba(174, 172, 120, 0.2)',
+          boxShadow: '0 25px 50px -12px rgba(76, 69, 65, 0.25), 0 0 0 1px rgba(174, 172, 120, 0.2)',
           overflow: 'hidden',
+          zIndex: 1,
         }}
       >
         <div
@@ -1118,7 +1133,8 @@ function Modal({
         </div>
         <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
