@@ -92,18 +92,6 @@ const navItems: NavItem[] = [
         icon: <Users size={18} />,
         permissionKey: 'admin.manage_users',
       },
-      {
-        label: 'Roles',
-        href: '/admin/roles',
-        icon: <Shield size={18} />,
-        permissionKey: 'admin.manage_users',
-      },
-      {
-        label: 'Permissions',
-        href: '/admin/permissions',
-        icon: <Shield size={18} />,
-        permissionKey: 'admin.manage_users',
-      },
     ],
   },
 ];
@@ -122,7 +110,10 @@ export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [crmOpen, setCrmOpen] = useState(true);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    '/crm': true,
+    '/admin': true,
+  });
 
   const filteredItems = navItems.filter((item) => isItemVisible(item, user));
 
@@ -233,10 +224,16 @@ export function Sidebar({ user }: SidebarProps) {
               pathname.startsWith(item.href + '/');
 
             if (hasChildren && !collapsed) {
+              const isGroupOpen = openGroups[item.href] ?? true;
               return (
                 <div key={item.href} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <button
-                    onClick={() => setCrmOpen(!crmOpen)}
+                    onClick={() =>
+                      setOpenGroups((prev) => ({
+                        ...prev,
+                        [item.href]: !isGroupOpen,
+                      }))
+                    }
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -269,14 +266,14 @@ export function Sidebar({ user }: SidebarProps) {
                     <ChevronDown
                       size={16}
                       style={{
-                        transform: crmOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                        transform: isGroupOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
                         transition: 'transform 0.2s ease',
                         color: 'var(--muted-foreground)',
                       }}
                     />
                   </button>
 
-                  {crmOpen && (
+                  {isGroupOpen && (
                     <div
                       style={{
                         display: 'flex',

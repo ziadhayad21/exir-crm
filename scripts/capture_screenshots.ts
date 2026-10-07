@@ -63,8 +63,6 @@ async function capture() {
         { name: 'crm-deals', url: `${BASE_URL}/crm/deals` },
         { name: 'crm-inbox', url: `${BASE_URL}/crm/inbox` },
         { name: 'admin-employees', url: `${BASE_URL}/admin/employees` },
-        { name: 'admin-roles', url: `${BASE_URL}/admin/roles` },
-        { name: 'admin-permissions', url: `${BASE_URL}/admin/permissions` },
       ];
 
       for (const p of authPages) {

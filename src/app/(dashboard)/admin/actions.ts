@@ -10,7 +10,7 @@ import {
   assignRoleSchema,
   toggleEmployeeStatusSchema,
 } from '@/lib/validations/admin';
-import type { ActionResult, Employee, EmployeeWithRoles, Role, Permission } from '@/types';
+import type { ActionResult, Employee, EmployeeWithRoles, Role } from '@/types';
 import { revalidatePath } from 'next/cache';
 
 // ─── Read Operations ────────────────────────────────────────────────
@@ -77,18 +77,6 @@ export async function getRoles(): Promise<Role[]> {
   return (data ?? []) as Role[];
 }
 
-export async function getPermissions(): Promise<Permission[]> {
-  await requirePermission('admin.system');
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from('permissions')
-    .select('*')
-    .order('module, key');
-
-  if (error) return [];
-  return (data ?? []) as Permission[];
-}
 
 // ─── Write Operations ───────────────────────────────────────────────
 
