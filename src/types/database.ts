@@ -169,8 +169,8 @@ export interface DealWithActivities extends Deal {
 // ─── Lead Types (Phase 3) ──────────────────────────────────────
 
 export type LeadSource = 'manual' | 'referral' | 'walk_in' | 'website' | 'social_media' | 'whatsapp' | 'phone_call' | 'other';
-export type LeadStatus = 'new' | 'contacted' | 'converted' | 'lost';
-export type LeadAssignmentSource = 'automatic' | 'manual' | 'unassigned';
+export type LeadStatus = 'in_progress' | 'follow_up' | 'won' | 'lose';
+export type LeadAssignmentSource = 'automatic' | 'manual' | 'unassigned' | 'transfer';
 
 export interface Lead {
   id: string;
@@ -183,6 +183,8 @@ export interface Lead {
   assigned_at: string | null;
   assignment_source: LeadAssignmentSource;
   status: LeadStatus;
+  follow_up_at: string | null;
+  follow_up_notification_sent_at: string | null;
   converted_to_customer_id: string | null;
   converted_to_deal_id: string | null;
   received_at?: string;

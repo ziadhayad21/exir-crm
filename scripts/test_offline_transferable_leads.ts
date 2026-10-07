@@ -69,8 +69,14 @@ async function cleanupTestData() {
     await admin.from('channel_identities').delete().in('id', cleanupIdentityIds);
     cleanupIdentityIds.length = 0;
   }
-  // Reset all employees to offline
+  // Reset all employees to offline and ensure 0 active workload
   if (ctx) {
+    await admin
+      .from('leads')
+      .update({ status: 'won' })
+      .in('assigned_to', [ctx.sales1Emp.id, ctx.sales2Emp.id, ctx.sales3Emp.id])
+      .eq('status', 'in_progress');
+
     await setEmployeeStatus(ctx.adminEmp.id, false);
     await setEmployeeStatus(ctx.sales1Emp.id, false);
     await setEmployeeStatus(ctx.sales2Emp.id, false);
@@ -230,15 +236,15 @@ async function test3_SecondBatch() {
   });
   if (batch1Count !== 2) throw new Error(`Batch 1 failed: claimed ${batch1Count}`);
 
-  // Fetch Ahmed's 2 claimed leads and mark them completed ('converted')
+  // Fetch Ahmed's 2 claimed leads and mark them completed ('won')
   const { data: ahmedActiveLeads } = await admin
     .from('leads')
     .select('id')
     .eq('assigned_to', ctx.sales1Emp.id)
-    .in('status', ['new', 'contacted']);
+    .eq('status', 'in_progress');
 
   for (const l of ahmedActiveLeads ?? []) {
-    await admin.from('leads').update({ status: 'converted' }).eq('id', l.id);
+    await admin.from('leads').update({ status: 'won' }).eq('id', l.id);
   }
 
   // Now Ahmed has 0 active leads again. Claim Batch 2
@@ -610,9 +616,18 @@ async function test9_FairSharing() {
     p_business_tz: 'Africa/Cairo',
   });
 
-  // Count leads assigned to Ahmed vs Mohamed
-  const { count: ahmedCount } = await admin.from('leads').select('id', { count: 'exact', head: true }).eq('assigned_to', ctx.sales1Emp.id).eq('assignment_source', 'transfer');
-  const { count: mohamedCount } = await admin.from('leads').select('id', { count: 'exact', head: true }).eq('assigned_to', ctx.sales2Emp.id).eq('assignment_source', 'transfer');
+  // Count leads assigned to Ahmed vs Mohamed among test 9 leads
+  const test9LeadIds = cleanupLeadIds.slice(-6);
+  const { count: ahmedCount } = await admin
+    .from('leads')
+    .select('id', { count: 'exact', head: true })
+    .in('id', test9LeadIds)
+    .eq('assigned_to', ctx.sales1Emp.id);
+  const { count: mohamedCount } = await admin
+    .from('leads')
+    .select('id', { count: 'exact', head: true })
+    .in('id', test9LeadIds)
+    .eq('assigned_to', ctx.sales2Emp.id);
 
   console.log(`Total claimed: ${totalClaimed}, Ahmed=${ahmedCount}, Mohamed=${mohamedCount}`);
 
@@ -668,6 +683,7 @@ async function test10_FifoOrder() {
   const { data: ahmedLeads } = await admin
     .from('leads')
     .select('id')
+    .in('id', createdLeadIds)
     .eq('assigned_to', ctx.sales1Emp.id)
     .order('assigned_at', { ascending: true });
 

@@ -74,6 +74,13 @@ export async function POST() {
       console.warn('[Heartbeat] Transferable backlog processing warning:', transferErr);
     }
 
+    // 6. Process follow-up reminders
+    try {
+      await admin.rpc('process_follow_up_reminders');
+    } catch (reminderErr) {
+      console.warn('[Heartbeat] Follow-up reminder processing warning:', reminderErr);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[Heartbeat] Unexpected error:', err);

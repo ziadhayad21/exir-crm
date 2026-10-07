@@ -20,6 +20,7 @@ import {
   Mail,
   UserCheck,
   ArrowRightCircle,
+  Calendar,
 } from 'lucide-react';
 
 interface LeadsClientProps {
@@ -30,18 +31,22 @@ interface LeadsClientProps {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; border: string }> = {
-  new: { label: 'New', bg: 'var(--info)', text: 'var(--info-foreground)', border: 'var(--info-border)' },
-  contacted: { label: 'Contacted', bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
-  converted: { label: 'Converted', bg: 'var(--success)', text: 'var(--success-foreground)', border: 'var(--success-border)' },
-  lost: { label: 'Lost', bg: 'var(--destructive)', text: 'var(--destructive-foreground)', border: 'var(--destructive-border)' },
+  in_progress: { label: 'In Progress', bg: 'var(--info)', text: 'var(--info-foreground)', border: 'var(--info-border)' },
+  follow_up: { label: 'Follow Up', bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
+  won: { label: 'Won', bg: 'var(--success)', text: 'var(--success-foreground)', border: 'var(--success-border)' },
+  lose: { label: 'Lose', bg: 'var(--destructive)', text: 'var(--destructive-foreground)', border: 'var(--destructive-border)' },
+  new: { label: 'In Progress', bg: 'var(--info)', text: 'var(--info-foreground)', border: 'var(--info-border)' },
+  contacted: { label: 'In Progress', bg: 'var(--info)', text: 'var(--info-foreground)', border: 'var(--info-border)' },
+  converted: { label: 'Won', bg: 'var(--success)', text: 'var(--success-foreground)', border: 'var(--success-border)' },
+  lost: { label: 'Lose', bg: 'var(--destructive)', text: 'var(--destructive-foreground)', border: 'var(--destructive-border)' },
 };
 
 const LEAD_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'new', label: 'New' },
-  { value: 'contacted', label: 'Contacted' },
-  { value: 'converted', label: 'Converted' },
-  { value: 'lost', label: 'Lost' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'follow_up', label: 'Follow Up' },
+  { value: 'won', label: 'Won' },
+  { value: 'lose', label: 'Lose' },
 ];
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -65,6 +70,11 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
   const [statusFilter, setStatusFilter] = useState('all');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Follow-up modal state
+  const [followUpModal, setFollowUpModal] = useState<{ leadId: string } | null>(null);
+  const [followUpAt, setFollowUpAt] = useState('');
+  const [followUpNotes, setFollowUpNotes] = useState('');
 
   // Create form state
   const [createForm, setCreateForm] = useState({
@@ -118,11 +128,23 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
     });
   }
 
-  function handleStatusChange(leadId: string, newStatus: LeadStatus) {
+  function handleStatusSelect(leadId: string, newStatus: LeadStatus) {
+    if (newStatus === 'follow_up') {
+      setFollowUpModal({ leadId });
+      setFollowUpAt('');
+      setFollowUpNotes('');
+      return;
+    }
+    handleStatusChange(leadId, newStatus);
+  }
+
+  function handleStatusChange(leadId: string, newStatus: LeadStatus, dateStr?: string, notesStr?: string) {
     setError(null);
     const formData = new FormData();
     formData.set('lead_id', leadId);
     formData.set('status', newStatus);
+    if (dateStr) formData.set('follow_up_at', dateStr);
+    if (notesStr) formData.set('notes', notesStr);
 
     startTransition(async () => {
       const result = await updateLeadStatus(formData);
@@ -131,6 +153,17 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
       }
       router.refresh();
     });
+  }
+
+  function handleFollowUpSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!followUpModal || !followUpAt) {
+      setError('Follow-up date and time is required');
+      return;
+    }
+    const isoDate = new Date(followUpAt).toISOString();
+    handleStatusChange(followUpModal.leadId, 'follow_up', isoDate, followUpNotes);
+    setFollowUpModal(null);
   }
 
   function handleReassign(leadId: string, employeeId: string) {
@@ -575,6 +608,142 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
         </div>
       )}
 
+      {/* Follow Up Modal */}
+      {followUpModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(76, 69, 65, 0.4)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1rem',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setFollowUpModal(null);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--card)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
+              padding: '2rem',
+              width: '100%',
+              maxWidth: '440px',
+              boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.12)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Calendar size={18} style={{ color: 'var(--warning-foreground)' }} />
+                <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>Schedule Follow Up</h2>
+              </div>
+              <button onClick={() => setFollowUpModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleFollowUpSubmit}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: '0.25rem' }}>
+                    Follow-Up Date &amp; Time (Cairo Time) *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={followUpAt}
+                    onChange={(e) => setFollowUpAt(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.875rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: '0.25rem', marginBottom: 0 }}>
+                    Required. A reminder notification will be triggered when this time arrives.
+                  </p>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: '0.25rem' }}>
+                    Follow-Up Notes (Optional)
+                  </label>
+                  <textarea
+                    value={followUpNotes}
+                    onChange={(e) => setFollowUpNotes(e.target.value)}
+                    rows={2}
+                    placeholder="e.g. Customer asked to call back tomorrow afternoon"
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.875rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      resize: 'vertical',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setFollowUpModal(null)}
+                    style={{
+                      padding: '0.625rem 1rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.875rem',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isPending || !followUpAt}
+                    style={{
+                      padding: '0.625rem 1.25rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid rgba(174, 172, 120, 0.4)',
+                      backgroundColor: 'var(--primary)',
+                      color: 'var(--primary-foreground)',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      cursor: isPending || !followUpAt ? 'not-allowed' : 'pointer',
+                      opacity: isPending || !followUpAt ? 0.6 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    {isPending ? <Loader2 size={16} className="animate-spin" /> : null}
+                    Save Follow Up
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Leads Table */}
       <div
         style={{
@@ -680,20 +849,29 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                         {SOURCE_LABELS[lead.source] ?? lead.source}
                       </td>
                       <td style={{ padding: '0.75rem 1rem' }}>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '3px 10px',
-                            borderRadius: '999px',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            backgroundColor: statusInfo.bg,
-                            color: statusInfo.text,
-                            border: `1px solid ${statusInfo.border}`,
-                          }}
-                        >
-                          {statusInfo.label}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '3px 10px',
+                              borderRadius: '999px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              backgroundColor: statusInfo.bg,
+                              color: statusInfo.text,
+                              border: `1px solid ${statusInfo.border}`,
+                              width: 'fit-content',
+                            }}
+                          >
+                            {statusInfo.label}
+                          </span>
+                          {lead.status === 'follow_up' && lead.follow_up_at && (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Calendar size={12} style={{ color: 'var(--warning-foreground)' }} />
+                              {new Date(lead.follow_up_at).toLocaleString('en-US', { timeZone: 'Africa/Cairo', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} (Cairo)
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: '0.75rem 1rem' }}>
                         {lead.assigned_to_employee ? (
@@ -715,10 +893,10 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                       <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
                           {/* Status change dropdown */}
-                          {canWrite && lead.status !== 'converted' && (
+                          {canWrite && lead.status !== 'won' && (
                             <select
                               value={lead.status}
-                              onChange={(e) => handleStatusChange(lead.id, e.target.value as LeadStatus)}
+                              onChange={(e) => handleStatusSelect(lead.id, e.target.value as LeadStatus)}
                               disabled={isPending}
                               style={{
                                 padding: '0.25rem 0.5rem',
@@ -731,10 +909,10 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                               }}
                               title="Change status"
                             >
-                              <option value="new">New</option>
-                              <option value="contacted">Contacted</option>
-                              <option value="converted">Converted</option>
-                              <option value="lost">Lost</option>
+                              <option value="in_progress">In Progress</option>
+                              <option value="follow_up">Follow Up</option>
+                              <option value="won">Won</option>
+                              <option value="lose">Lose</option>
                             </select>
                           )}
 
@@ -767,7 +945,7 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                             </select>
                           )}
 
-                          {lead.status === 'converted' && lead.converted_to_deal_id && (
+                          {(lead.status === 'won' || (lead.status as string) === 'converted') && lead.converted_to_deal_id && (
                             <span
                               style={{
                                 display: 'flex',

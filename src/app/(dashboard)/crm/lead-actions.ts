@@ -210,7 +210,7 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
       email: parsed.data.email || null,
       source: parsed.data.source,
       notes: parsed.data.notes || null,
-      status: 'new',
+      status: 'in_progress',
       assignment_source: 'unassigned',
     })
     .select('*')
@@ -259,7 +259,7 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
 }
 
 /**
- * Update a lead's status.
+ * Update a lead's status using the authoritative DB operation.
  */
 export async function updateLeadStatus(formData: FormData): Promise<ActionResult> {
   const currentUser = await requirePermission('crm.leads.write');
@@ -267,6 +267,8 @@ export async function updateLeadStatus(formData: FormData): Promise<ActionResult
   const raw = {
     lead_id: formData.get('lead_id'),
     status: formData.get('status'),
+    follow_up_at: formData.get('follow_up_at') || null,
+    notes: formData.get('notes') || null,
   };
 
   const parsed = updateLeadStatusSchema.safeParse(raw);
@@ -296,16 +298,13 @@ export async function updateLeadStatus(formData: FormData): Promise<ActionResult
     return { success: false, error: 'You do not have permission to update this lead.' };
   }
 
-  // If transitioning to converted, perform conversion to Customer + Deal
+  // If transitioning to won, perform optional conversion to Customer + Deal
   let customerId = existing.converted_to_customer_id;
   let dealId = existing.converted_to_deal_id;
 
-  if (parsed.data.status === 'converted') {
-    // If not already converted to a deal, create/link Customer and Deal
+  if (parsed.data.status === 'won') {
     if (!dealId) {
-      // 1. Link or create Customer
       if (!customerId) {
-        // Check if customer with same email or phone exists
         const checks: string[] = [];
         if (existing.email) checks.push(`email.eq.${existing.email}`);
         if (existing.phone) checks.push(`phone.eq.${existing.phone}`);
@@ -322,7 +321,6 @@ export async function updateLeadStatus(formData: FormData): Promise<ActionResult
           }
         }
 
-        // If still no customer, create one
         if (!customerId) {
           const { data: newCustomer, error: custErr } = await admin
             .from('customers')
@@ -344,7 +342,6 @@ export async function updateLeadStatus(formData: FormData): Promise<ActionResult
         }
       }
 
-      // 2. Create Deal in Phase 2 pipeline with stage = 'new'
       const { data: newDealId, error: dealErr } = await admin.rpc('crm_create_deal', {
         p_title: `Deal - ${existing.full_name}`,
         p_customer_id: customerId,
@@ -362,44 +359,57 @@ export async function updateLeadStatus(formData: FormData): Promise<ActionResult
     }
   }
 
-  // Update status & conversion references
-  const { error: updateError } = await admin
-    .from('leads')
-    .update({
-      status: parsed.data.status,
-      converted_to_customer_id: customerId,
-      converted_to_deal_id: dealId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', parsed.data.lead_id);
+  // Authoritative status change via PG function
+  const { error: rpcError } = await admin.rpc('change_lead_status', {
+    p_lead_id: parsed.data.lead_id,
+    p_new_status: parsed.data.status,
+    p_changed_by: currentUser.employee.id,
+    p_follow_up_at: parsed.data.follow_up_at || null,
+    p_notes: parsed.data.notes || null,
+  });
 
-  if (updateError) {
-    return { success: false, error: updateError.message || 'Failed to update lead status' };
+  if (rpcError) {
+    return { success: false, error: rpcError.message || 'Failed to update lead status' };
+  }
+
+  // If customer/deal references updated, save them
+  if (customerId !== existing.converted_to_customer_id || dealId !== existing.converted_to_deal_id) {
+    await admin
+      .from('leads')
+      .update({
+        converted_to_customer_id: customerId,
+        converted_to_deal_id: dealId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', parsed.data.lead_id);
   }
 
   await writeAuditLog({
     actor_id: currentUser.employee.id,
-    action: parsed.data.status === 'converted' ? 'lead.converted' : 'lead.status_changed',
+    action: parsed.data.status === 'won' ? 'lead.won' : 'lead.status_changed',
     module: 'crm',
     entity_type: 'lead',
     entity_id: parsed.data.lead_id,
     old_value: { status: existing.status },
     new_value: {
       status: parsed.data.status,
+      follow_up_at: parsed.data.follow_up_at || null,
       customer_id: customerId,
       deal_id: dealId,
     },
   });
 
   // Attempt to claim up to 2 transferable backlog leads if employee has finished active workload
-  try {
-    await admin.rpc('claim_transferable_lead_batch', {
-      p_employee_id: currentUser.employee.id,
-      p_batch_limit: 2,
-      p_business_tz: 'Africa/Cairo',
-    });
-  } catch (claimErr) {
-    console.warn('[Leads] Auto-claim transferable backlog warning:', claimErr);
+  if (parsed.data.status !== 'in_progress') {
+    try {
+      await admin.rpc('claim_transferable_lead_batch', {
+        p_employee_id: currentUser.employee.id,
+        p_batch_limit: 2,
+        p_business_tz: 'Africa/Cairo',
+      });
+    } catch (claimErr) {
+      console.warn('[Leads] Auto-claim transferable backlog warning:', claimErr);
+    }
   }
 
   revalidatePath('/crm/leads');
@@ -421,7 +431,7 @@ export async function convertLead(formData: FormData): Promise<ActionResult<{ cu
 
   const updateFormData = new FormData();
   updateFormData.set('lead_id', leadId);
-  updateFormData.set('status', 'converted');
+  updateFormData.set('status', 'won');
 
   const res = await updateLeadStatus(updateFormData);
   if (!res.success) {

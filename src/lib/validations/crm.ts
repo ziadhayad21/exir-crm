@@ -276,7 +276,7 @@ export const LEAD_SOURCES = [
   'other',
 ] as const;
 
-export const LEAD_STATUSES = ['new', 'contacted', 'converted', 'lost'] as const;
+export const LEAD_STATUSES = ['in_progress', 'follow_up', 'won', 'lose'] as const;
 
 export const createLeadSchema = z.object({
   full_name: z.string().min(1, 'Full name is required').max(255, 'Name is too long'),
@@ -316,7 +316,20 @@ export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 export const updateLeadStatusSchema = z.object({
   lead_id: z.string().regex(uuidRegex, 'Invalid lead ID'),
   status: z.enum(LEAD_STATUSES),
-});
+  follow_up_at: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+}).refine(
+  (data) => {
+    if (data.status === 'follow_up') {
+      return !!data.follow_up_at && !isNaN(Date.parse(data.follow_up_at));
+    }
+    return true;
+  },
+  {
+    message: 'Follow-up date/time is required when status is Follow Up',
+    path: ['follow_up_at'],
+  }
+);
 
 export type UpdateLeadStatusInput = z.infer<typeof updateLeadStatusSchema>;
 
