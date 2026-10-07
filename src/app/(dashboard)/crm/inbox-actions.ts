@@ -185,24 +185,24 @@ export async function getConversations(filters?: {
       ...c,
       channel_identity: ident
         ? {
-            ...ident,
-            display_name: resolvedName,
-            phone: ident.phone || lead?.phone || customer?.phone || null,
-            email: ident.email || lead?.email || customer?.email || null,
-          }
+          ...ident,
+          display_name: resolvedName,
+          phone: ident.phone || lead?.phone || customer?.phone || null,
+          email: ident.email || lead?.email || customer?.email || null,
+        }
         : {
-            id: c.channel_identity_id,
-            channel: c.channel,
-            external_id: 'Unknown',
-            display_name: resolvedName,
-            phone: lead?.phone || customer?.phone || null,
-            email: lead?.email || customer?.email || null,
-            avatar_url: null,
-            customer_id: c.customer_id || null,
-            metadata: {},
-            created_at: c.created_at,
-            updated_at: c.updated_at,
-          },
+          id: c.channel_identity_id,
+          channel: c.channel,
+          external_id: 'Unknown',
+          display_name: resolvedName,
+          phone: lead?.phone || customer?.phone || null,
+          email: lead?.email || customer?.email || null,
+          avatar_url: null,
+          customer_id: c.customer_id || null,
+          metadata: {},
+          created_at: c.created_at,
+          updated_at: c.updated_at,
+        },
       customer,
       lead,
       assigned_to_employee: c.assigned_to ? employeeMap.get(c.assigned_to) || null : null,
@@ -284,7 +284,7 @@ export async function getConversationDetails(
               .eq('id', ident.id);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     } else if (conv.channel === 'instagram' && igToken) {
       void fetchInstagramProfile(ident.external_id, igToken)
         .then((profile) => {
@@ -299,7 +299,7 @@ export async function getConversationDetails(
               .eq('id', ident.id);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }
 
@@ -314,24 +314,24 @@ export async function getConversationDetails(
     ...conv,
     channel_identity: ident
       ? {
-          ...ident,
-          display_name: resolvedName,
-          phone: ident.phone || lead?.phone || customer?.phone || null,
-          email: ident.email || lead?.email || customer?.email || null,
-        }
+        ...ident,
+        display_name: resolvedName,
+        phone: ident.phone || lead?.phone || customer?.phone || null,
+        email: ident.email || lead?.email || customer?.email || null,
+      }
       : {
-          id: conv.channel_identity_id,
-          channel: conv.channel,
-          external_id: 'Unknown',
-          display_name: resolvedName,
-          phone: lead?.phone || customer?.phone || null,
-          email: lead?.email || customer?.email || null,
-          avatar_url: null,
-          customer_id: conv.customer_id || null,
-          metadata: {},
-          created_at: conv.created_at,
-          updated_at: conv.updated_at,
-        },
+        id: conv.channel_identity_id,
+        channel: conv.channel,
+        external_id: 'Unknown',
+        display_name: resolvedName,
+        phone: lead?.phone || customer?.phone || null,
+        email: lead?.email || customer?.email || null,
+        avatar_url: null,
+        customer_id: conv.customer_id || null,
+        metadata: {},
+        created_at: conv.created_at,
+        updated_at: conv.updated_at,
+      },
     customer,
     lead,
     assigned_to_employee: (empRes.data as Employee) || null,
@@ -838,9 +838,9 @@ export async function linkConversationCustomer(
         .eq('id', conv.channel_identity_id),
       conv.lead_id
         ? admin
-            .from('leads')
-            .update({ customer_id: parsed.data.customer_id })
-            .eq('id', conv.lead_id)
+          .from('leads')
+          .update({ customer_id: parsed.data.customer_id })
+          .eq('id', conv.lead_id)
         : Promise.resolve(),
     ]);
 

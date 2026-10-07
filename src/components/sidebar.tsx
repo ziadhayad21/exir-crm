@@ -72,12 +72,6 @@ const navItems: NavItem[] = [
         icon: <Inbox size={18} />,
         permissionKeys: ['crm.leads.read_own', 'crm.leads.read_all'],
       },
-      {
-        label: 'Deals',
-        href: '/crm/deals',
-        icon: <Handshake size={18} />,
-        permissionKeys: ['crm.deals.read_own', 'crm.deals.read_all'],
-      },
     ],
   },
   {

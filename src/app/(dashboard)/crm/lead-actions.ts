@@ -269,6 +269,12 @@ export async function updateLeadStatus(formData: FormData): Promise<ActionResult
     status: formData.get('status'),
     follow_up_at: formData.get('follow_up_at') || null,
     notes: formData.get('notes') || null,
+    service_name: formData.get('service_name') || null,
+    total_amount: formData.get('total_amount') || null,
+    paid_amount: formData.get('paid_amount') || null,
+    remaining_amount: formData.get('remaining_amount') || null,
+    service_type: formData.get('service_type') || null,
+    lost_reason: formData.get('lost_reason') || null,
   };
 
   const parsed = updateLeadStatusSchema.safeParse(raw);
@@ -298,64 +304,63 @@ export async function updateLeadStatus(formData: FormData): Promise<ActionResult
     return { success: false, error: 'You do not have permission to update this lead.' };
   }
 
-  // If transitioning to won, perform optional conversion to Customer + Deal
-  let customerId = existing.converted_to_customer_id;
-  let dealId = existing.converted_to_deal_id;
+  // If transitioning to won, link or create Customer contact directly (NO Deals)
+  let customerId = existing.customer_id || existing.converted_to_customer_id;
 
   if (parsed.data.status === 'won') {
-    if (!dealId) {
+    if (!customerId) {
+      const checks: string[] = [];
+      if (existing.email) checks.push(`email.eq.${existing.email}`);
+      if (existing.phone) checks.push(`phone.eq.${existing.phone}`);
+
+      if (checks.length > 0) {
+        const { data: duplicates } = await admin
+          .from('customers')
+          .select('id')
+          .is('deleted_at', null)
+          .or(checks.join(','));
+
+        if (duplicates && duplicates.length > 0) {
+          customerId = duplicates[0].id;
+        }
+      }
+
       if (!customerId) {
-        const checks: string[] = [];
-        if (existing.email) checks.push(`email.eq.${existing.email}`);
-        if (existing.phone) checks.push(`phone.eq.${existing.phone}`);
-
-        if (checks.length > 0) {
-          const { data: duplicates } = await admin
-            .from('customers')
-            .select('id')
-            .is('deleted_at', null)
-            .or(checks.join(','));
-
-          if (duplicates && duplicates.length > 0) {
-            customerId = duplicates[0].id;
-          }
+        const validCustomerSources = [
+          'manual',
+          'referral',
+          'walk_in',
+          'website',
+          'social_media',
+          'whatsapp',
+          'phone_call',
+          'instagram',
+          'messenger',
+          'other',
+        ];
+        let customerSource = existing.source || 'manual';
+        if (!validCustomerSources.includes(customerSource)) {
+          customerSource = 'other';
         }
 
-        if (!customerId) {
-          const { data: newCustomer, error: custErr } = await admin
-            .from('customers')
-            .insert({
-              full_name: existing.full_name,
-              phone: existing.phone || null,
-              email: existing.email || null,
-              source: existing.source || 'manual',
-              notes: existing.notes || null,
-              created_by: existing.assigned_to || currentUser.employee.id,
-            })
-            .select('id')
-            .single();
+        const { data: newCustomer, error: custErr } = await admin
+          .from('customers')
+          .insert({
+            full_name: existing.full_name,
+            phone: existing.phone || null,
+            email: existing.email || null,
+            source: customerSource,
+            notes: existing.notes || null,
+            created_by: existing.assigned_to || currentUser.employee.id,
+          })
+          .select('id')
+          .single();
 
-          if (custErr || !newCustomer) {
-            return { success: false, error: custErr?.message || 'Failed to create customer during conversion' };
-          }
-          customerId = newCustomer.id;
+        if (custErr || !newCustomer) {
+          return { success: false, error: custErr?.message || 'Failed to create customer during conversion' };
         }
+        customerId = newCustomer.id;
       }
-
-      const { data: newDealId, error: dealErr } = await admin.rpc('crm_create_deal', {
-        p_title: `Deal - ${existing.full_name}`,
-        p_customer_id: customerId,
-        p_assigned_to: existing.assigned_to || currentUser.employee.id,
-        p_total_amount: null,
-        p_expected_close_date: null,
-        p_notes: existing.notes ? `Converted from Lead: ${existing.notes}` : 'Converted from Lead',
-        p_created_by: currentUser.employee.id,
-      });
-
-      if (dealErr || !newDealId) {
-        return { success: false, error: dealErr?.message || 'Failed to create deal during conversion' };
-      }
-      dealId = newDealId;
     }
   }
 
@@ -372,16 +377,55 @@ export async function updateLeadStatus(formData: FormData): Promise<ActionResult
     return { success: false, error: rpcError.message || 'Failed to update lead status' };
   }
 
-  // If customer/deal references updated, save them
-  if (customerId !== existing.converted_to_customer_id || dealId !== existing.converted_to_deal_id) {
-    await admin
-      .from('leads')
-      .update({
-        converted_to_customer_id: customerId,
-        converted_to_deal_id: dealId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', parsed.data.lead_id);
+  // Prepare structured commercial updates directly under the Lead
+  const leadUpdates: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (customerId) {
+    leadUpdates.customer_id = customerId;
+    leadUpdates.converted_to_customer_id = customerId;
+  }
+
+  if (parsed.data.status === 'won') {
+    const total = parsed.data.total_amount !== undefined && parsed.data.total_amount !== null
+      ? Number(parsed.data.total_amount)
+      : existing.total_amount;
+    const paid = parsed.data.paid_amount !== undefined && parsed.data.paid_amount !== null
+      ? Number(parsed.data.paid_amount)
+      : (existing.paid_amount ?? 0);
+    const remaining = total !== null && total !== undefined
+      ? Math.max(0, total - (paid ?? 0))
+      : null;
+
+    if (parsed.data.service_name) {
+      leadUpdates.service_name = parsed.data.service_name;
+    }
+    leadUpdates.total_amount = total;
+    leadUpdates.paid_amount = paid;
+    leadUpdates.remaining_amount = remaining;
+    leadUpdates.currency = existing.currency || 'EGP';
+  } else if (parsed.data.status === 'lose') {
+    if (parsed.data.service_name) {
+      leadUpdates.service_name = parsed.data.service_name;
+      leadUpdates.service_type = parsed.data.service_name;
+    } else if (parsed.data.service_type) {
+      leadUpdates.service_type = parsed.data.service_type;
+      leadUpdates.service_name = parsed.data.service_type;
+    }
+    if (parsed.data.lost_reason || parsed.data.notes) {
+      leadUpdates.lost_reason = parsed.data.lost_reason || parsed.data.notes;
+    }
+  }
+
+  // Save structured commercial details under the lead
+  const { error: updateErr } = await admin
+    .from('leads')
+    .update(leadUpdates)
+    .eq('id', parsed.data.lead_id);
+
+  if (updateErr) {
+    console.warn('[Leads] Warning updating structured lead details:', updateErr);
   }
 
   await writeAuditLog({
@@ -395,7 +439,12 @@ export async function updateLeadStatus(formData: FormData): Promise<ActionResult
       status: parsed.data.status,
       follow_up_at: parsed.data.follow_up_at || null,
       customer_id: customerId,
-      deal_id: dealId,
+      service_name: leadUpdates.service_name || null,
+      total_amount: leadUpdates.total_amount || null,
+      paid_amount: leadUpdates.paid_amount || null,
+      remaining_amount: leadUpdates.remaining_amount || null,
+      service_type: leadUpdates.service_type || null,
+      lost_reason: leadUpdates.lost_reason || null,
     },
   });
 
@@ -414,16 +463,15 @@ export async function updateLeadStatus(formData: FormData): Promise<ActionResult
 
   revalidatePath('/crm/leads');
   revalidatePath('/crm/customers');
-  revalidatePath('/crm/deals');
   revalidatePath('/dashboard');
   return { success: true };
 }
 
 /**
- * Explicit lead conversion action: converts lead to Customer + Deal.
- * Idempotent: retrying will not create duplicate Deal.
+ * Explicit lead conversion action: converts lead to Customer (Sales Won).
+ * Idempotent and does NOT create Deals.
  */
-export async function convertLead(formData: FormData): Promise<ActionResult<{ customer_id: string; deal_id: string }>> {
+export async function convertLead(formData: FormData): Promise<ActionResult<{ customer_id: string; lead_id: string }>> {
   const leadId = formData.get('lead_id') as string;
   if (!leadId) {
     return { success: false, error: 'Lead ID is required' };
@@ -432,6 +480,9 @@ export async function convertLead(formData: FormData): Promise<ActionResult<{ cu
   const updateFormData = new FormData();
   updateFormData.set('lead_id', leadId);
   updateFormData.set('status', 'won');
+  if (formData.get('service_name')) updateFormData.set('service_name', formData.get('service_name') as string);
+  if (formData.get('total_amount')) updateFormData.set('total_amount', formData.get('total_amount') as string);
+  if (formData.get('paid_amount')) updateFormData.set('paid_amount', formData.get('paid_amount') as string);
 
   const res = await updateLeadStatus(updateFormData);
   if (!res.success) {
@@ -441,15 +492,15 @@ export async function convertLead(formData: FormData): Promise<ActionResult<{ cu
   const admin = createAdminClient();
   const { data: lead } = await admin
     .from('leads')
-    .select('converted_to_customer_id, converted_to_deal_id')
+    .select('customer_id, converted_to_customer_id')
     .eq('id', leadId)
     .single();
 
   return {
     success: true,
     data: {
-      customer_id: lead?.converted_to_customer_id ?? '',
-      deal_id: lead?.converted_to_deal_id ?? '',
+      customer_id: lead?.customer_id || lead?.converted_to_customer_id || '',
+      lead_id: leadId,
     },
   };
 }

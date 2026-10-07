@@ -187,6 +187,22 @@ export interface Lead {
   follow_up_notification_sent_at: string | null;
   converted_to_customer_id: string | null;
   converted_to_deal_id: string | null;
+  // Structured commercial and sales closing fields
+  customer_id?: string | null;
+  service_name?: string | null;
+  service_type?: string | null;
+  service_id?: string | null;
+  trip_details?: string | null;
+  travelers_count?: number | null;
+  total_amount?: number | null;
+  paid_amount?: number | null;
+  remaining_amount?: number | null;
+  currency?: string | null;
+  payment_method?: string | null;
+  lost_reason?: string | null;
+  quotation_details?: Record<string, unknown> | null;
+  booking_details?: Record<string, unknown> | null;
+  expected_close_date?: string | null;
   received_at?: string;
   created_at: string;
   updated_at: string;

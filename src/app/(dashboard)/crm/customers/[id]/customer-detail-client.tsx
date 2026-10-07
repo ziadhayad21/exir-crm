@@ -267,7 +267,7 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
             )}
 
             <Link
-              href={`/crm/deals?new=true&customer_id=${customer.id}`}
+              href="/crm/leads"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -381,7 +381,7 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
               return (
                 <Link
                   key={deal.id}
-                  href={`/crm/deals/${deal.id}`}
+                  href="/crm/leads"
                   style={{
                     display: 'flex',
                     alignItems: 'center',

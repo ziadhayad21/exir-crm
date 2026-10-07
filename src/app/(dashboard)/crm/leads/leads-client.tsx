@@ -19,8 +19,11 @@ import {
   Phone,
   Mail,
   UserCheck,
-  ArrowRightCircle,
   Calendar,
+  CheckCircle2,
+  XCircle,
+  DollarSign,
+  Tag,
 } from 'lucide-react';
 
 interface LeadsClientProps {
@@ -76,6 +79,23 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
   const [followUpAt, setFollowUpAt] = useState('');
   const [followUpNotes, setFollowUpNotes] = useState('');
 
+  // Won modal state (Service name, Total amount, Paid amount, auto-calculated Remaining)
+  const [wonModal, setWonModal] = useState<{
+    leadId: string;
+    leadName: string;
+    service_name: string;
+    total_amount: string;
+    paid_amount: string;
+  } | null>(null);
+
+  // Lose modal state (Service name, Reason for not selling)
+  const [loseModal, setLoseModal] = useState<{
+    leadId: string;
+    leadName: string;
+    service_name: string;
+    lost_reason: string;
+  } | null>(null);
+
   // Create form state
   const [createForm, setCreateForm] = useState({
     full_name: '',
@@ -129,10 +149,30 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
   }
 
   function handleStatusSelect(leadId: string, newStatus: LeadStatus) {
+    const targetLead = leads.find((l) => l.id === leadId);
     if (newStatus === 'follow_up') {
       setFollowUpModal({ leadId });
       setFollowUpAt('');
       setFollowUpNotes('');
+      return;
+    }
+    if (newStatus === 'won') {
+      setWonModal({
+        leadId,
+        leadName: targetLead?.full_name || 'Lead',
+        service_name: targetLead?.service_name || '',
+        total_amount: targetLead?.total_amount != null ? String(targetLead.total_amount) : '',
+        paid_amount: targetLead?.paid_amount != null ? String(targetLead.paid_amount) : '0',
+      });
+      return;
+    }
+    if (newStatus === 'lose') {
+      setLoseModal({
+        leadId,
+        leadName: targetLead?.full_name || 'Lead',
+        service_name: targetLead?.service_name || targetLead?.service_type || '',
+        lost_reason: targetLead?.lost_reason || '',
+      });
       return;
     }
     handleStatusChange(leadId, newStatus);
@@ -164,6 +204,82 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
     const isoDate = new Date(followUpAt).toISOString();
     handleStatusChange(followUpModal.leadId, 'follow_up', isoDate, followUpNotes);
     setFollowUpModal(null);
+  }
+
+  function handleWonSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!wonModal) return;
+    if (!wonModal.service_name.trim()) {
+      setError('Service name is required when marking as Won');
+      return;
+    }
+    const total = parseFloat(wonModal.total_amount);
+    if (isNaN(total) || total < 0) {
+      setError('Total service amount is required and must be >= 0');
+      return;
+    }
+    const paid = parseFloat(wonModal.paid_amount) || 0;
+    if (paid < 0) {
+      setError('Amount paid must be >= 0');
+      return;
+    }
+    if (paid > total) {
+      setError('Amount paid cannot exceed total service amount');
+      return;
+    }
+    const remaining = Math.max(0, total - paid);
+
+    setError(null);
+    setSuccess(null);
+    const formData = new FormData();
+    formData.set('lead_id', wonModal.leadId);
+    formData.set('status', 'won');
+    formData.set('service_name', wonModal.service_name.trim());
+    formData.set('total_amount', String(total));
+    formData.set('paid_amount', String(paid));
+    formData.set('remaining_amount', String(remaining));
+
+    startTransition(async () => {
+      const result = await updateLeadStatus(formData);
+      if (!result.success) {
+        setError(result.error || 'Failed to record Won sale');
+      } else {
+        setSuccess('Lead marked as Won and commercial details saved.');
+        setWonModal(null);
+      }
+      router.refresh();
+    });
+  }
+
+  function handleLoseSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!loseModal) return;
+    if (!loseModal.lost_reason.trim()) {
+      setError('Reason for not selling is required');
+      return;
+    }
+
+    setError(null);
+    setSuccess(null);
+    const formData = new FormData();
+    formData.set('lead_id', loseModal.leadId);
+    formData.set('status', 'lose');
+    if (loseModal.service_name.trim()) {
+      formData.set('service_name', loseModal.service_name.trim());
+      formData.set('service_type', loseModal.service_name.trim());
+    }
+    formData.set('lost_reason', loseModal.lost_reason.trim());
+
+    startTransition(async () => {
+      const result = await updateLeadStatus(formData);
+      if (!result.success) {
+        setError(result.error || 'Failed to record Lose status');
+      } else {
+        setSuccess('Lead marked as Lose and reason recorded.');
+        setLoseModal(null);
+      }
+      router.refresh();
+    });
   }
 
   function handleReassign(leadId: string, employeeId: string) {
@@ -744,6 +860,380 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
         </div>
       )}
 
+      {/* Won Modal Form */}
+      {wonModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(76, 69, 65, 0.4)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1rem',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setWonModal(null);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--card)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
+              padding: '2rem',
+              width: '100%',
+              maxWidth: '480px',
+              boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.12)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <CheckCircle2 size={20} style={{ color: 'var(--success-foreground)' }} />
+                <div>
+                  <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>
+                    Close Sale (Won)
+                  </h2>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0 }}>
+                    {wonModal.leadName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setWonModal(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleWonSubmit}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Service Name */}
+                <div>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)', display: 'block', marginBottom: '0.25rem' }}>
+                    Service Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Nile Cruise VIP / Sharm El-Sheikh Tour"
+                    value={wonModal.service_name}
+                    onChange={(e) => setWonModal({ ...wonModal, service_name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.875rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                {/* Total Service Amount and Amount Paid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)', display: 'block', marginBottom: '0.25rem' }}>
+                      Total Amount (EGP) *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      step="any"
+                      placeholder="0.00"
+                      value={wonModal.total_amount}
+                      onChange={(e) => setWonModal({ ...wonModal, total_amount: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.625rem 0.875rem',
+                        borderRadius: 'var(--radius)',
+                        border: '1px solid var(--border)',
+                        backgroundColor: 'var(--surface)',
+                        color: 'var(--foreground)',
+                        fontSize: '0.875rem',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)', display: 'block', marginBottom: '0.25rem' }}>
+                      Amount Paid (EGP) *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      step="any"
+                      placeholder="0.00"
+                      value={wonModal.paid_amount}
+                      onChange={(e) => setWonModal({ ...wonModal, paid_amount: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.625rem 0.875rem',
+                        borderRadius: 'var(--radius)',
+                        border: '1px solid var(--border)',
+                        backgroundColor: 'var(--surface)',
+                        color: 'var(--foreground)',
+                        fontSize: '0.875rem',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Remaining Amount (Calculated Automatically) */}
+                <div
+                  style={{
+                    padding: '0.875rem',
+                    borderRadius: 'var(--radius)',
+                    backgroundColor: 'var(--surface-muted)',
+                    border: '1px solid var(--border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', display: 'block' }}>
+                      Remaining Balance (Auto-calculated)
+                    </span>
+                    <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--foreground)' }}>
+                      {Math.max(
+                        0,
+                        (parseFloat(wonModal.total_amount) || 0) - (parseFloat(wonModal.paid_amount) || 0)
+                      ).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--muted-foreground)' }}>EGP</span>
+                    </span>
+                  </div>
+                  {(parseFloat(wonModal.paid_amount) || 0) > (parseFloat(wonModal.total_amount) || 0) && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--destructive-foreground)', fontWeight: 600 }}>
+                      Paid exceeds Total!
+                    </span>
+                  )}
+                </div>
+
+                <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0 }}>
+                  Structured commercial record connected directly to the Lead for upcoming Finance integration.
+                </p>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setWonModal(null)}
+                    style={{
+                      padding: '0.625rem 1rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.875rem',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={
+                      isPending ||
+                      !wonModal.service_name.trim() ||
+                      !wonModal.total_amount ||
+                      (parseFloat(wonModal.paid_amount) || 0) > (parseFloat(wonModal.total_amount) || 0)
+                    }
+                    style={{
+                      padding: '0.625rem 1.25rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid rgba(174, 172, 120, 0.4)',
+                      backgroundColor: 'var(--success)',
+                      color: 'var(--success-foreground)',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      cursor:
+                        isPending ||
+                        !wonModal.service_name.trim() ||
+                        !wonModal.total_amount ||
+                        (parseFloat(wonModal.paid_amount) || 0) > (parseFloat(wonModal.total_amount) || 0)
+                          ? 'not-allowed'
+                          : 'pointer',
+                      opacity:
+                        isPending ||
+                        !wonModal.service_name.trim() ||
+                        !wonModal.total_amount ||
+                        (parseFloat(wonModal.paid_amount) || 0) > (parseFloat(wonModal.total_amount) || 0)
+                          ? 0.6
+                          : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    {isPending ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                    Save Won Sale
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Lose Modal Form */}
+      {loseModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(76, 69, 65, 0.4)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1rem',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLoseModal(null);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--card)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
+              padding: '2rem',
+              width: '100%',
+              maxWidth: '440px',
+              boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.12)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <XCircle size={20} style={{ color: 'var(--destructive-foreground)' }} />
+                <div>
+                  <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>
+                    Mark as Lose
+                  </h2>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0 }}>
+                    {loseModal.leadName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setLoseModal(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleLoseSubmit}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Service Name */}
+                <div>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)', display: 'block', marginBottom: '0.25rem' }}>
+                    Service Name *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Nile Cruise VIP / Sharm Package / Flight Ticket"
+                    value={loseModal.service_name}
+                    onChange={(e) => setLoseModal({ ...loseModal, service_name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.875rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                {/* Reason for not selling */}
+                <div>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)', display: 'block', marginBottom: '0.25rem' }}>
+                    Reason for Not Selling *
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="e.g. Price too high, chose competitor, customer canceled trip, no response..."
+                    value={loseModal.lost_reason}
+                    onChange={(e) => setLoseModal({ ...loseModal, lost_reason: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.875rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      resize: 'vertical',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setLoseModal(null)}
+                    style={{
+                      padding: '0.625rem 1rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.875rem',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isPending || !loseModal.lost_reason.trim()}
+                    style={{
+                      padding: '0.625rem 1.25rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--destructive-border)',
+                      backgroundColor: 'var(--destructive)',
+                      color: 'var(--destructive-foreground)',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      cursor: isPending || !loseModal.lost_reason.trim() ? 'not-allowed' : 'pointer',
+                      opacity: isPending || !loseModal.lost_reason.trim() ? 0.6 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    {isPending ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
+                    Confirm Lose
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Leads Table */}
       <div
         style={{
@@ -798,6 +1288,9 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                     Source
                   </th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--muted-foreground)' }}>
+                    Commercial / Sales Details
+                  </th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--muted-foreground)' }}>
                     Status
                   </th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--muted-foreground)' }}>
@@ -849,6 +1342,39 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                         {SOURCE_LABELS[lead.source] ?? lead.source}
                       </td>
                       <td style={{ padding: '0.75rem 1rem' }}>
+                        {lead.status === 'won' ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--foreground)' }}>
+                              {lead.service_name || 'Service Package'}
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', flexWrap: 'wrap' }}>
+                              <span style={{ color: 'var(--muted-foreground)' }}>
+                                Total: <strong style={{ color: 'var(--foreground)' }}>{Number(lead.total_amount ?? 0).toLocaleString()} EGP</strong>
+                              </span>
+                              <span style={{ color: 'var(--success-foreground)', fontWeight: 500 }}>
+                                Paid: {Number(lead.paid_amount ?? 0).toLocaleString()}
+                              </span>
+                              <span style={{ color: Number(lead.remaining_amount ?? 0) > 0 ? 'var(--warning-foreground)' : 'var(--muted-foreground)' }}>
+                                Rem: {Number(lead.remaining_amount ?? Math.max(0, (lead.total_amount ?? 0) - (lead.paid_amount ?? 0))).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        ) : lead.status === 'lose' ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--destructive-foreground)' }}>
+                              {lead.service_name || lead.service_type || 'General Service'}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lead.lost_reason || ''}>
+                              {lead.lost_reason || 'No reason specified'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                            {lead.notes ? (lead.notes.length > 35 ? lead.notes.slice(0, 35) + '...' : lead.notes) : '—'}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <span
                             style={{
@@ -891,9 +1417,9 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                         {formatDateTime(lead.created_at)}
                       </td>
                       <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
                           {/* Status change dropdown */}
-                          {canWrite && lead.status !== 'won' && (
+                          {canWrite && (
                             <select
                               value={lead.status}
                               onChange={(e) => handleStatusSelect(lead.id, e.target.value as LeadStatus)}
@@ -943,21 +1469,6 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                                 </option>
                               ))}
                             </select>
-                          )}
-
-                          {(lead.status === 'won' || (lead.status as string) === 'converted') && lead.converted_to_deal_id && (
-                            <span
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                fontSize: '0.75rem',
-                                color: 'var(--success-foreground)',
-                              }}
-                            >
-                              <ArrowRightCircle size={14} />
-                              Deal
-                            </span>
                           )}
                         </div>
                       </td>

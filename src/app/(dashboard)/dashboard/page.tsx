@@ -55,17 +55,17 @@ async function getCrmStats(employeeId: string, isOwnOnly: boolean): Promise<CrmS
     customerQuery = customerQuery.eq('created_by', employeeId);
   }
 
-  let dealsQuery = adminClient.from('deals').select('stage, total_amount, deal_value');
+  let leadsQuery = adminClient.from('leads').select('status, total_amount, paid_amount');
   if (isOwnOnly) {
-    dealsQuery = dealsQuery.or(`assigned_to.eq.${employeeId},created_by.eq.${employeeId}`);
+    leadsQuery = leadsQuery.eq('assigned_to', employeeId);
   }
 
-  const [{ count: customerCount }, { data: deals, error: dealsError }] = await Promise.all([
+  const [{ count: customerCount }, { data: leads, error: leadsError }] = await Promise.all([
     customerQuery,
-    dealsQuery,
+    leadsQuery,
   ]);
 
-  if (dealsError || !deals) {
+  if (leadsError || !leads) {
     return {
       customerCount: customerCount ?? 0,
       activeDealCount: 0,
@@ -80,16 +80,15 @@ async function getCrmStats(employeeId: string, isOwnOnly: boolean): Promise<CrmS
   let wonCount = 0;
   let lostCount = 0;
 
-  for (const deal of deals) {
-    if (deal.stage === 'won') {
+  for (const lead of leads) {
+    if (lead.status === 'won') {
       wonCount++;
-    } else if (deal.stage === 'lost') {
+      pipelineSum += Number(lead.total_amount || 0);
+    } else if (lead.status === 'lose') {
       lostCount++;
     } else {
       activeCount++;
-      const val = (deal as { total_amount?: number | null; deal_value?: number | null }).total_amount ??
-                  (deal as { total_amount?: number | null; deal_value?: number | null }).deal_value ?? 0;
-      pipelineSum += Number(val || 0);
+      pipelineSum += Number(lead.total_amount || 0);
     }
   }
 
@@ -218,7 +217,7 @@ export default async function DashboardPage() {
             />
             <StatCard
               icon={<Briefcase size={22} />}
-              label={crmStats.isOwnOnly ? 'My Active Deals' : 'Active Deals'}
+              label={crmStats.isOwnOnly ? 'My Active Sales Leads' : 'Active Sales Leads'}
               value={crmStats.activeDealCount}
               color="var(--foreground)"
               bgColor="rgba(174, 172, 120, 0.25)"

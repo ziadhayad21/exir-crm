@@ -540,12 +540,12 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         newMsg.message_type === 'image'
           ? '📷 Image'
           : newMsg.message_type === 'video'
-          ? '🎥 Video'
-          : newMsg.message_type === 'audio'
-          ? '🎵 Audio'
-          : newMsg.message_type === 'document'
-          ? '📄 Document'
-          : '[Media attachment]';
+            ? '🎥 Video'
+            : newMsg.message_type === 'audio'
+              ? '🎵 Audio'
+              : newMsg.message_type === 'document'
+                ? '📄 Document'
+                : '[Media attachment]';
       const previewText = (newMsg.content || (newMsg.media_url ? mediaLabel : '')).slice(
         0,
         100
@@ -561,32 +561,32 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           );
           const updated = exists
             ? prev.map((m) => {
-                if (
-                  m.id === newMsg.id ||
-                  (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
-                ) {
-                  const newHasHttp = newMsg.media_url && (newMsg.media_url.startsWith('http://') || newMsg.media_url.startsWith('https://'));
-                  const localHasBlob = m.media_url && m.media_url.startsWith('blob:');
-                  const finalMediaUrl = newHasHttp ? newMsg.media_url : (localHasBlob ? m.media_url : (newMsg.media_url || m.media_url));
+              if (
+                m.id === newMsg.id ||
+                (newMsg.external_message_id && m.external_message_id === newMsg.external_message_id)
+              ) {
+                const newHasHttp = newMsg.media_url && (newMsg.media_url.startsWith('http://') || newMsg.media_url.startsWith('https://'));
+                const localHasBlob = m.media_url && m.media_url.startsWith('blob:');
+                const finalMediaUrl = newHasHttp ? newMsg.media_url : (localHasBlob ? m.media_url : (newMsg.media_url || m.media_url));
 
-                  const finalAttachments = (newMsg.attachments && newMsg.attachments.length > 0)
-                    ? newMsg.attachments.map((na, idx) => ({
-                        ...na,
-                        signed_url: (na.signed_url && (na.signed_url.startsWith('http') || na.signed_url.startsWith('blob:')))
-                          ? na.signed_url
-                          : (m.attachments?.[idx]?.signed_url || m.attachments?.[0]?.signed_url || na.signed_url),
-                      }))
-                    : m.attachments;
+                const finalAttachments = (newMsg.attachments && newMsg.attachments.length > 0)
+                  ? newMsg.attachments.map((na, idx) => ({
+                    ...na,
+                    signed_url: (na.signed_url && (na.signed_url.startsWith('http') || na.signed_url.startsWith('blob:')))
+                      ? na.signed_url
+                      : (m.attachments?.[idx]?.signed_url || m.attachments?.[0]?.signed_url || na.signed_url),
+                  }))
+                  : m.attachments;
 
-                  return {
-                    ...m,
-                    ...newMsg,
-                    media_url: finalMediaUrl,
-                    attachments: finalAttachments,
-                  };
-                }
-                return m;
-              })
+                return {
+                  ...m,
+                  ...newMsg,
+                  media_url: finalMediaUrl,
+                  attachments: finalAttachments,
+                };
+              }
+              return m;
+            })
             : [...prev, newMsg];
           messagesCacheRef.current.set(newMsg.conversation_id, { messages: updated, fetchedAt: Date.now(), loading: false });
           return updated;
@@ -660,11 +660,11 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 return curr.map((c) =>
                   c.id === freshConv.id
                     ? {
-                        ...freshConv,
-                        unread_count: isCurrentOpen ? 0 : freshConv.unread_count || c.unread_count,
-                        last_message_preview: previewText || freshConv.last_message_preview,
-                        last_message_at: newMsg.created_at || freshConv.last_message_at,
-                      }
+                      ...freshConv,
+                      unread_count: isCurrentOpen ? 0 : freshConv.unread_count || c.unread_count,
+                      last_message_preview: previewText || freshConv.last_message_preview,
+                      last_message_at: newMsg.created_at || freshConv.last_message_at,
+                    }
                     : c
                 );
               });
@@ -855,9 +855,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
 
                 const mergedAtts = (fm.attachments && fm.attachments.length > 0)
                   ? fm.attachments.map((fa, idx) => ({
-                      ...fa,
-                      signed_url: (fa.signed_url?.startsWith('http') ? fa.signed_url : null) || local.attachments?.[idx]?.signed_url || local.attachments?.[0]?.signed_url || fa.signed_url,
-                    }))
+                    ...fa,
+                    signed_url: (fa.signed_url?.startsWith('http') ? fa.signed_url : null) || local.attachments?.[idx]?.signed_url || local.attachments?.[0]?.signed_url || fa.signed_url,
+                  }))
                   : (local.attachments || []);
 
                 return {
@@ -914,7 +914,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 const isLocallyNewer =
                   existing?.last_message_at &&
                   new Date(existing.last_message_at).getTime() >
-                    new Date(sc.last_message_at).getTime();
+                  new Date(sc.last_message_at).getTime();
 
                 return {
                   ...sc,
@@ -953,7 +953,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
             });
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }, 3000);
 
     return () => {
@@ -976,10 +976,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           const next = prev.map((m) =>
             m.id === tempId
               ? {
-                  ...m,
-                  ...res.data!,
-                  status: res.data!.status || 'sent',
-                }
+                ...m,
+                ...res.data!,
+                status: res.data!.status || 'sent',
+              }
               : m
           );
           messagesCacheRef.current.set(convId, { messages: next, fetchedAt: Date.now(), loading: false });
@@ -988,20 +988,20 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         setActiveConv((prev) =>
           prev && prev.id === convId
             ? {
-                ...prev,
-                last_message_at: res.data!.created_at,
-                last_message_preview: content.slice(0, 100),
-              }
+              ...prev,
+              last_message_at: res.data!.created_at,
+              last_message_preview: content.slice(0, 100),
+            }
             : prev
         );
         setConversations((prev) =>
           prev.map((c) =>
             c.id === convId
               ? {
-                  ...c,
-                  last_message_at: res.data!.created_at,
-                  last_message_preview: content.slice(0, 100),
-                }
+                ...c,
+                last_message_at: res.data!.created_at,
+                last_message_preview: content.slice(0, 100),
+              }
               : c
           )
         );
@@ -1010,10 +1010,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           const next = prev.map((m) =>
             m.id === tempId
               ? {
-                  ...m,
-                  status: 'failed' as const,
-                  error_detail: res.error || 'Failed to deliver message to customer',
-                }
+                ...m,
+                status: 'failed' as const,
+                error_detail: res.error || 'Failed to deliver message to customer',
+              }
               : m
           );
           messagesCacheRef.current.set(convId, { messages: next, fetchedAt: Date.now(), loading: false });
@@ -1100,10 +1100,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         fileTypeToSend === 'image'
           ? '📷 Image'
           : fileTypeToSend === 'video'
-          ? '🎥 Video'
-          : fileTypeToSend === 'audio'
-          ? '🎵 Audio'
-          : '📄 Document';
+            ? '🎥 Video'
+            : fileTypeToSend === 'audio'
+              ? '🎵 Audio'
+              : '📄 Document';
       const previewText = content || previewLabel;
 
       setConversations((prev) => {
@@ -1120,10 +1120,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       setActiveConv((prev) =>
         prev && prev.id === selectedConvId
           ? {
-              ...prev,
-              last_message_at: optimisticMsg.created_at,
-              last_message_preview: previewText.slice(0, 100),
-            }
+            ...prev,
+            last_message_at: optimisticMsg.created_at,
+            last_message_preview: previewText.slice(0, 100),
+          }
           : prev
       );
 
@@ -1213,15 +1213,15 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   const serverAtts = finalizeRes.data!.attachments || [];
                   const mergedAtts = serverAtts.length > 0
                     ? serverAtts.map((sa) => ({
-                        ...sa,
-                        status: 'stored' as const,
-                        signed_url: sa.signed_url || fileUrlToSend || m.media_url || undefined,
-                      }))
+                      ...sa,
+                      status: 'stored' as const,
+                      signed_url: sa.signed_url || fileUrlToSend || m.media_url || undefined,
+                    }))
                     : (m.attachments || []).map((ma) => ({
-                        ...ma,
-                        status: 'stored' as const,
-                        signed_url: ma.signed_url || fileUrlToSend || undefined,
-                      }));
+                      ...ma,
+                      status: 'stored' as const,
+                      signed_url: ma.signed_url || fileUrlToSend || undefined,
+                    }));
 
                   return {
                     ...m,
@@ -1252,10 +1252,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
             const next = prev.map((m) =>
               m.id === tempId
                 ? {
-                    ...m,
-                    status: 'failed' as const,
-                    error_detail: errorMsg,
-                  }
+                  ...m,
+                  status: 'failed' as const,
+                  error_detail: errorMsg,
+                }
                 : m
             );
             messagesCacheRef.current.set(selectedConvId, { messages: next, fetchedAt: Date.now(), loading: false });
@@ -1310,10 +1310,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     setActiveConv((prev) =>
       prev && prev.id === selectedConvId
         ? {
-            ...prev,
-            last_message_at: optimisticMsg.created_at,
-            last_message_preview: content.slice(0, 100),
-          }
+          ...prev,
+          last_message_at: optimisticMsg.created_at,
+          last_message_preview: content.slice(0, 100),
+        }
         : prev
     );
 
@@ -1765,8 +1765,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                       background: isSelected
                         ? 'var(--selected)'
                         : hasUnread
-                        ? 'var(--hover)'
-                        : 'transparent',
+                          ? 'var(--hover)'
+                          : 'transparent',
                       border: isSelected
                         ? '1px solid rgba(174, 172, 120, 0.55)'
                         : '1px solid transparent',
@@ -1997,9 +1997,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           background:
                             (CHANNEL_THEMES[activeConv.channel] || CHANNEL_THEMES.other).bg,
                           color: (CHANNEL_THEMES[activeConv.channel] || CHANNEL_THEMES.other).text,
-                          border: `1px solid ${
-                            (CHANNEL_THEMES[activeConv.channel] || CHANNEL_THEMES.other).border
-                          }`,
+                          border: `1px solid ${(CHANNEL_THEMES[activeConv.channel] || CHANNEL_THEMES.other).border
+                            }`,
                           padding: '1px 6px',
                           borderRadius: '4px',
                           fontSize: '10px',
@@ -2720,8 +2719,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           selectedFile
                             ? 'Add a caption (optional)...'
                             : `Type a reply to ${resolveDisplayName(
-                                activeConv
-                              )} (Press Enter to send, Shift+Enter for new line)...`
+                              activeConv
+                            )} (Press Enter to send, Shift+Enter for new line)...`
                         }
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}

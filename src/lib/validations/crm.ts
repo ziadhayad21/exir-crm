@@ -16,7 +16,18 @@ export const DEAL_STAGES = [
   'negotiation',
 ] as const;
 
-export const CUSTOMER_SOURCES = ['manual', 'referral', 'walk_in', 'website', 'social_media', 'other'] as const;
+export const CUSTOMER_SOURCES = [
+  'manual',
+  'referral',
+  'walk_in',
+  'website',
+  'social_media',
+  'whatsapp',
+  'phone_call',
+  'instagram',
+  'messenger',
+  'other',
+] as const;
 
 // ─── Customer ───────────────────────────────────────────────────
 
@@ -318,6 +329,14 @@ export const updateLeadStatusSchema = z.object({
   status: z.enum(LEAD_STATUSES),
   follow_up_at: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  // Won fields
+  service_name: z.string().nullable().optional(),
+  total_amount: z.coerce.number().min(0, 'Total amount must be >= 0').nullable().optional(),
+  paid_amount: z.coerce.number().min(0, 'Paid amount must be >= 0').nullable().optional(),
+  remaining_amount: z.coerce.number().min(0).nullable().optional(),
+  // Lose fields
+  service_type: z.string().nullable().optional(),
+  lost_reason: z.string().nullable().optional(),
 }).refine(
   (data) => {
     if (data.status === 'follow_up') {
@@ -328,6 +347,17 @@ export const updateLeadStatusSchema = z.object({
   {
     message: 'Follow-up date/time is required when status is Follow Up',
     path: ['follow_up_at'],
+  }
+).refine(
+  (data) => {
+    if (data.status === 'won' && data.total_amount !== undefined && data.total_amount !== null && data.paid_amount !== undefined && data.paid_amount !== null) {
+      return data.paid_amount <= data.total_amount;
+    }
+    return true;
+  },
+  {
+    message: 'Paid amount cannot exceed total amount',
+    path: ['paid_amount'],
   }
 );
 
