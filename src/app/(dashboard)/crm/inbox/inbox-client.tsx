@@ -3266,7 +3266,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sparkles size={18} style={{ color: '#A855F7' }} />
+                <Sparkles size={18} style={{ color: 'var(--primary-dark)' }} />
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--foreground)' }}>
                   Simulate Inbound Message
                 </h3>

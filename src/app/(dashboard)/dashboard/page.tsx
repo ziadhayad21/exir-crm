@@ -134,7 +134,7 @@ export default async function DashboardPage() {
       {/* Welcome Section */}
       <div
         style={{
-          background: 'linear-gradient(135deg, #FFFFFF 0%, #FCF5E8 100%)',
+          background: 'linear-gradient(135deg, var(--card) 0%, var(--surface-muted) 100%)',
           borderRadius: 'var(--radius)',
           border: '1px solid var(--border)',
           padding: '2rem 2.5rem',
@@ -213,14 +213,14 @@ export default async function DashboardPage() {
               icon={<UserCheck size={22} />}
               label={crmStats.isOwnOnly ? 'My Customers' : 'Total Customers'}
               value={crmStats.customerCount}
-              color="#5A524D"
+              color="var(--foreground)"
               bgColor="rgba(242, 196, 106, 0.25)"
             />
             <StatCard
               icon={<Briefcase size={22} />}
               label={crmStats.isOwnOnly ? 'My Active Deals' : 'Active Deals'}
               value={crmStats.activeDealCount}
-              color="#5A524D"
+              color="var(--foreground)"
               bgColor="rgba(174, 172, 120, 0.25)"
             />
             <StatCard
@@ -269,14 +269,14 @@ export default async function DashboardPage() {
               icon={<Users size={22} />}
               label="Employees"
               value={systemStats.employees}
-              color="#5A524D"
+              color="var(--foreground)"
               bgColor="rgba(242, 196, 106, 0.25)"
             />
             <StatCard
               icon={<Shield size={22} />}
               label="Roles"
               value={systemStats.roles}
-              color="#5A524D"
+              color="var(--foreground)"
               bgColor="rgba(174, 172, 120, 0.25)"
             />
             <StatCard
