@@ -92,37 +92,37 @@ const CHANNEL_THEMES: Record<
   whatsapp: {
     name: 'WhatsApp',
     bg: 'rgba(37, 211, 102, 0.12)',
-    text: '#25D366',
-    border: 'rgba(37, 211, 102, 0.25)',
+    text: '#1b6338',
+    border: 'rgba(37, 211, 102, 0.35)',
     badgeBg: '#25D366',
   },
   instagram: {
     name: 'Instagram',
     bg: 'rgba(225, 48, 108, 0.12)',
-    text: '#E1306C',
-    border: 'rgba(225, 48, 108, 0.25)',
+    text: '#9f1239',
+    border: 'rgba(225, 48, 108, 0.35)',
     badgeBg: 'linear-gradient(135deg, #F58529, #DD2A7B, #8134AF)',
   },
   messenger: {
     name: 'Messenger',
     bg: 'rgba(0, 132, 255, 0.12)',
-    text: '#0084FF',
-    border: 'rgba(0, 132, 255, 0.25)',
+    text: '#0369a1',
+    border: 'rgba(0, 132, 255, 0.35)',
     badgeBg: '#0084FF',
   },
   mock: {
     name: 'Mock',
     bg: 'rgba(168, 85, 247, 0.12)',
-    text: '#A855F7',
-    border: 'rgba(168, 85, 247, 0.25)',
+    text: '#6b21a8',
+    border: 'rgba(168, 85, 247, 0.35)',
     badgeBg: '#A855F7',
   },
   other: {
     name: 'Channel',
-    bg: 'rgba(148, 163, 184, 0.12)',
-    text: '#94A3B8',
-    border: 'rgba(148, 163, 184, 0.25)',
-    badgeBg: '#94A3B8',
+    bg: 'var(--surface-muted)',
+    text: 'var(--muted-foreground)',
+    border: 'var(--border)',
+    badgeBg: 'var(--muted-foreground)',
   },
 };
 
@@ -1460,8 +1460,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         display: 'flex',
         flexDirection: 'column',
         height: 'calc(100vh - 72px)',
-        background: '#0B0F19',
-        color: '#F8FAFC',
+        background: 'var(--background)',
+        color: 'var(--foreground)',
         fontFamily: 'inherit',
       }}
     >
@@ -1472,8 +1472,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '10px 20px',
-          background: '#111827',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--card)',
+          borderBottom: '1px solid var(--border)',
           minHeight: '56px',
         }}
       >
@@ -1483,25 +1483,27 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               width: '34px',
               height: '34px',
               borderRadius: '9px',
-              background: 'linear-gradient(135deg, #0284C7, #0369A1)',
+              background: 'var(--primary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
+              border: '1px solid rgba(174, 172, 120, 0.4)',
+              boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
             }}
           >
-            <MessageSquare size={18} style={{ color: '#FFF' }} />
+            <MessageSquare size={18} style={{ color: 'var(--primary-foreground)' }} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: '#F8FAFC' }}>
+              <h1 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--foreground)' }}>
                 Unified Inbox
               </h1>
               {totalUnreadCount > 0 && (
                 <span
                   style={{
-                    background: '#0284C7',
-                    color: '#FFF',
+                    background: 'var(--primary)',
+                    color: 'var(--primary-foreground)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
                     fontSize: '11px',
                     fontWeight: 700,
                     padding: '2px 8px',
@@ -1512,7 +1514,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 </span>
               )}
             </div>
-            <span style={{ fontSize: '11px', color: '#94A3B8' }}>
+            <span style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>
               WhatsApp, Instagram & Facebook Messenger
             </span>
           </div>
@@ -1525,29 +1527,29 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
-              color: '#FFF',
-              border: 'none',
+              background: 'var(--accent)',
+              color: 'var(--foreground)',
+              border: '1px solid rgba(174, 172, 120, 0.4)',
               padding: '7px 14px',
-              borderRadius: '8px',
+              borderRadius: 'var(--radius)',
               fontSize: '12px',
               fontWeight: 600,
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+              boxShadow: '0 1px 3px rgba(76, 69, 65, 0.05)',
               transition: 'all 0.15s ease',
             }}
           >
-            <Sparkles size={14} /> Simulate Inbound Message
+            <Sparkles size={14} style={{ color: 'var(--primary-dark)' }} /> Simulate Inbound Message
           </button>
           <button
             onClick={() => void refreshConversations(false)}
             disabled={isPending}
             style={{
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: '#CBD5E1',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              color: 'var(--foreground)',
               padding: '7px 12px',
-              borderRadius: '8px',
+              borderRadius: 'var(--radius)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -1570,9 +1572,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       {errorMsg && (
         <div
           style={{
-            background: 'rgba(239, 68, 68, 0.15)',
-            borderLeft: '4px solid #EF4444',
-            color: '#FCA5A5',
+            background: 'var(--destructive)',
+            borderLeft: '4px solid var(--destructive-border)',
+            color: 'var(--destructive-foreground)',
             padding: '8px 16px',
             fontSize: '13px',
             display: 'flex',
@@ -1585,7 +1587,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           </div>
           <button
             onClick={() => setErrorMsg(null)}
-            style={{ background: 'none', border: 'none', color: '#FCA5A5', cursor: 'pointer' }}
+            style={{ background: 'none', border: 'none', color: 'var(--destructive-foreground)', cursor: 'pointer' }}
           >
             <X size={14} />
           </button>
@@ -1600,10 +1602,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         <aside
           style={{
             width: '340px',
-            borderRight: '1px solid rgba(255,255,255,0.08)',
+            borderRight: '1px solid var(--border)',
             display: 'flex',
             flexDirection: 'column',
-            background: '#0F172A',
+            background: 'var(--card)',
             flexShrink: 0,
           }}
         >
@@ -1611,8 +1613,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           <div
             style={{
               padding: '12px 14px',
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
-              background: '#0F172A',
+              borderBottom: '1px solid var(--border)',
+              background: 'var(--surface-muted)',
             }}
           >
             {/* Search Input */}
@@ -1623,7 +1625,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   position: 'absolute',
                   left: '11px',
                   top: '10px',
-                  color: '#64748B',
+                  color: 'var(--muted-foreground)',
                 }}
               />
               <input
@@ -1637,7 +1639,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   border: '1px solid rgba(255,255,255,0.1)',
                   borderRadius: '8px',
                   padding: '7px 10px 7px 32px',
-                  color: '#F8FAFC',
+                  color: 'var(--foreground)',
                   fontSize: '12px',
                   outline: 'none',
                   transition: 'border 0.15s ease',
@@ -1664,11 +1666,11 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                     key={ch}
                     onClick={() => setChannelFilter(ch)}
                     style={{
-                      background: isSelected ? theme.bg : 'rgba(255,255,255,0.03)',
-                      color: isSelected ? theme.text : '#94A3B8',
+                      background: isSelected ? 'var(--selected)' : 'var(--card)',
+                      color: isSelected ? 'var(--foreground)' : 'var(--muted-foreground)',
                       border: isSelected
-                        ? `1px solid ${theme.border}`
-                        : '1px solid rgba(255,255,255,0.06)',
+                        ? '1px solid rgba(174, 172, 120, 0.55)'
+                        : '1px solid var(--border)',
                       borderRadius: '16px',
                       padding: '3px 10px',
                       fontSize: '11px',
@@ -1689,7 +1691,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               style={{
                 display: 'flex',
                 gap: '4px',
-                background: 'rgba(255,255,255,0.03)',
+                background: 'var(--card)',
+                border: '1px solid var(--border)',
                 padding: '2px',
                 borderRadius: '6px',
               }}
@@ -1700,8 +1703,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   onClick={() => setStatusFilter(st)}
                   style={{
                     flex: 1,
-                    background: statusFilter === st ? 'rgba(255,255,255,0.1)' : 'transparent',
-                    color: statusFilter === st ? '#F8FAFC' : '#64748B',
+                    background: statusFilter === st ? 'var(--accent)' : 'transparent',
+                    color: statusFilter === st ? 'var(--foreground)' : 'var(--muted-foreground)',
                     border: 'none',
                     borderRadius: '4px',
                     padding: '3px 6px',
@@ -1734,13 +1737,13 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 style={{
                   padding: '40px 20px',
                   textAlign: 'center',
-                  color: '#64748B',
+                  color: 'var(--muted-foreground)',
                   fontSize: '13px',
                 }}
               >
                 <MessageSquare size={32} style={{ opacity: 0.2, margin: '0 auto 10px' }} />
                 <p style={{ margin: 0, fontWeight: 500 }}>No conversations found</p>
-                <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#475569' }}>
+                <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--muted-foreground)' }}>
                   Inbound messages will appear here automatically.
                 </p>
               </div>
@@ -1760,12 +1763,12 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                       padding: '10px 12px',
                       borderRadius: '10px',
                       background: isSelected
-                        ? 'rgba(2, 132, 199, 0.14)'
+                        ? 'var(--selected)'
                         : hasUnread
-                        ? 'rgba(255,255,255,0.03)'
+                        ? 'var(--hover)'
                         : 'transparent',
                       border: isSelected
-                        ? '1px solid rgba(2, 132, 199, 0.35)'
+                        ? '1px solid rgba(174, 172, 120, 0.55)'
                         : '1px solid transparent',
                       cursor: 'pointer',
                       transition: 'background 0.1s ease',
@@ -1783,15 +1786,15 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           height: '40px',
                           borderRadius: '12px',
                           background: isSelected
-                            ? 'linear-gradient(135deg, #0284C7, #0369A1)'
-                            : 'linear-gradient(135deg, #1E293B, #334155)',
-                          color: '#FFF',
+                            ? 'var(--primary)'
+                            : 'var(--accent)',
+                          color: isSelected ? 'var(--primary-foreground)' : 'var(--foreground)',
                           fontWeight: 700,
                           fontSize: '13px',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          border: '1px solid rgba(255,255,255,0.1)',
+                          border: '1px solid rgba(174, 172, 120, 0.4)',
                           overflow: 'hidden',
                         }}
                       >
@@ -1815,7 +1818,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           height: '14px',
                           borderRadius: '50%',
                           background: theme.badgeBg,
-                          border: '2px solid #0F172A',
+                          border: '2px solid var(--card)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -1838,7 +1841,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           style={{
                             fontWeight: hasUnread ? 700 : isSelected ? 600 : 500,
                             fontSize: '13px',
-                            color: isSelected ? '#38BDF8' : '#F8FAFC',
+                            color: 'var(--foreground)',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
@@ -1846,7 +1849,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                         >
                           {displayName}
                         </span>
-                        <span style={{ fontSize: '10px', color: '#64748B', flexShrink: 0 }}>
+                        <span style={{ fontSize: '10px', color: 'var(--muted-foreground)', flexShrink: 0 }}>
                           {formatMessageTime(conv.last_message_at)}
                         </span>
                       </div>
@@ -1863,7 +1866,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           style={{
                             margin: 0,
                             fontSize: '11px',
-                            color: hasUnread ? '#E2E8F0' : '#94A3B8',
+                            color: hasUnread ? 'var(--foreground)' : 'var(--muted-foreground)',
                             fontWeight: hasUnread ? 600 : 400,
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
@@ -1875,14 +1878,15 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                         {hasUnread && (
                           <span
                             style={{
-                              background: '#0284C7',
-                              color: '#FFF',
+                              background: 'var(--primary)',
+                              color: 'var(--primary-foreground)',
+                              border: '1px solid rgba(174, 172, 120, 0.4)',
                               borderRadius: '10px',
                               fontSize: '10px',
                               fontWeight: 700,
                               padding: '1px 6px',
                               flexShrink: 0,
-                              boxShadow: '0 1px 4px rgba(2, 132, 199, 0.4)',
+                              boxShadow: '0 1px 3px rgba(76, 69, 65, 0.08)',
                             }}
                           >
                             {conv.unread_count}
@@ -1898,7 +1902,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           alignItems: 'center',
                           gap: '6px',
                           fontSize: '10px',
-                          color: '#64748B',
+                          color: 'var(--muted-foreground)',
                         }}
                       >
                         <span>
@@ -1909,7 +1913,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           <span
                             style={{
                               background: 'rgba(255,255,255,0.06)',
-                              color: '#94A3B8',
+                              color: 'var(--muted-foreground)',
                               padding: '0 4px',
                               borderRadius: '3px',
                               fontSize: '9px',
@@ -1935,7 +1939,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
-            background: '#0B0F19',
+            background: 'var(--background)',
             minWidth: 0,
           }}
         >
@@ -1945,8 +1949,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               <div
                 style={{
                   padding: '10px 20px',
-                  borderBottom: '1px solid rgba(255,255,255,0.08)',
-                  background: '#111827',
+                  borderBottom: '1px solid var(--border)',
+                  background: 'var(--card)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
@@ -1959,14 +1963,14 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                       width: '36px',
                       height: '36px',
                       borderRadius: '10px',
-                      background: 'linear-gradient(135deg, #1E293B, #334155)',
-                      color: '#FFF',
+                      background: 'var(--accent)',
+                      color: 'var(--foreground)',
                       fontWeight: 700,
                       fontSize: '13px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      border: '1px solid var(--border)',
                       flexShrink: 0,
                     }}
                   >
@@ -1980,7 +1984,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           fontSize: '14px',
                           fontWeight: 700,
                           margin: 0,
-                          color: '#F8FAFC',
+                          color: 'var(--foreground)',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -2013,12 +2017,12 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                         gap: '12px',
                         marginTop: '2px',
                         fontSize: '11px',
-                        color: '#94A3B8',
+                        color: 'var(--muted-foreground)',
                       }}
                     >
                       <span>
                         Rep:{' '}
-                        <strong style={{ color: '#CBD5E1' }}>
+                        <strong style={{ color: 'var(--foreground)' }}>
                           {activeConv.assigned_to_employee?.full_name ||
                             (activeConv.status === 'pending_assignment'
                               ? 'Pending Routing'
@@ -2028,7 +2032,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                       {activeConv.channel_identity?.phone && (
                         <span>
                           Phone:{' '}
-                          <strong style={{ color: '#CBD5E1' }}>
+                          <strong style={{ color: 'var(--foreground)' }}>
                             {activeConv.channel_identity.phone}
                           </strong>
                         </span>
@@ -2045,7 +2049,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                     style={{
                       background: 'rgba(255,255,255,0.06)',
                       border: '1px solid rgba(255,255,255,0.12)',
-                      color: '#F8FAFC',
+                      color: 'var(--foreground)',
                       borderRadius: '6px',
                       padding: '5px 10px',
                       fontSize: '12px',
@@ -2064,9 +2068,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   <button
                     onClick={() => setShowRightSidebar((prev) => !prev)}
                     style={{
-                      background: showRightSidebar ? 'rgba(255,255,255,0.1)' : 'transparent',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      color: '#CBD5E1',
+                      background: showRightSidebar ? 'var(--hover)' : 'transparent',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       padding: '6px 8px',
                       borderRadius: '6px',
                       cursor: 'pointer',
@@ -2096,22 +2100,22 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "12px 4px" }}>
                     {/* Inbound Skeleton Bubble */}
                     <div style={{ display: "flex", gap: "10px", maxWidth: "60%" }}>
-                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.08)", flexShrink: 0, animation: "pulse 1.5s ease-in-out infinite" }} />
+                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(174, 172, 120, 0.2)", flexShrink: 0, animation: "pulse 1.5s ease-in-out infinite" }} />
                       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
-                        <div style={{ height: "10px", width: "70px", borderRadius: "4px", background: "rgba(255,255,255,0.08)", animation: "pulse 1.5s ease-in-out infinite" }} />
-                        <div style={{ height: "40px", borderRadius: "12px", background: "rgba(255,255,255,0.08)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                        <div style={{ height: "10px", width: "70px", borderRadius: "4px", background: "rgba(174, 172, 120, 0.2)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                        <div style={{ height: "40px", borderRadius: "12px", background: "rgba(174, 172, 120, 0.2)", animation: "pulse 1.5s ease-in-out infinite" }} />
                       </div>
                     </div>
                     {/* Outbound Skeleton Bubble */}
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px", alignSelf: "flex-end", width: "55%" }}>
-                      <div style={{ height: "10px", width: "40px", borderRadius: "4px", background: "rgba(56,189,248,0.15)", animation: "pulse 1.5s ease-in-out infinite" }} />
-                      <div style={{ height: "36px", width: "100%", borderRadius: "12px", background: "rgba(56,189,248,0.15)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                      <div style={{ height: "10px", width: "40px", borderRadius: "4px", background: "rgba(242, 196, 106, 0.25)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                      <div style={{ height: "36px", width: "100%", borderRadius: "12px", background: "rgba(242, 196, 106, 0.25)", animation: "pulse 1.5s ease-in-out infinite" }} />
                     </div>
                     {/* Inbound Skeleton Bubble 2 */}
                     <div style={{ display: "flex", gap: "10px", maxWidth: "65%" }}>
-                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.08)", flexShrink: 0, animation: "pulse 1.5s ease-in-out infinite" }} />
+                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(174, 172, 120, 0.2)", flexShrink: 0, animation: "pulse 1.5s ease-in-out infinite" }} />
                       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
-                        <div style={{ height: "48px", borderRadius: "12px", background: "rgba(255,255,255,0.08)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                        <div style={{ height: "48px", borderRadius: "12px", background: "rgba(174, 172, 120, 0.2)", animation: "pulse 1.5s ease-in-out infinite" }} />
                       </div>
                     </div>
                   </div>
@@ -2120,13 +2124,13 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                     style={{
                       margin: 'auto',
                       textAlign: 'center',
-                      color: '#64748B',
+                      color: 'var(--muted-foreground)',
                       fontSize: '13px',
                     }}
                   >
                     <MessageSquare size={36} style={{ opacity: 0.2, margin: '0 auto 8px' }} />
                     <p style={{ margin: 0, fontWeight: 500 }}>No messages in this conversation yet</p>
-                    <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#475569' }}>
+                    <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--muted-foreground)' }}>
                       Send an outbound message below to start chatting.
                     </p>
                   </div>
@@ -2145,7 +2149,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                         <span
                           style={{
                             background: 'rgba(255,255,255,0.06)',
-                            color: '#94A3B8',
+                            color: 'var(--muted-foreground)',
                             fontSize: '10px',
                             fontWeight: 600,
                             padding: '3px 12px',
@@ -2176,7 +2180,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                               style={{
                                 fontSize: '11px',
                                 fontWeight: 600,
-                                color: isOutbound ? '#38BDF8' : '#94A3B8',
+                                color: isOutbound ? 'var(--primary-dark)' : 'var(--muted-foreground)',
                                 marginBottom: '2px',
                                 paddingLeft: isOutbound ? 0 : '4px',
                                 paddingRight: isOutbound ? '4px' : 0,
@@ -2195,20 +2199,22 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                   : '16px 16px 16px 2px',
                                 background: isOutbound
                                   ? msg.status === 'failed'
-                                    ? 'rgba(239, 68, 68, 0.2)'
-                                    : 'linear-gradient(135deg, #0284C7, #0369A1)'
-                                  : '#1E293B',
-                                color: '#F8FAFC',
+                                    ? 'var(--bubble-failed)'
+                                    : 'var(--bubble-outgoing)'
+                                  : 'var(--bubble-incoming)',
+                                color: isOutbound
+                                  ? msg.status === 'failed'
+                                    ? 'var(--destructive-foreground)'
+                                    : 'var(--bubble-outgoing-text)'
+                                  : 'var(--bubble-incoming-text)',
                                 fontSize: '13px',
                                 lineHeight: 1.5,
                                 border: isOutbound
                                   ? msg.status === 'failed'
-                                    ? '1px solid #EF4444'
-                                    : 'none'
-                                  : '1px solid rgba(255,255,255,0.06)',
-                                boxShadow: isOutbound
-                                  ? '0 2px 8px rgba(2, 132, 199, 0.25)'
-                                  : '0 2px 6px rgba(0,0,0,0.2)',
+                                    ? '1px solid var(--destructive-border)'
+                                    : '1px solid rgba(174, 172, 120, 0.35)'
+                                  : '1px solid rgba(174, 172, 120, 0.45)',
+                                boxShadow: '0 1px 3px rgba(76, 69, 65, 0.05)',
                                 wordBreak: 'break-word',
                                 whiteSpace: 'pre-wrap',
                               }}
@@ -2225,15 +2231,15 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                           alignItems: 'center',
                                           gap: '6px',
                                           padding: '8px 10px',
-                                          background: 'rgba(239, 68, 68, 0.2)',
-                                          border: '1px solid rgba(239, 68, 68, 0.4)',
+                                          background: 'var(--destructive)',
+                                          border: '1px solid var(--destructive-border)',
                                           borderRadius: '8px',
-                                          color: '#FCA5A5',
+                                          color: 'var(--destructive-foreground)',
                                           fontSize: '11px',
                                           marginBottom: msg.content ? '6px' : 0,
                                         }}
                                       >
-                                        <AlertCircle size={14} style={{ color: '#EF4444', flexShrink: 0 }} />
+                                        <AlertCircle size={14} style={{ color: 'var(--destructive-foreground)', flexShrink: 0 }} />
                                         <span>Media unavailable / download failed</span>
                                       </div>
                                     );
@@ -2254,7 +2260,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                             cursor: 'pointer',
                                             maxWidth: '300px',
                                             maxHeight: '260px',
-                                            background: '#0F172A',
+                                            background: 'var(--surface-muted)',
                                             position: 'relative',
                                           }}
                                           title="Click to view full image"
@@ -2275,7 +2281,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                               }}
                                             />
                                           ) : (
-                                            <div style={{ padding: '20px', textAlign: 'center', color: '#94A3B8', fontSize: '11px' }}>
+                                            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '11px' }}>
                                               Loading image...
                                             </div>
                                           )}
@@ -2286,17 +2292,17 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                                 position: "absolute",
                                                 top: "8px",
                                                 right: "8px",
-                                                background: "rgba(15, 23, 42, 0.85)",
+                                                background: "rgba(76, 69, 65, 0.85)",
                                                 backdropFilter: "blur(4px)",
                                                 padding: "4px 8px",
                                                 borderRadius: "12px",
                                                 display: "flex",
                                                 alignItems: "center",
                                                 gap: "5px",
-                                                color: "#38BDF8",
+                                                color: "var(--primary)",
                                                 fontSize: "10px",
                                                 fontWeight: 600,
-                                                border: "1px solid rgba(56, 189, 248, 0.3)",
+                                                border: "1px solid rgba(242, 196, 106, 0.4)",
                                                 boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
                                                 zIndex: 2,
                                               }}
@@ -2327,7 +2333,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                             }}
                                           />
                                         ) : (
-                                          <div style={{ padding: '16px', background: '#0F172A', borderRadius: '8px', color: '#94A3B8', fontSize: '11px' }}>
+                                          <div style={{ padding: '16px', background: 'var(--surface-muted)', borderRadius: '8px', color: 'var(--muted-foreground)', fontSize: '11px' }}>
                                             Video preview unavailable
                                           </div>
                                         )}
@@ -2346,7 +2352,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                             style={{ width: '100%', height: '36px' }}
                                           />
                                         ) : (
-                                          <div style={{ padding: '10px', color: '#94A3B8', fontSize: '11px' }}>
+                                          <div style={{ padding: '10px', color: 'var(--muted-foreground)', fontSize: '11px' }}>
                                             Audio preview unavailable
                                           </div>
                                         )}
@@ -2365,21 +2371,21 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                         gap: '12px',
                                         padding: '8px 12px',
                                         borderRadius: '8px',
-                                        background: 'rgba(255,255,255,0.08)',
-                                        border: '1px solid rgba(255,255,255,0.12)',
+                                        background: 'rgba(174, 172, 120, 0.15)',
+                                        border: '1px solid var(--border)',
                                         marginBottom: (msg.content || att.caption) ? '6px' : 0,
                                         minWidth: '220px',
                                         maxWidth: '320px',
                                       }}
                                     >
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                                        <FileText size={20} style={{ color: '#38BDF8', flexShrink: 0 }} />
+                                        <FileText size={20} style={{ color: 'var(--foreground)', flexShrink: 0 }} />
                                         <div style={{ overflow: 'hidden' }}>
                                           <div
                                             style={{
                                               fontSize: '12px',
                                               fontWeight: 600,
-                                              color: '#F8FAFC',
+                                              color: 'var(--foreground)',
                                               textOverflow: 'ellipsis',
                                               overflow: 'hidden',
                                               whiteSpace: 'nowrap',
@@ -2388,7 +2394,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                             {att.file_name || 'Document'}
                                           </div>
                                           {att.file_size ? (
-                                            <div style={{ fontSize: '10px', color: '#94A3B8' }}>
+                                            <div style={{ fontSize: '10px', color: 'var(--muted-foreground)' }}>
                                               {formatFileSize(att.file_size)}
                                             </div>
                                           ) : null}
@@ -2407,8 +2413,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                             width: '28px',
                                             height: '28px',
                                             borderRadius: '6px',
-                                            background: 'rgba(255,255,255,0.1)',
-                                            color: '#F8FAFC',
+                                            background: 'var(--card)',
+                                            border: '1px solid var(--border)',
+                                            color: 'var(--foreground)',
                                             textDecoration: 'none',
                                             flexShrink: 0,
                                           }}
@@ -2450,15 +2457,15 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                         gap: '12px',
                                         padding: '8px 12px',
                                         borderRadius: '8px',
-                                        background: 'rgba(255,255,255,0.08)',
-                                        border: '1px solid rgba(255,255,255,0.12)',
+                                        background: 'rgba(174, 172, 120, 0.15)',
+                                        border: '1px solid var(--border)',
                                         minWidth: '220px',
                                         maxWidth: '320px',
                                       }}
                                     >
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                                        <FileText size={20} style={{ color: '#38BDF8', flexShrink: 0 }} />
-                                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#F8FAFC' }}>
+                                        <FileText size={20} style={{ color: 'var(--foreground)', flexShrink: 0 }} />
+                                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--foreground)' }}>
                                           Document Attachment
                                         </span>
                                       </div>
@@ -2475,8 +2482,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                             width: '28px',
                                             height: '28px',
                                             borderRadius: '6px',
-                                            background: 'rgba(255,255,255,0.1)',
-                                            color: '#F8FAFC',
+                                            background: 'var(--card)',
+                                            border: '1px solid var(--border)',
+                                            color: 'var(--foreground)',
                                             textDecoration: 'none',
                                             flexShrink: 0,
                                           }}
@@ -2495,7 +2503,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                         cursor: 'pointer',
                                         maxWidth: '300px',
                                         maxHeight: '260px',
-                                        background: '#0F172A',
+                                        background: 'var(--surface-muted)',
                                       }}
                                       title="Click to view full image"
                                     >
@@ -2507,7 +2515,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                           style={{ display: 'block', width: '100%', maxHeight: '260px', objectFit: 'cover', borderRadius: '8px' }}
                                         />
                                       ) : (
-                                        <div style={{ padding: '20px', textAlign: 'center', color: '#94A3B8', fontSize: '11px' }}>
+                                        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '11px' }}>
                                           Image Attachment
                                         </div>
                                       )}
@@ -2528,7 +2536,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                 gap: '5px',
                                 marginTop: '3px',
                                 fontSize: '10px',
-                                color: '#64748B',
+                                color: 'var(--muted-foreground)',
                               }}
                             >
                               <span>{formatMessageTime(msg.created_at || msg.received_at)}</span>
@@ -2537,12 +2545,12 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                   {msg.status === 'sending' ? (
                                     <Clock
                                       size={11}
-                                      style={{ color: '#94A3B8', animation: 'pulse 1s infinite' }}
+                                      style={{ color: 'var(--muted-foreground)', animation: 'pulse 1s infinite' }}
                                     />
                                   ) : msg.status === 'failed' ? (
                                     <span
                                       style={{
-                                        color: '#EF4444',
+                                        color: 'var(--destructive-foreground)',
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '4px',
@@ -2553,9 +2561,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                       <button
                                         onClick={() => handleRetryMessage(msg)}
                                         style={{
-                                          background: 'rgba(239, 68, 68, 0.2)',
-                                          border: '1px solid #EF4444',
-                                          color: '#FFF',
+                                          background: 'var(--destructive)',
+                                          border: '1px solid var(--destructive-border)',
+                                          color: 'var(--destructive-foreground)',
                                           borderRadius: '3px',
                                           padding: '1px 5px',
                                           fontSize: '9px',
@@ -2567,11 +2575,11 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                                       </button>
                                     </span>
                                   ) : msg.status === 'read' ? (
-                                    <CheckCheck size={12} style={{ color: '#38BDF8' }} />
+                                    <CheckCheck size={12} style={{ color: 'var(--primary-dark)' }} />
                                   ) : msg.status === 'delivered' ? (
-                                    <CheckCheck size={12} style={{ color: '#94A3B8' }} />
+                                    <CheckCheck size={12} style={{ color: 'var(--muted-foreground)' }} />
                                   ) : (
-                                    <Check size={12} style={{ color: '#94A3B8' }} />
+                                    <Check size={12} style={{ color: 'var(--muted-foreground)' }} />
                                   )}
                                 </span>
                               )}
@@ -2590,7 +2598,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 style={{
                   padding: '12px 20px',
                   borderTop: '1px solid rgba(255,255,255,0.08)',
-                  background: '#111827',
+                  background: 'var(--card)',
                 }}
               >
                 {activeConv.status === 'closed' ? (
@@ -2602,7 +2610,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                       padding: '12px',
                       textAlign: 'center',
                       fontSize: '12px',
-                      color: '#94A3B8',
+                      color: 'var(--muted-foreground)',
                     }}
                   >
                     This conversation is closed. Reopen it using the status selector above to reply.
@@ -2617,9 +2625,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           padding: '8px 12px',
-                          background: 'rgba(255,255,255,0.06)',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          borderRadius: '8px',
+                          background: 'var(--surface-muted)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
                           marginBottom: '8px',
                         }}
                       >
@@ -2631,18 +2639,18 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                               style={{ width: '38px', height: '38px', objectFit: 'cover', borderRadius: '4px' }}
                             />
                           ) : fileMediaType === 'video' ? (
-                            <Film size={22} style={{ color: '#38BDF8' }} />
+                            <Film size={22} style={{ color: 'var(--foreground)' }} />
                           ) : fileMediaType === 'audio' ? (
-                            <Music size={22} style={{ color: '#38BDF8' }} />
+                            <Music size={22} style={{ color: 'var(--foreground)' }} />
                           ) : (
-                            <FileText size={22} style={{ color: '#38BDF8' }} />
+                            <FileText size={22} style={{ color: 'var(--foreground)' }} />
                           )}
                           <div style={{ overflow: 'hidden' }}>
                             <div
                               style={{
                                 fontSize: '12px',
                                 fontWeight: 600,
-                                color: '#F8FAFC',
+                                color: 'var(--foreground)',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap',
@@ -2650,7 +2658,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                             >
                               {selectedFile.name}
                             </div>
-                            <div style={{ fontSize: '10px', color: '#94A3B8' }}>
+                            <div style={{ fontSize: '10px', color: 'var(--muted-foreground)' }}>
                               {formatFileSize(selectedFile.size)} • {fileMediaType?.toUpperCase()}
                             </div>
                           </div>
@@ -2661,7 +2669,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           style={{
                             background: 'none',
                             border: 'none',
-                            color: '#EF4444',
+                            color: 'var(--destructive-foreground)',
                             cursor: 'pointer',
                             padding: '4px',
                             display: 'flex',
@@ -2683,10 +2691,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         style={{
-                          background: selectedFile ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255,255,255,0.06)',
-                          border: selectedFile ? '1px solid #38BDF8' : '1px solid rgba(255,255,255,0.12)',
-                          color: selectedFile ? '#38BDF8' : '#94A3B8',
-                          borderRadius: '8px',
+                          background: selectedFile ? 'var(--selected)' : 'var(--surface-muted)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--foreground)',
+                          borderRadius: 'var(--radius)',
                           padding: '12px',
                           cursor: 'pointer',
                           display: 'flex',
@@ -2730,7 +2738,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           border: '1px solid rgba(255,255,255,0.12)',
                           borderRadius: '8px',
                           padding: '10px 14px',
-                          color: '#F8FAFC',
+                          color: 'var(--foreground)',
                           fontSize: '13px',
                           outline: 'none',
                           resize: 'none',
@@ -2744,11 +2752,11 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                         style={{
                           background:
                             replyText.trim() || selectedFile
-                              ? 'linear-gradient(135deg, #0284C7, #0369A1)'
-                              : 'rgba(255,255,255,0.06)',
-                          color: replyText.trim() || selectedFile ? '#FFF' : '#64748B',
-                          border: 'none',
-                          borderRadius: '8px',
+                              ? 'var(--primary)'
+                              : 'var(--surface-muted)',
+                          color: replyText.trim() || selectedFile ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+                          border: replyText.trim() || selectedFile ? '1px solid rgba(174, 172, 120, 0.4)' : '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
                           padding: '12px 18px',
                           cursor: replyText.trim() || selectedFile ? 'pointer' : 'not-allowed',
                           display: 'flex',
@@ -2758,7 +2766,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           fontSize: '13px',
                           boxShadow:
                             replyText.trim() || selectedFile
-                              ? '0 2px 8px rgba(2, 132, 199, 0.3)'
+                              ? '0 2px 4px rgba(76, 69, 65, 0.08)'
                               : 'none',
                           transition: 'all 0.15s ease',
                           flexShrink: 0,
@@ -2776,14 +2784,14 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               style={{
                 margin: 'auto',
                 textAlign: 'center',
-                color: '#64748B',
+                color: 'var(--muted-foreground)',
               }}
             >
               <MessageSquare size={48} style={{ opacity: 0.2, margin: '0 auto 12px' }} />
-              <p style={{ fontSize: '15px', fontWeight: 600, color: '#94A3B8' }}>
+              <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--muted-foreground)' }}>
                 Select a conversation
               </p>
-              <p style={{ fontSize: '12px', color: '#64748B' }}>
+              <p style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>
                 Choose a customer thread from the left pane to view messages.
               </p>
             </div>
@@ -2797,8 +2805,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           <aside
             style={{
               width: '320px',
-              borderLeft: '1px solid rgba(255,255,255,0.08)',
-              background: '#0F172A',
+              borderLeft: '1px solid var(--border)',
+              background: 'var(--card)',
               padding: '16px',
               overflowY: 'auto',
               display: 'flex',
@@ -2820,7 +2828,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   fontWeight: 700,
                   textTransform: 'uppercase',
                   letterSpacing: '0.05em',
-                  color: '#64748B',
+                  color: 'var(--muted-foreground)',
                   margin: 0,
                 }}
               >
@@ -2831,9 +2839,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
             {/* 1. Channel Profile Card */}
             <div
               style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '10px',
+                background: 'var(--surface-muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
                 padding: '14px',
               }}
             >
@@ -2845,7 +2853,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   marginBottom: '10px',
                 }}
               >
-                <User size={15} style={{ color: '#38BDF8' }} />
+                <User size={15} style={{ color: 'var(--foreground)' }} />
                 <span style={{ fontWeight: 600, fontSize: '13px' }}>Channel Profile</span>
               </div>
 
@@ -2855,24 +2863,24 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '8px',
-                  color: '#94A3B8',
+                  color: 'var(--muted-foreground)',
                 }}
               >
                 <div>
-                  <span style={{ color: '#64748B', display: 'block', fontSize: '10px' }}>
+                  <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '10px' }}>
                     Display Name
                   </span>
-                  <strong style={{ color: '#F8FAFC', fontSize: '13px' }}>
+                  <strong style={{ color: 'var(--foreground)', fontSize: '13px' }}>
                     {resolveDisplayName(activeConv)}
                   </strong>
                 </div>
 
                 {activeConv.channel_identity?.phone && (
                   <div>
-                    <span style={{ color: '#64748B', display: 'block', fontSize: '10px' }}>
+                    <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '10px' }}>
                       Phone / Handle
                     </span>
-                    <strong style={{ color: '#E2E8F0' }}>
+                    <strong style={{ color: 'var(--foreground)' }}>
                       {activeConv.channel_identity.phone}
                     </strong>
                   </div>
@@ -2880,17 +2888,17 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
 
                 {activeConv.channel_identity?.email && (
                   <div>
-                    <span style={{ color: '#64748B', display: 'block', fontSize: '10px' }}>
+                    <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '10px' }}>
                       Email
                     </span>
-                    <strong style={{ color: '#E2E8F0' }}>
+                    <strong style={{ color: 'var(--foreground)' }}>
                       {activeConv.channel_identity.email}
                     </strong>
                   </div>
                 )}
 
                 <div>
-                  <span style={{ color: '#64748B', display: 'block', fontSize: '10px' }}>
+                  <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '10px' }}>
                     Platform External ID
                   </span>
                   <div
@@ -2898,7 +2906,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      background: 'rgba(0,0,0,0.3)',
+                      background: 'var(--card)',
+                      border: '1px solid var(--border)',
                       padding: '4px 8px',
                       borderRadius: '4px',
                       marginTop: '2px',
@@ -2906,7 +2915,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   >
                     <span
                       style={{
-                        color: '#CBD5E1',
+                        color: 'var(--foreground)',
                         fontSize: '11px',
                         wordBreak: 'break-all',
                         fontFamily: 'monospace',
@@ -2921,7 +2930,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                       style={{
                         background: 'none',
                         border: 'none',
-                        color: copiedText === 'id' ? '#38BDF8' : '#64748B',
+                        color: copiedText === 'id' ? 'var(--primary-dark)' : 'var(--muted-foreground)',
                         cursor: 'pointer',
                         padding: '2px',
                       }}
@@ -2937,9 +2946,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
             {/* 2. Linked Customer Card */}
             <div
               style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '10px',
+                background: 'var(--surface-muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
                 padding: '14px',
               }}
             >
@@ -2952,16 +2961,16 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <User size={15} style={{ color: '#10B981' }} />
+                  <User size={15} style={{ color: 'var(--success-foreground)' }} />
                   <span style={{ fontWeight: 600, fontSize: '13px' }}>Linked Customer</span>
                 </div>
                 {!activeConv.customer && (
                   <button
                     onClick={() => setShowLinkModal(true)}
                     style={{
-                      background: 'rgba(56, 189, 248, 0.12)',
-                      border: '1px solid rgba(56, 189, 248, 0.3)',
-                      color: '#38BDF8',
+                      background: 'var(--primary)',
+                      border: '1px solid rgba(174, 172, 120, 0.4)',
+                      color: 'var(--primary-foreground)',
                       fontSize: '11px',
                       padding: '2px 8px',
                       borderRadius: '4px',
@@ -2981,28 +2990,28 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '6px',
-                    color: '#94A3B8',
+                    color: 'var(--muted-foreground)',
                   }}
                 >
                   <div>
-                    Name: <strong style={{ color: '#E2E8F0' }}>{activeConv.customer.full_name}</strong>
+                    Name: <strong style={{ color: 'var(--foreground)' }}>{activeConv.customer.full_name}</strong>
                   </div>
                   {activeConv.customer.phone && (
                     <div>
                       Phone:{' '}
-                      <strong style={{ color: '#E2E8F0' }}>{activeConv.customer.phone}</strong>
+                      <strong style={{ color: 'var(--foreground)' }}>{activeConv.customer.phone}</strong>
                     </div>
                   )}
                   {activeConv.customer.email && (
                     <div>
                       Email:{' '}
-                      <strong style={{ color: '#E2E8F0' }}>{activeConv.customer.email}</strong>
+                      <strong style={{ color: 'var(--foreground)' }}>{activeConv.customer.email}</strong>
                     </div>
                   )}
                   <a
                     href={`/crm/customers`}
                     style={{
-                      color: '#38BDF8',
+                      color: 'var(--foreground)',
                       fontSize: '11px',
                       marginTop: '4px',
                       textDecoration: 'none',
@@ -3016,7 +3025,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   </a>
                 </div>
               ) : (
-                <div style={{ fontSize: '11px', color: '#64748B', fontStyle: 'italic' }}>
+                <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>
                   No customer linked yet. Link an existing customer record to persist CRM history.
                 </div>
               )}
@@ -3025,9 +3034,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
             {/* 3. Sales Lead Opportunity Card */}
             <div
               style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '10px',
+                background: 'var(--surface-muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
                 padding: '14px',
               }}
             >
@@ -3039,7 +3048,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   marginBottom: '10px',
                 }}
               >
-                <Sparkles size={15} style={{ color: '#F59E0B' }} />
+                <Sparkles size={15} style={{ color: 'var(--warning-foreground)' }} />
                 <span style={{ fontWeight: 600, fontSize: '13px' }}>Sales Lead Opportunity</span>
               </div>
 
@@ -3050,19 +3059,19 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '6px',
-                    color: '#94A3B8',
+                    color: 'var(--muted-foreground)',
                   }}
                 >
                   <div>
                     Lead:{' '}
-                    <strong style={{ color: '#E2E8F0' }}>{activeConv.lead.full_name}</strong>
+                    <strong style={{ color: 'var(--foreground)' }}>{activeConv.lead.full_name}</strong>
                   </div>
                   <div>
                     Status:{' '}
                     <span
                       style={{
                         background: 'rgba(245, 158, 11, 0.15)',
-                        color: '#F59E0B',
+                        color: 'var(--warning-foreground)',
                         padding: '1px 6px',
                         borderRadius: '4px',
                         fontWeight: 600,
@@ -3075,20 +3084,20 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   </div>
                   <div>
                     Source:{' '}
-                    <strong style={{ color: '#E2E8F0', textTransform: 'capitalize' }}>
+                    <strong style={{ color: 'var(--foreground)', textTransform: 'capitalize' }}>
                       {activeConv.lead.source}
                     </strong>
                   </div>
                   <div>
                     Assigned Rep:{' '}
-                    <strong style={{ color: '#E2E8F0' }}>
+                    <strong style={{ color: 'var(--foreground)' }}>
                       {activeConv.assigned_to_employee?.full_name || 'Unassigned'}
                     </strong>
                   </div>
                   <a
                     href={`/crm/leads`}
                     style={{
-                      color: '#F59E0B',
+                      color: 'var(--warning-foreground)',
                       fontSize: '11px',
                       marginTop: '6px',
                       textDecoration: 'none',
@@ -3102,7 +3111,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   </a>
                 </div>
               ) : (
-                <div style={{ fontSize: '11px', color: '#64748B', fontStyle: 'italic' }}>
+                <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>
                   No active sales lead associated with this thread.
                 </div>
               )}
@@ -3117,7 +3126,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.75)',
+            background: 'rgba(76, 69, 65, 0.45)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -3127,12 +3136,12 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         >
           <div
             style={{
-              background: '#1E293B',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '12px',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '440px',
               padding: '20px',
-              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
+              boxShadow: 'var(--shadow-card)',
             }}
           >
             <div
@@ -3143,7 +3152,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 marginBottom: '14px',
               }}
             >
-              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#F8FAFC' }}>
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--foreground)' }}>
                 Link Customer to Thread
               </h3>
               <button
@@ -3151,7 +3160,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#94A3B8',
+                  color: 'var(--muted-foreground)',
                   cursor: 'pointer',
                 }}
               >
@@ -3159,7 +3168,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               </button>
             </div>
 
-            <p style={{ fontSize: '12px', color: '#94A3B8', marginBottom: '16px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--muted-foreground)', marginBottom: '16px' }}>
               Select an existing Customer record to associate with this channel identity and chat
               thread.
             </p>
@@ -3169,10 +3178,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               onChange={(e) => setSelectedCustomerId(e.target.value)}
               style={{
                 width: '100%',
-                background: '#0F172A',
-                border: '1px solid rgba(255,255,255,0.12)',
-                color: '#FFF',
-                borderRadius: '8px',
+                background: 'var(--surface-muted)',
+                border: '1px solid var(--border)',
+                color: 'var(--foreground)',
+                borderRadius: 'var(--radius)',
                 padding: '9px 12px',
                 fontSize: '13px',
                 marginBottom: '20px',
@@ -3192,8 +3201,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 onClick={() => setShowLinkModal(false)}
                 style={{
                   background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#CBD5E1',
+                  border: '1px solid var(--border)',
+                  color: 'var(--muted-foreground)',
                   padding: '7px 14px',
                   borderRadius: '6px',
                   fontSize: '12px',
@@ -3206,12 +3215,12 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 onClick={handleLinkCustomer}
                 disabled={!selectedCustomerId}
                 style={{
-                  background: '#0284C7',
-                  color: '#FFF',
-                  border: 'none',
+                  background: 'var(--primary)',
+                  color: 'var(--primary-foreground)',
+                  border: '1px solid rgba(174, 172, 120, 0.4)',
                   fontWeight: 600,
                   padding: '7px 16px',
-                  borderRadius: '6px',
+                  borderRadius: 'var(--radius)',
                   fontSize: '12px',
                   cursor: selectedCustomerId ? 'pointer' : 'not-allowed',
                   opacity: selectedCustomerId ? 1 : 0.5,
@@ -3230,7 +3239,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.75)',
+            background: 'rgba(76, 69, 65, 0.45)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -3240,12 +3249,12 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
         >
           <div
             style={{
-              background: '#1E293B',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '12px',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '460px',
               padding: '22px',
-              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
+              boxShadow: 'var(--shadow-card)',
             }}
           >
             <div
@@ -3258,7 +3267,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Sparkles size={18} style={{ color: '#A855F7' }} />
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#F8FAFC' }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--foreground)' }}>
                   Simulate Inbound Message
                 </h3>
               </div>
@@ -3267,7 +3276,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#94A3B8',
+                  color: 'var(--muted-foreground)',
                   cursor: 'pointer',
                 }}
               >
@@ -3275,7 +3284,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               </button>
             </div>
 
-            <p style={{ fontSize: '12px', color: '#94A3B8', marginBottom: '16px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--muted-foreground)', marginBottom: '16px' }}>
               Simulates a live inbound customer message from WhatsApp, Instagram, or Facebook
               Messenger to test realtime inbox updates, lead creation, and sales routing.
             </p>
@@ -3292,7 +3301,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 <label
                   style={{
                     fontSize: '11px',
-                    color: '#CBD5E1',
+                    color: 'var(--foreground)',
                     fontWeight: 600,
                     display: 'block',
                     marginBottom: '4px',
@@ -3305,10 +3314,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   onChange={(e) => setSimChannel(e.target.value as ChannelType)}
                   style={{
                     width: '100%',
-                    background: '#0F172A',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    color: '#FFF',
-                    borderRadius: '6px',
+                    background: 'var(--surface-muted)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
+                    borderRadius: 'var(--radius)',
                     padding: '8px 10px',
                     fontSize: '13px',
                     outline: 'none',
@@ -3325,7 +3334,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 <label
                   style={{
                     fontSize: '11px',
-                    color: '#CBD5E1',
+                    color: 'var(--foreground)',
                     fontWeight: 600,
                     display: 'block',
                     marginBottom: '4px',
@@ -3339,10 +3348,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   onChange={(e) => setSimSender(e.target.value)}
                   style={{
                     width: '100%',
-                    background: '#0F172A',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    color: '#FFF',
-                    borderRadius: '6px',
+                    background: 'var(--surface-muted)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
+                    borderRadius: 'var(--radius)',
                     padding: '8px 10px',
                     fontSize: '13px',
                     outline: 'none',
@@ -3354,7 +3363,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 <label
                   style={{
                     fontSize: '11px',
-                    color: '#CBD5E1',
+                    color: 'var(--foreground)',
                     fontWeight: 600,
                     display: 'block',
                     marginBottom: '4px',
@@ -3368,10 +3377,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   onChange={(e) => setSimPhone(e.target.value)}
                   style={{
                     width: '100%',
-                    background: '#0F172A',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    color: '#FFF',
-                    borderRadius: '6px',
+                    background: 'var(--surface-muted)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
+                    borderRadius: 'var(--radius)',
                     padding: '8px 10px',
                     fontSize: '13px',
                     outline: 'none',
@@ -3383,7 +3392,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 <label
                   style={{
                     fontSize: '11px',
-                    color: '#CBD5E1',
+                    color: 'var(--foreground)',
                     fontWeight: 600,
                     display: 'block',
                     marginBottom: '4px',
@@ -3397,10 +3406,10 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   rows={3}
                   style={{
                     width: '100%',
-                    background: '#0F172A',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    color: '#FFF',
-                    borderRadius: '6px',
+                    background: 'var(--surface-muted)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
+                    borderRadius: 'var(--radius)',
                     padding: '8px 10px',
                     fontSize: '13px',
                     outline: 'none',
@@ -3416,8 +3425,8 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 onClick={() => setShowSimulateModal(false)}
                 style={{
                   background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#CBD5E1',
+                  border: '1px solid var(--border)',
+                  color: 'var(--muted-foreground)',
                   padding: '7px 14px',
                   borderRadius: '6px',
                   fontSize: '12px',
@@ -3429,12 +3438,12 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               <button
                 onClick={handleSimulateMessage}
                 style={{
-                  background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
-                  color: '#FFF',
-                  border: 'none',
+                  background: 'var(--primary)',
+                  color: 'var(--primary-foreground)',
+                  border: '1px solid rgba(174, 172, 120, 0.4)',
                   fontWeight: 600,
                   padding: '7px 16px',
-                  borderRadius: '6px',
+                  borderRadius: 'var(--radius)',
                   fontSize: '12px',
                   cursor: 'pointer',
                 }}
@@ -3453,7 +3462,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.85)',
+            background: 'rgba(76, 69, 65, 0.75)',
             zIndex: 1000,
             display: 'flex',
             alignItems: 'center',
@@ -3467,9 +3476,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               position: 'relative',
               maxWidth: '90vw',
               maxHeight: '90vh',
-              background: '#0F172A',
-              borderRadius: '12px',
-              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'var(--card)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
@@ -3482,11 +3491,11 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 padding: '12px 16px',
-                background: '#1E293B',
-                borderBottom: '1px solid rgba(255,255,255,0.08)',
+                background: 'var(--surface-muted)',
+                borderBottom: '1px solid var(--border)',
               }}
             >
-              <span style={{ fontSize: '13px', fontWeight: 600, color: '#F8FAFC' }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--foreground)' }}>
                 {previewModalAttachment.title}
               </span>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -3496,7 +3505,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
-                    color: '#94A3B8',
+                    color: 'var(--muted-foreground)',
                     textDecoration: 'none',
                     display: 'flex',
                     alignItems: 'center',
@@ -3511,7 +3520,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#94A3B8',
+                    color: 'var(--muted-foreground)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
