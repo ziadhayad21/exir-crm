@@ -67,6 +67,13 @@ export async function POST() {
       console.warn('[Heartbeat] Backlog processing warning:', drainErr);
     }
 
+    // 5. Claim transferable backlog leads for active online sales reps
+    try {
+      await admin.rpc('process_transferable_lead_backlog', { p_business_tz: 'Africa/Cairo' });
+    } catch (transferErr) {
+      console.warn('[Heartbeat] Transferable backlog processing warning:', transferErr);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[Heartbeat] Unexpected error:', err);

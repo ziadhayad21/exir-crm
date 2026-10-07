@@ -17,6 +17,7 @@ import type {
   ActionResult,
   Lead,
   LeadWithAssignee,
+  Employee,
 } from '@/types';
 import { revalidatePath } from 'next/cache';
 
@@ -135,11 +136,8 @@ export async function getTodayLeadCountsAll(): Promise<{ employee_id: string; em
   await requirePermission('crm.leads.read_all');
   const admin = createAdminClient();
 
-  // Get all Sales employees
-  const { data: salesEmployees } = await admin
-    .from('employees')
-    .select('id, full_name')
-    .eq('is_active', true);
+  // Get only eligible Sales employees (Admin is strictly excluded)
+  const { data: salesEmployees } = await admin.rpc('get_eligible_sales_employees');
 
   if (!salesEmployees || salesEmployees.length === 0) return [];
 
@@ -157,11 +155,23 @@ export async function getTodayLeadCountsAll(): Promise<{ employee_id: string; em
     }
   }
 
-  return salesEmployees.map((emp) => ({
+  return (salesEmployees as { id: string; full_name: string }[]).map((emp) => ({
     employee_id: emp.id,
     employee_name: emp.full_name,
     count: countMap[emp.id] ?? 0,
   }));
+}
+
+/**
+ * Get all active eligible Sales employees (Admin excluded).
+ */
+export async function getEligibleSalesEmployees(): Promise<Employee[]> {
+  await requireAnyPermission(['crm.leads.read_own', 'crm.leads.read_all']);
+  const admin = createAdminClient();
+
+  const { data: salesEmployees, error } = await admin.rpc('get_eligible_sales_employees');
+  if (error || !salesEmployees) return [];
+  return salesEmployees as Employee[];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -381,6 +391,17 @@ export async function updateLeadStatus(formData: FormData): Promise<ActionResult
     },
   });
 
+  // Attempt to claim up to 2 transferable backlog leads if employee has finished active workload
+  try {
+    await admin.rpc('claim_transferable_lead_batch', {
+      p_employee_id: currentUser.employee.id,
+      p_batch_limit: 2,
+      p_business_tz: 'Africa/Cairo',
+    });
+  } catch (claimErr) {
+    console.warn('[Leads] Auto-claim transferable backlog warning:', claimErr);
+  }
+
   revalidatePath('/crm/leads');
   revalidatePath('/crm/customers');
   revalidatePath('/crm/deals');
@@ -466,6 +487,14 @@ export async function reassignLead(formData: FormData): Promise<ActionResult> {
   }
   if (!target.is_active) {
     return { success: false, error: 'Cannot assign lead to an inactive employee.' };
+  }
+
+  // Strictly validate target is eligible Sales rep and NOT an Admin
+  const { data: isEligible } = await admin.rpc('employee_is_eligible_sales', {
+    p_employee_id: parsed.data.assigned_to,
+  });
+  if (!isEligible) {
+    return { success: false, error: 'Cannot assign lead: employee must have Sales role and cannot be an Admin.' };
   }
 
   // Update assignment

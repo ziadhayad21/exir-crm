@@ -2,8 +2,7 @@
 // Phase 3: Leads list page — server component.
 
 import { requireAuth } from '@/lib/auth';
-import { getLeads, getTodayLeadCount } from '../lead-actions';
-import { getEligibleAssignees } from '../actions';
+import { getLeads, getTodayLeadCount, getEligibleSalesEmployees } from '../lead-actions';
 import { LeadsClient } from './leads-client';
 
 export const metadata = {
@@ -16,7 +15,7 @@ export default async function LeadsPage() {
   const [leads, todayCount, assignees] = await Promise.all([
     getLeads(),
     getTodayLeadCount(),
-    getEligibleAssignees(),
+    getEligibleSalesEmployees(),
   ]);
 
   return (

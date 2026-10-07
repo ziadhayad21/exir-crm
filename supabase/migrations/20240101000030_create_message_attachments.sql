@@ -100,6 +100,8 @@ DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'app' AND tablename = 'message_attachments'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE app.message_attachments;
   END IF;
