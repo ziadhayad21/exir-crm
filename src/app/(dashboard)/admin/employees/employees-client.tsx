@@ -15,6 +15,14 @@ import {
   Loader2,
   Search,
   Users,
+  UserPlus,
+  Mail,
+  Phone,
+  Lock,
+  Eye,
+  EyeOff,
+  User,
+  ChevronDown,
 } from 'lucide-react';
 
 interface EmployeesClientProps {
@@ -30,6 +38,7 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const filteredEmployees = employees.filter((emp) =>
     emp.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -507,73 +516,210 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
 
       {/* Create Employee Modal */}
       {showCreateModal && (
-        <Modal onClose={() => setShowCreateModal(false)} title="Add New Employee">
+        <Modal
+          onClose={() => {
+            setShowCreateModal(false);
+            setShowPassword(false);
+          }}
+          title="Add New Employee"
+          subtitle="Create credentials and assign a system role for the employee."
+          icon={<UserPlus size={20} />}
+        >
           {error && (
             <div
               style={{
-                padding: '0.625rem 0.875rem',
+                padding: '0.75rem 1rem',
                 backgroundColor: 'var(--destructive)',
                 border: '1px solid var(--destructive-border)',
-                borderRadius: 'var(--radius)',
+                borderRadius: '10px',
                 color: 'var(--destructive-foreground)',
                 fontSize: '0.8125rem',
-                marginBottom: '1rem',
+                marginBottom: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
               }}
             >
-              {error}
+              <span>{error}</span>
             </div>
           )}
           <form onSubmit={handleCreateEmployee}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <FormField label="Full Name" name="full_name" required />
-              <FormField label="Email" name="email" type="email" required />
-              <FormField label="Phone" name="phone" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.125rem' }}>
+              {/* Row 1: Full Name */}
               <FormField
-                label="Password"
-                name="password"
-                type="password"
+                label="Full Name"
+                name="full_name"
                 required
-                minLength={8}
+                placeholder="e.g. Sara Ahmed"
+                icon={<User size={16} />}
               />
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '0.8125rem',
-                    fontWeight: 500,
-                    color: 'var(--foreground)',
-                    marginBottom: '0.375rem',
-                  }}
-                >
-                  Role *
-                </label>
-                <select
-                  name="role_id"
+
+              {/* Row 2: Email & Phone (Responsive 2-col) */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                  gap: '1rem',
+                }}
+              >
+                <FormField
+                  label="Email Address"
+                  name="email"
+                  type="email"
                   required
-                  defaultValue=""
-                  style={{
-                    width: '100%',
-                    padding: '0.625rem 0.75rem',
-                    fontSize: '0.875rem',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius)',
-                    backgroundColor: 'var(--surface)',
-                    color: 'var(--foreground)',
-                    outline: 'none',
-                  }}
-                >
-                  <option value="" disabled>Select a role</option>
-                  {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-                {roles.length === 0 && (
-                  <p style={{ color: 'var(--destructive-foreground)', fontSize: '0.75rem', marginTop: '4px' }}>
-                    No roles found. Please refresh the page.
-                  </p>
-                )}
+                  placeholder="name@company.com"
+                  icon={<Mail size={16} />}
+                />
+                <FormField
+                  label="Phone Number"
+                  name="phone"
+                  type="tel"
+                  optional
+                  placeholder="+20 100 000 0000"
+                  icon={<Phone size={16} />}
+                />
+              </div>
+
+              {/* Row 3: Password & Role (Responsive 2-col) */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                  gap: '1rem',
+                }}
+              >
+                <FormField
+                  label="Password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  placeholder="At least 8 characters"
+                  icon={<Lock size={16} />}
+                  rightElement={
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--muted-foreground)',
+                        display: 'flex',
+                        padding: '6px',
+                        borderRadius: '6px',
+                        transition: 'color 0.15s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--foreground)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--muted-foreground)';
+                      }}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  }
+                />
+
+                <div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '0.375rem',
+                    }}
+                  >
+                    <label
+                      htmlFor="role_id"
+                      style={{
+                        fontSize: '0.8125rem',
+                        fontWeight: 600,
+                        color: 'var(--foreground)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      Role <span style={{ color: 'var(--gold)', fontWeight: 700 }}>*</span>
+                    </label>
+                  </div>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--muted-foreground)',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <Shield size={16} />
+                    </div>
+                    <select
+                      id="role_id"
+                      name="role_id"
+                      required
+                      defaultValue=""
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        paddingInlineStart: '2.5rem',
+                        paddingInlineEnd: '2.25rem',
+                        fontSize: '0.875rem',
+                        border: '1px solid var(--border)',
+                        borderRadius: '10px',
+                        backgroundColor: 'var(--surface)',
+                        color: 'var(--foreground)',
+                        outline: 'none',
+                        appearance: 'none',
+                        WebkitAppearance: 'none',
+                        MozAppearance: 'none',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.15s, box-shadow 0.15s, background-color 0.15s',
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border-strong)';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(242, 196, 106, 0.35)';
+                        e.currentTarget.style.backgroundColor = 'var(--card)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border)';
+                        e.currentTarget.style.boxShadow = 'none';
+                        e.currentTarget.style.backgroundColor = 'var(--surface)';
+                      }}
+                    >
+                      <option value="" disabled>Select a role...</option>
+                      {roles.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        right: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--muted-foreground)',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <ChevronDown size={16} />
+                    </div>
+                  </div>
+                  {roles.length === 0 && (
+                    <p style={{ color: 'var(--destructive-foreground)', fontSize: '0.75rem', marginTop: '4px' }}>
+                      No roles found. Please refresh the page.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -583,20 +729,33 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                 gap: '0.75rem',
                 justifyContent: 'flex-end',
                 marginTop: '1.5rem',
+                paddingTop: '1.25rem',
+                borderTop: '1px solid var(--border)',
               }}
             >
               <button
                 type="button"
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setShowPassword(false);
+                }}
                 style={{
-                  padding: '0.625rem 1.25rem',
+                  height: '42px',
+                  padding: '0 1.25rem',
                   fontSize: '0.875rem',
                   fontWeight: 500,
-                  borderRadius: 'var(--radius)',
+                  borderRadius: '10px',
                   border: '1px solid var(--border)',
                   backgroundColor: 'var(--surface)',
                   color: 'var(--foreground)',
                   cursor: 'pointer',
+                  transition: 'background-color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--hover)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--surface)';
                 }}
               >
                 Cancel
@@ -605,22 +764,38 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                 type="submit"
                 disabled={isPending}
                 style={{
+                  height: '42px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.5rem',
-                  padding: '0.625rem 1.25rem',
+                  padding: '0 1.5rem',
                   fontSize: '0.875rem',
                   fontWeight: 600,
-                  borderRadius: 'var(--radius)',
+                  borderRadius: '10px',
                   border: '1px solid rgba(174, 172, 120, 0.4)',
                   backgroundColor: 'var(--primary)',
                   color: 'var(--primary-foreground)',
                   cursor: isPending ? 'not-allowed' : 'pointer',
                   opacity: isPending ? 0.7 : 1,
-                  boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
+                  boxShadow: '0 2px 6px rgba(76, 69, 65, 0.08)',
+                  transition: 'transform 0.1s, box-shadow 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isPending) {
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(242, 196, 106, 0.4)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isPending) {
+                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(76, 69, 65, 0.08)';
+                  }
                 }}
               >
-                {isPending && <Loader2 size={16} className="animate-spin" />}
+                {isPending ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <UserPlus size={16} />
+                )}
                 Create Employee
               </button>
             </div>
@@ -633,14 +808,16 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
         <Modal
           onClose={() => setShowRoleModal(null)}
           title="Assign Role"
+          subtitle="Update the assigned role and permissions for this user."
+          icon={<Shield size={20} />}
         >
           {error && (
             <div
               style={{
-                padding: '0.625rem 0.875rem',
+                padding: '0.75rem 1rem',
                 backgroundColor: 'var(--destructive)',
                 border: '1px solid var(--destructive-border)',
-                borderRadius: 'var(--radius)',
+                borderRadius: '10px',
                 color: 'var(--destructive-foreground)',
                 fontSize: '0.8125rem',
                 marginBottom: '1rem',
@@ -658,41 +835,89 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                 marginBottom: '1rem',
               }}
             >
-              This will replace any existing roles for the employee.
+              This will replace any existing roles assigned to this employee.
             </p>
             <div>
               <label
+                htmlFor="assign_role_id"
                 style={{
                   display: 'block',
                   fontSize: '0.8125rem',
-                  fontWeight: 500,
+                  fontWeight: 600,
                   color: 'var(--foreground)',
                   marginBottom: '0.375rem',
                 }}
               >
-                Role
+                System Role <span style={{ color: 'var(--gold)', fontWeight: 700 }}>*</span>
               </label>
-              <select
-                name="role_id"
-                required
-                style={{
-                  width: '100%',
-                  padding: '0.625rem 0.75rem',
-                  fontSize: '0.875rem',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                  backgroundColor: 'var(--surface)',
-                  color: 'var(--foreground)',
-                  outline: 'none',
-                }}
-              >
-                <option value="">Select a role</option>
-                {roles.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.name} — {role.description}
-                  </option>
-                ))}
-              </select>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: '0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--muted-foreground)',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <Shield size={16} />
+                </div>
+                <select
+                  id="assign_role_id"
+                  name="role_id"
+                  required
+                  defaultValue=""
+                  style={{
+                    width: '100%',
+                    height: '42px',
+                    paddingInlineStart: '2.5rem',
+                    paddingInlineEnd: '2.25rem',
+                    fontSize: '0.875rem',
+                    border: '1px solid var(--border)',
+                    borderRadius: '10px',
+                    backgroundColor: 'var(--surface)',
+                    color: 'var(--foreground)',
+                    outline: 'none',
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    MozAppearance: 'none',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border-strong)';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(242, 196, 106, 0.35)';
+                    e.currentTarget.style.backgroundColor = 'var(--card)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border)';
+                    e.currentTarget.style.boxShadow = 'none';
+                    e.currentTarget.style.backgroundColor = 'var(--surface)';
+                  }}
+                >
+                  <option value="" disabled>Select a role...</option>
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name} — {role.description ?? 'Full permissions'}
+                    </option>
+                  ))}
+                </select>
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: '0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--muted-foreground)',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <ChevronDown size={16} />
+                </div>
+              </div>
             </div>
 
             <div
@@ -701,16 +926,19 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                 gap: '0.75rem',
                 justifyContent: 'flex-end',
                 marginTop: '1.5rem',
+                paddingTop: '1.25rem',
+                borderTop: '1px solid var(--border)',
               }}
             >
               <button
                 type="button"
                 onClick={() => setShowRoleModal(null)}
                 style={{
-                  padding: '0.625rem 1.25rem',
+                  height: '42px',
+                  padding: '0 1.25rem',
                   fontSize: '0.875rem',
                   fontWeight: 500,
-                  borderRadius: 'var(--radius)',
+                  borderRadius: '10px',
                   border: '1px solid var(--border)',
                   backgroundColor: 'var(--surface)',
                   color: 'var(--foreground)',
@@ -723,28 +951,30 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
                 type="submit"
                 disabled={isPending}
                 style={{
+                  height: '42px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.5rem',
-                  padding: '0.625rem 1.25rem',
+                  padding: '0 1.5rem',
                   fontSize: '0.875rem',
                   fontWeight: 600,
-                  borderRadius: 'var(--radius)',
+                  borderRadius: '10px',
                   border: '1px solid rgba(174, 172, 120, 0.4)',
                   backgroundColor: 'var(--primary)',
                   color: 'var(--primary-foreground)',
                   cursor: isPending ? 'not-allowed' : 'pointer',
                   opacity: isPending ? 0.7 : 1,
-                  boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
+                  boxShadow: '0 2px 6px rgba(76, 69, 65, 0.08)',
                 }}
               >
                 {isPending && <Loader2 size={16} className="animate-spin" />}
-                Assign Role
+                Save Role
               </button>
             </div>
           </form>
         </Modal>
       )}
+
     </div>
   );
 }
@@ -755,10 +985,14 @@ function Modal({
   children,
   onClose,
   title,
+  subtitle,
+  icon,
 }: {
   children: React.ReactNode;
   onClose: () => void;
   title: string;
+  subtitle?: string;
+  icon?: React.ReactNode;
 }) {
   return (
     <div
@@ -769,31 +1003,36 @@ function Modal({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '1rem',
+        padding: '1.5rem 1rem',
+        overflowY: 'auto',
       }}
     >
       {/* Backdrop */}
       <div
         onClick={onClose}
         style={{
-          position: 'absolute',
+          position: 'fixed',
           inset: 0,
-          background: 'rgba(76, 69, 65, 0.4)',
-          backdropFilter: 'blur(3px)',
+          backgroundColor: 'rgba(76, 69, 65, 0.45)',
+          backdropFilter: 'blur(4px)',
         }}
       />
 
-      {/* Modal content */}
+      {/* Modal Card */}
       <div
         className="animate-fade-in"
         style={{
           position: 'relative',
           width: '100%',
-          maxWidth: '480px',
+          maxWidth: '540px',
+          margin: 'auto',
+          maxHeight: 'min(92vh, 760px)',
+          display: 'flex',
+          flexDirection: 'column',
           backgroundColor: 'var(--card)',
-          borderRadius: 'var(--radius)',
+          borderRadius: '16px',
           border: '1px solid var(--border)',
-          boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.12), 0 8px 10px -6px rgba(76, 69, 65, 0.06)',
+          boxShadow: '0 20px 40px -8px rgba(76, 69, 65, 0.22), 0 0 0 1px rgba(174, 172, 120, 0.2)',
           overflow: 'hidden',
         }}
       >
@@ -805,33 +1044,79 @@ function Modal({
             alignItems: 'center',
             justifyContent: 'space-between',
             backgroundColor: 'var(--surface-muted)',
+            flexShrink: 0,
           }}
         >
-          <h3
-            style={{
-              fontSize: '1.0625rem',
-              fontWeight: 600,
-              color: 'var(--foreground)',
-            }}
-          >
-            {title}
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+            {icon && (
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(242, 196, 106, 0.25)',
+                  border: '1px solid rgba(174, 172, 120, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--foreground)',
+                  flexShrink: 0,
+                }}
+              >
+                {icon}
+              </div>
+            )}
+            <div>
+              <h3
+                style={{
+                  fontSize: '1.125rem',
+                  fontWeight: 700,
+                  color: 'var(--foreground)',
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1.2,
+                }}
+              >
+                {title}
+              </h3>
+              {subtitle && (
+                <p
+                  style={{
+                    fontSize: '0.8125rem',
+                    color: 'var(--muted-foreground)',
+                    marginTop: '2px',
+                  }}
+                >
+                  {subtitle}
+                </p>
+              )}
+            </div>
+          </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             style={{
               background: 'none',
               border: 'none',
               cursor: 'pointer',
               color: 'var(--muted-foreground)',
               display: 'flex',
-              padding: '4px',
-              borderRadius: 'var(--radius)',
+              padding: '6px',
+              borderRadius: '8px',
+              transition: 'background-color 0.15s, color 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--hover)';
+              e.currentTarget.style.color = 'var(--foreground)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = 'var(--muted-foreground)';
             }}
           >
             <X size={18} />
           </button>
         </div>
-        <div style={{ padding: '1.5rem' }}>{children}</div>
+        <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>{children}</div>
       </div>
     </div>
   );
@@ -843,53 +1128,122 @@ function FormField({
   type = 'text',
   required = false,
   minLength,
+  placeholder,
+  icon,
+  rightElement,
+  optional = false,
 }: {
   label: string;
   name: string;
   type?: string;
   required?: boolean;
   minLength?: number;
+  placeholder?: string;
+  icon?: React.ReactNode;
+  rightElement?: React.ReactNode;
+  optional?: boolean;
 }) {
   return (
     <div>
-      <label
-        htmlFor={name}
+      <div
         style={{
-          display: 'block',
-          fontSize: '0.8125rem',
-          fontWeight: 500,
-          color: 'var(--foreground)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
           marginBottom: '0.375rem',
         }}
       >
-        {label} {required && '*'}
-      </label>
-      <input
-        id={name}
-        name={name}
-        type={type}
-        required={required}
-        minLength={minLength}
-        style={{
-          width: '100%',
-          padding: '0.625rem 0.75rem',
-          fontSize: '0.875rem',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          color: 'var(--foreground)',
-          backgroundColor: 'var(--surface)',
-          outline: 'none',
-          transition: 'border-color 0.15s, box-shadow 0.15s',
-        }}
-        onFocus={(e) => {
-          e.currentTarget.style.borderColor = 'var(--border-strong)';
-          e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.borderColor = 'var(--border)';
-          e.currentTarget.style.boxShadow = 'none';
-        }}
-      />
+        <label
+          htmlFor={name}
+          style={{
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+            color: 'var(--foreground)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+        >
+          {label}
+          {required && (
+            <span style={{ color: 'var(--gold)', fontWeight: 700 }}>*</span>
+          )}
+        </label>
+        {optional && (
+          <span
+            style={{
+              fontSize: '0.6875rem',
+              color: 'var(--muted-foreground)',
+              backgroundColor: 'var(--surface-muted)',
+              padding: '1px 6px',
+              borderRadius: '999px',
+              border: '1px solid var(--border)',
+            }}
+          >
+            Optional
+          </span>
+        )}
+      </div>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+        {icon && (
+          <div
+            style={{
+              position: 'absolute',
+              left: '0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--muted-foreground)',
+              pointerEvents: 'none',
+            }}
+          >
+            {icon}
+          </div>
+        )}
+        <input
+          id={name}
+          name={name}
+          type={type}
+          required={required}
+          minLength={minLength}
+          placeholder={placeholder}
+          style={{
+            width: '100%',
+            height: '42px',
+            paddingInlineStart: icon ? '2.5rem' : '0.875rem',
+            paddingInlineEnd: rightElement ? '2.5rem' : '0.875rem',
+            fontSize: '0.875rem',
+            border: '1px solid var(--border)',
+            borderRadius: '10px',
+            color: 'var(--foreground)',
+            backgroundColor: 'var(--surface)',
+            outline: 'none',
+            transition: 'border-color 0.15s, box-shadow 0.15s, background-color 0.15s',
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = 'var(--border-strong)';
+            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(242, 196, 106, 0.35)';
+            e.currentTarget.style.backgroundColor = 'var(--card)';
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = 'var(--border)';
+            e.currentTarget.style.boxShadow = 'none';
+            e.currentTarget.style.backgroundColor = 'var(--surface)';
+          }}
+        />
+        {rightElement && (
+          <div
+            style={{
+              position: 'absolute',
+              right: '0.5rem',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            {rightElement}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
