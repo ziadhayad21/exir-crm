@@ -1,7 +1,7 @@
 // src/app/(dashboard)/admin/employees/employees-client.tsx
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useEffect, useTransition, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { createEmployee, toggleEmployeeStatus, assignRole } from '../actions';
@@ -982,6 +982,8 @@ export function EmployeesClient({ employees, roles }: EmployeesClientProps) {
 
 // ─── Reusable Components ─────────────────────────────────────────
 
+const emptySubscribe = () => () => {};
+
 function Modal({
   children,
   onClose,
@@ -995,10 +997,9 @@ function Modal({
   subtitle?: string;
   icon?: React.ReactNode;
 }) {
-  const [mounted, setMounted] = useState(false);
+  const isMounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
   useEffect(() => {
-    setMounted(true);
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
@@ -1006,7 +1007,7 @@ function Modal({
     };
   }, []);
 
-  if (!mounted) return null;
+  if (!isMounted) return null;
 
   return createPortal(
     <div
