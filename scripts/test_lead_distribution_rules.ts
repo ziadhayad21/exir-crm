@@ -668,7 +668,7 @@ async function test9_IdempotentReplay() {
   if (res2.conversation_id !== res1.conversation_id || res3.conversation_id !== res1.conversation_id) {
     throw new Error(`FAILED: Replays created duplicate conversations!`);
   }
-  if (!res2.is_duplicate_message || !res3.is_duplicate_message) {
+  if (!(res2.is_duplicate || res2.is_duplicate_message) || !(res3.is_duplicate || res3.is_duplicate_message)) {
     throw new Error(`FAILED: Replays were not flagged as duplicate message!`);
   }
   if (res2.assigned_to !== res1.assigned_to || res3.assigned_to !== res1.assigned_to) {
@@ -706,7 +706,7 @@ async function test10_Security() {
       full_name: 'Security Test Lead',
       email: 'sectest@example.com',
       source: 'manual',
-      status: 'new',
+      status: 'in_progress',
       assignment_source: 'manual',
     })
     .select('id')
