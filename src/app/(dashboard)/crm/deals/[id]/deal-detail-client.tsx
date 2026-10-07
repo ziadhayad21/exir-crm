@@ -34,16 +34,16 @@ interface DealDetailClientProps {
   user: CurrentUser;
 }
 
-const STAGE_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
-  new: { label: 'New', bg: 'hsla(217 91% 60% / 0.15)', text: 'hsl(217 91% 70%)' },
-  follow_up: { label: 'Follow-up', bg: 'hsla(38 92% 50% / 0.15)', text: 'hsl(38 92% 65%)' },
-  won: { label: 'Won', bg: 'hsla(142 76% 36% / 0.15)', text: 'hsl(142 76% 65%)' },
-  lost: { label: 'Lost', bg: 'hsla(0 84% 60% / 0.15)', text: 'hsl(0 84% 75%)' },
+const STAGE_CONFIG: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  new: { label: 'New', bg: 'var(--info)', text: 'var(--info-foreground)', border: 'var(--info-border)' },
+  follow_up: { label: 'Follow-up', bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
+  won: { label: 'Won', bg: 'var(--success)', text: 'var(--success-foreground)', border: 'var(--success-border)' },
+  lost: { label: 'Lost', bg: 'var(--destructive)', text: 'var(--destructive-foreground)', border: 'var(--destructive-border)' },
   // Backward-compatibility
-  contacted: { label: 'Follow-up', bg: 'hsla(38 92% 50% / 0.15)', text: 'hsl(38 92% 65%)' },
-  qualified: { label: 'Follow-up', bg: 'hsla(38 92% 50% / 0.15)', text: 'hsl(38 92% 65%)' },
-  proposal: { label: 'Follow-up', bg: 'hsla(38 92% 50% / 0.15)', text: 'hsl(38 92% 65%)' },
-  negotiation: { label: 'Follow-up', bg: 'hsla(38 92% 50% / 0.15)', text: 'hsl(38 92% 65%)' },
+  contacted: { label: 'Follow-up', bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
+  qualified: { label: 'Follow-up', bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
+  proposal: { label: 'Follow-up', bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
+  negotiation: { label: 'Follow-up', bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
 };
 
 const STAGES: { value: DealStage; label: string }[] = [
@@ -256,28 +256,28 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
   function renderActivityIcon(type: string) {
     switch (type) {
       case 'note':
-        return <MessageSquare size={14} style={{ color: 'hsl(217 91% 65%)' }} />;
+        return <MessageSquare size={14} style={{ color: 'var(--info-foreground)' }} />;
       case 'call':
-        return <PhoneCall size={14} style={{ color: 'hsl(142 76% 65%)' }} />;
+        return <PhoneCall size={14} style={{ color: 'var(--success-foreground)' }} />;
       case 'email':
-        return <Mail size={14} style={{ color: 'hsl(199 89% 65%)' }} />;
+        return <Mail size={14} style={{ color: 'var(--info-foreground)' }} />;
       case 'meeting':
-        return <Users size={14} style={{ color: 'hsl(262 83% 65%)' }} />;
+        return <Users size={14} style={{ color: 'var(--foreground)' }} />;
       case 'stage_change':
-        return <ArrowRight size={14} style={{ color: 'hsl(38 92% 65%)' }} />;
+        return <ArrowRight size={14} style={{ color: 'var(--warning-foreground)' }} />;
       case 'payment_recorded':
       case 'payment_updated':
-        return <Banknote size={14} style={{ color: 'hsl(142 76% 65%)' }} />;
+        return <Banknote size={14} style={{ color: 'var(--success-foreground)' }} />;
       default:
-        return <Activity size={14} style={{ color: 'hsl(220 14% 65%)' }} />;
+        return <Activity size={14} style={{ color: 'var(--muted-foreground)' }} />;
     }
   }
 
-  const currentColors = STAGE_CONFIG[deal.stage] || { label: deal.stage, bg: 'hsla(0 0% 100% / 0.1)', text: 'white' };
+  const currentColors = STAGE_CONFIG[deal.stage] || { label: deal.stage, bg: 'var(--surface-muted)', text: 'var(--foreground)', border: 'var(--border)' };
   const paymentMethodLabel = PAYMENT_METHODS.find((pm) => pm.value === deal.payment_method)?.label || deal.payment_method || '—';
 
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '1.5rem' }}>
+    <div style={{ maxWidth: '1100px', margin: '0 auto', color: 'var(--foreground)' }}>
       {/* Back button */}
       <Link
         href="/crm/deals"
@@ -285,7 +285,7 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
           display: 'inline-flex',
           alignItems: 'center',
           gap: '0.375rem',
-          color: 'hsl(220 14% 65%)',
+          color: 'var(--muted-foreground)',
           textDecoration: 'none',
           fontSize: '0.875rem',
           marginBottom: '1rem',
@@ -300,10 +300,10 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
         <div
           style={{
             padding: '0.75rem 1rem',
-            borderRadius: '0.5rem',
-            background: 'hsla(142 76% 36% / 0.15)',
-            border: '1px solid hsl(142 76% 36% / 0.3)',
-            color: 'hsl(142 76% 65%)',
+            borderRadius: 'var(--radius)',
+            background: 'var(--success)',
+            border: '1px solid var(--success-border)',
+            color: 'var(--success-foreground)',
             fontSize: '0.875rem',
             display: 'flex',
             alignItems: 'center',
@@ -320,10 +320,10 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
         <div
           style={{
             padding: '0.75rem 1rem',
-            borderRadius: '0.5rem',
-            background: 'hsla(0 84% 60% / 0.15)',
-            border: '1px solid hsl(0 84% 60% / 0.3)',
-            color: 'hsl(0 84% 75%)',
+            borderRadius: 'var(--radius)',
+            background: 'var(--destructive)',
+            border: '1px solid var(--destructive-border)',
+            color: 'var(--destructive-foreground)',
             fontSize: '0.875rem',
             display: 'flex',
             alignItems: 'center',
@@ -339,17 +339,18 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
       {/* Deal Overview Card */}
       <div
         style={{
-          background: 'hsl(222 47% 12%)',
-          border: '1px solid hsla(0 0% 100% / 0.08)',
-          borderRadius: '0.75rem',
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
           padding: '1.75rem',
           marginBottom: '1.5rem',
+          boxShadow: 'var(--shadow-card)',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-0.025em', margin: 0 }}>
                 {deal.title}
               </h1>
               <span
@@ -362,6 +363,7 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                   fontWeight: 600,
                   background: currentColors.bg,
                   color: currentColors.text,
+                  border: `1px solid ${currentColors.border || 'transparent'}`,
                 }}
               >
                 {currentColors.label}
@@ -371,23 +373,23 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
             <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.875rem' }}>
               <Link
                 href={`/crm/customers/${deal.customer_id}`}
-                style={{ color: 'hsl(217 91% 70%)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.375rem' }}
+                style={{ color: 'var(--foreground)', fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.375rem' }}
               >
-                <Building size={14} />
+                <Building size={14} style={{ color: 'var(--muted-foreground)' }} />
                 {deal.customer?.full_name}
               </Link>
-              <span style={{ color: 'hsl(220 14% 70%)', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                <UserCheck size={14} style={{ color: 'hsl(220 14% 50%)' }} />
-                Rep: <strong style={{ color: 'white' }}>{deal.assigned_to_employee?.full_name}</strong>
+              <span style={{ color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                <UserCheck size={14} style={{ color: 'var(--muted-foreground)' }} />
+                Rep: <strong style={{ color: 'var(--foreground)' }}>{deal.assigned_to_employee?.full_name}</strong>
               </span>
             </div>
           </div>
 
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.75rem', color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>
               Total Deal Amount
             </div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'white' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--foreground)' }}>
               {formatCurrency(dealTotal)}
             </div>
             {canReassign && (
@@ -396,12 +398,12 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                 style={{
                   marginTop: '0.5rem',
                   padding: '0.375rem 0.75rem',
-                  borderRadius: '0.375rem',
-                  background: 'hsl(262 83% 58% / 0.15)',
-                  border: '1px solid hsl(262 83% 58% / 0.3)',
-                  color: 'hsl(262 83% 75%)',
+                  borderRadius: 'var(--radius)',
+                  background: 'var(--accent)',
+                  border: '1px solid rgba(174, 172, 120, 0.4)',
+                  color: 'var(--foreground)',
                   fontSize: '0.75rem',
-                  fontWeight: 500,
+                  fontWeight: 600,
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -415,10 +417,10 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
           </div>
         </div>
 
-        {/* Status Progression Bar: 4 Core Statuses (New, Follow-up, Won, Lost) */}
+        {/* Status Progression Bar */}
         {canWrite && (
-          <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid hsla(0 0% 100% / 0.06)' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(220 14% 50%)', textTransform: 'uppercase', marginBottom: '0.625rem' }}>
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase', marginBottom: '0.625rem' }}>
               Deal Status
             </div>
             <div
@@ -441,12 +443,12 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                     onClick={() => handleStageClick(s.value)}
                     style={{
                       padding: '0.625rem 0.5rem',
-                      borderRadius: '0.375rem',
+                      borderRadius: 'var(--radius)',
                       fontSize: '0.8125rem',
                       fontWeight: isCurrentActive ? 700 : 500,
-                      background: isCurrentActive ? colors.bg : 'hsl(222 47% 10%)',
-                      border: isCurrentActive ? `1px solid ${colors.text}` : '1px solid hsla(0 0% 100% / 0.06)',
-                      color: isCurrentActive ? colors.text : 'hsl(220 14% 65%)',
+                      background: isCurrentActive ? colors.bg : 'var(--surface-muted)',
+                      border: isCurrentActive ? `1px solid ${colors.border || 'transparent'}` : '1px solid var(--border)',
+                      color: isCurrentActive ? colors.text : 'var(--muted-foreground)',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
                       textAlign: 'center',
@@ -460,21 +462,21 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
           </div>
         )}
 
-        {/* Financial Information Card (Won / Completed deals) */}
+        {/* Financial Information Card (Won deals) */}
         {deal.stage === 'won' && (
           <div
             style={{
               marginTop: '1.5rem',
               padding: '1.25rem',
-              borderRadius: '0.625rem',
-              background: 'hsla(142 76% 36% / 0.08)',
-              border: '1px solid hsla(142 76% 36% / 0.25)',
+              borderRadius: 'var(--radius)',
+              background: 'var(--success)',
+              border: '1px solid var(--success-border)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'hsl(142 76% 65%)', fontWeight: 600, fontSize: '0.9375rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success-foreground)', fontWeight: 600, fontSize: '0.9375rem' }}>
                 <Banknote size={18} />
-                Payment & Financial Breakdown (EGP)
+                Payment &amp; Financial Breakdown (EGP)
               </div>
               {canWrite && (
                 <button
@@ -484,13 +486,14 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                     alignItems: 'center',
                     gap: '0.375rem',
                     padding: '0.375rem 0.75rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(142 76% 36%)',
-                    border: 'none',
-                    color: 'white',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--primary)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
+                    color: 'var(--primary-foreground)',
                     fontSize: '0.75rem',
                     fontWeight: 600,
                     cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
                   }}
                 >
                   <CreditCard size={13} />
@@ -500,30 +503,30 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
-              <div style={{ background: 'hsl(222 47% 9%)', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid hsla(0 0% 100% / 0.05)' }}>
-                <span style={{ fontSize: '0.75rem', color: 'hsl(220 14% 60%)', display: 'block' }}>Total Amount</span>
-                <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'white' }}>
+              <div style={{ background: 'var(--card)', padding: '0.75rem 1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', display: 'block' }}>Total Amount</span>
+                <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--foreground)' }}>
                   {formatCurrency(dealTotal)}
                 </span>
               </div>
 
-              <div style={{ background: 'hsl(222 47% 9%)', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid hsla(0 0% 100% / 0.05)' }}>
-                <span style={{ fontSize: '0.75rem', color: 'hsl(220 14% 60%)', display: 'block' }}>Paid Amount</span>
-                <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'hsl(142 76% 65%)' }}>
+              <div style={{ background: 'var(--card)', padding: '0.75rem 1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', display: 'block' }}>Paid Amount</span>
+                <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--success-foreground)' }}>
                   {formatCurrency(dealPaid)}
                 </span>
               </div>
 
-              <div style={{ background: 'hsl(222 47% 9%)', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid hsla(0 0% 100% / 0.05)' }}>
-                <span style={{ fontSize: '0.75rem', color: 'hsl(220 14% 60%)', display: 'block' }}>Remaining Balance</span>
-                <span style={{ fontSize: '1.125rem', fontWeight: 700, color: dealRemaining > 0 ? 'hsl(38 92% 65%)' : 'hsl(142 76% 65%)' }}>
+              <div style={{ background: 'var(--card)', padding: '0.75rem 1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', display: 'block' }}>Remaining Balance</span>
+                <span style={{ fontSize: '1.125rem', fontWeight: 700, color: dealRemaining > 0 ? 'var(--warning-foreground)' : 'var(--success-foreground)' }}>
                   {formatCurrency(dealRemaining)}
                 </span>
               </div>
 
-              <div style={{ background: 'hsl(222 47% 9%)', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid hsla(0 0% 100% / 0.05)' }}>
-                <span style={{ fontSize: '0.75rem', color: 'hsl(220 14% 60%)', display: 'block' }}>Payment Method</span>
-                <span style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'hsl(220 14% 85%)' }}>
+              <div style={{ background: 'var(--card)', padding: '0.75rem 1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', display: 'block' }}>Payment Method</span>
+                <span style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--foreground)' }}>
                   {paymentMethodLabel}
                 </span>
               </div>
@@ -537,18 +540,18 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
             style={{
               marginTop: '1rem',
               padding: '0.75rem 1rem',
-              borderRadius: '0.5rem',
-              background: 'hsla(0 84% 60% / 0.1)',
-              border: '1px solid hsla(0 84% 60% / 0.25)',
+              borderRadius: 'var(--radius)',
+              background: 'var(--destructive)',
+              border: '1px solid var(--destructive-border)',
               display: 'flex',
               alignItems: 'flex-start',
               gap: '0.5rem',
             }}
           >
-            <AlertCircle size={16} style={{ color: 'hsl(0 84% 75%)', flexShrink: 0, marginTop: '2px' }} />
+            <AlertCircle size={16} style={{ color: 'var(--destructive-foreground)', flexShrink: 0, marginTop: '2px' }} />
             <div>
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(0 84% 75%)' }}>Lost Reason</div>
-              <div style={{ fontSize: '0.875rem', color: 'hsl(0 84% 90%)', marginTop: '0.125rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--destructive-foreground)' }}>Lost Reason</div>
+              <div style={{ fontSize: '0.875rem', color: 'var(--destructive-foreground)', marginTop: '0.125rem' }}>
                 {deal.lost_reason}
               </div>
             </div>
@@ -563,24 +566,24 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
             gap: '1rem',
             marginTop: '1.25rem',
             paddingTop: '1rem',
-            borderTop: '1px solid hsla(0 0% 100% / 0.06)',
+            borderTop: '1px solid var(--border)',
             fontSize: '0.8125rem',
           }}
         >
           <div>
-            <span style={{ color: 'hsl(220 14% 50%)', display: 'block' }}>Expected Close Date</span>
-            <span style={{ color: 'white', fontWeight: 500 }}>
+            <span style={{ color: 'var(--muted-foreground)', display: 'block' }}>Expected Close Date</span>
+            <span style={{ color: 'var(--foreground)', fontWeight: 500 }}>
               {deal.expected_close_date ? formatDate(deal.expected_close_date) : 'Not specified'}
             </span>
           </div>
           <div>
-            <span style={{ color: 'hsl(220 14% 50%)', display: 'block' }}>Created Date</span>
-            <span style={{ color: 'white', fontWeight: 500 }}>{formatDate(deal.created_at)}</span>
+            <span style={{ color: 'var(--muted-foreground)', display: 'block' }}>Created Date</span>
+            <span style={{ color: 'var(--foreground)', fontWeight: 500 }}>{formatDate(deal.created_at)}</span>
           </div>
           {deal.notes && (
             <div style={{ gridColumn: '1 / -1' }}>
-              <span style={{ color: 'hsl(220 14% 50%)', display: 'block', marginBottom: '0.25rem' }}>Notes</span>
-              <p style={{ color: 'hsl(220 14% 80%)', whiteSpace: 'pre-wrap' }}>{deal.notes}</p>
+              <span style={{ color: 'var(--muted-foreground)', display: 'block', marginBottom: '0.25rem' }}>Notes</span>
+              <p style={{ color: 'var(--foreground)', whiteSpace: 'pre-wrap', margin: 0 }}>{deal.notes}</p>
             </div>
           )}
         </div>
@@ -590,13 +593,14 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
         <div
           style={{
-            background: 'hsl(222 47% 12%)',
-            border: '1px solid hsla(0 0% 100% / 0.08)',
-            borderRadius: '0.75rem',
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
             padding: '1.5rem',
+            boxShadow: 'var(--shadow-card)',
           }}
         >
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white', marginBottom: '1.25rem' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)', marginBottom: '1.25rem' }}>
             Activity Timeline ({deal.activities?.length || 0})
           </h2>
 
@@ -605,9 +609,9 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
             <form onSubmit={handleAddActivity} style={{ marginBottom: '1.5rem' }}>
               <div
                 style={{
-                  background: 'hsl(222 47% 9%)',
-                  border: '1px solid hsla(0 0% 100% / 0.1)',
-                  borderRadius: '0.5rem',
+                  background: 'var(--surface-muted)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
                   padding: '0.75rem',
                 }}
               >
@@ -619,12 +623,12 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                       onClick={() => setActivityType(t)}
                       style={{
                         padding: '0.25rem 0.625rem',
-                        borderRadius: '0.25rem',
+                        borderRadius: 'var(--radius)',
                         fontSize: '0.75rem',
                         fontWeight: activityType === t ? 600 : 400,
-                        background: activityType === t ? 'hsl(217 91% 50%)' : 'hsl(222 47% 14%)',
-                        border: 'none',
-                        color: 'white',
+                        background: activityType === t ? 'var(--primary)' : 'var(--card)',
+                        border: activityType === t ? '1px solid rgba(174, 172, 120, 0.4)' : '1px solid var(--border)',
+                        color: activityType === t ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
                         cursor: 'pointer',
                         textTransform: 'capitalize',
                       }}
@@ -643,7 +647,7 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                     width: '100%',
                     background: 'transparent',
                     border: 'none',
-                    color: 'white',
+                    color: 'var(--foreground)',
                     fontSize: '0.875rem',
                     outline: 'none',
                     resize: 'vertical',
@@ -659,14 +663,15 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                       alignItems: 'center',
                       gap: '0.375rem',
                       padding: '0.375rem 0.875rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(217 91% 50%)',
-                      border: 'none',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--primary)',
+                      border: '1px solid rgba(174, 172, 120, 0.4)',
+                      color: 'var(--primary-foreground)',
                       fontSize: '0.8125rem',
                       fontWeight: 600,
                       cursor: 'pointer',
                       opacity: !activityContent.trim() ? 0.5 : 1,
+                      boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
                     }}
                   >
                     {isPending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
@@ -679,7 +684,7 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
 
           {/* Timeline Stream */}
           {(!deal.activities || deal.activities.length === 0) ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: 'hsl(220 14% 50%)', fontSize: '0.875rem' }}>
+            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-foreground)', fontSize: '0.875rem' }}>
               No activities logged yet.
             </div>
           ) : (
@@ -691,9 +696,9 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                     display: 'flex',
                     gap: '0.75rem',
                     padding: '0.875rem',
-                    background: 'hsl(222 47% 10%)',
-                    border: '1px solid hsla(0 0% 100% / 0.04)',
-                    borderRadius: '0.5rem',
+                    background: 'var(--surface-muted)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
                   }}
                 >
                   <div
@@ -701,7 +706,8 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                       width: '28px',
                       height: '28px',
                       borderRadius: '50%',
-                      background: 'hsl(222 47% 16%)',
+                      background: 'var(--card)',
+                      border: '1px solid var(--border)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -717,16 +723,16 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                           fontSize: '0.6875rem',
                           fontWeight: 600,
                           textTransform: 'uppercase',
-                          color: 'hsl(220 14% 55%)',
+                          color: 'var(--muted-foreground)',
                         }}
                       >
                         {act.type.replace('_', ' ')}
                       </span>
-                      <span style={{ fontSize: '0.75rem', color: 'hsl(220 14% 50%)' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                         {formatDateTime(act.created_at)}
                       </span>
                     </div>
-                    <div style={{ fontSize: '0.875rem', color: 'hsl(220 14% 90%)', whiteSpace: 'pre-wrap' }}>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--foreground)', whiteSpace: 'pre-wrap' }}>
                       {act.content}
                     </div>
                   </div>
@@ -743,7 +749,7 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
+            background: 'rgba(76, 69, 65, 0.45)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
@@ -754,23 +760,23 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 0% 100% / 0.1)',
-              borderRadius: '0.75rem',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '480px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: 'var(--shadow-card)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Banknote size={20} style={{ color: 'hsl(142 76% 65%)' }} />
-                <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>Mark Deal as Won</h2>
+                <Banknote size={20} style={{ color: 'var(--success-foreground)' }} />
+                <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Mark Deal as Won</h2>
               </div>
               <button
                 onClick={() => setShowWonModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'hsl(220 14% 60%)', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
@@ -780,7 +786,7 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 75%)', marginBottom: '0.375rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                       Total Amount (EGP) *
                     </label>
                     <input
@@ -794,17 +800,17 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                       style={{
                         width: '100%',
                         padding: '0.5rem 0.75rem',
-                        borderRadius: '0.375rem',
-                        background: 'hsl(222 47% 9%)',
-                        border: '1px solid hsla(0 0% 100% / 0.15)',
-                        color: 'white',
+                        borderRadius: 'var(--radius)',
+                        background: 'var(--surface-muted)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--foreground)',
                         fontSize: '0.875rem',
                       }}
                     />
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 75%)', marginBottom: '0.375rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                       Paid Amount (EGP) *
                     </label>
                     <input
@@ -818,10 +824,10 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                       style={{
                         width: '100%',
                         padding: '0.5rem 0.75rem',
-                        borderRadius: '0.375rem',
-                        background: 'hsl(222 47% 9%)',
-                        border: `1px solid ${isWonOverpaid ? 'hsl(0 84% 60%)' : 'hsla(0 0% 100% / 0.15)'}`,
-                        color: 'white',
+                        borderRadius: 'var(--radius)',
+                        background: 'var(--surface-muted)',
+                        border: `1px solid ${isWonOverpaid ? 'var(--destructive-border)' : 'var(--border)'}`,
+                        color: 'var(--foreground)',
                         fontSize: '0.875rem',
                       }}
                     />
@@ -829,7 +835,7 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 75%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Remaining Amount (EGP)
                   </label>
                   <input
@@ -840,29 +846,29 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 7%)',
-                      border: '1px solid hsla(0 0% 100% / 0.08)',
-                      color: wonRemainingAmount > 0 ? 'hsl(38 92% 65%)' : 'hsl(142 76% 65%)',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: wonRemainingAmount > 0 ? 'var(--warning-foreground)' : 'var(--success-foreground)',
                       fontSize: '0.875rem',
                       fontWeight: 600,
                       cursor: 'not-allowed',
                     }}
                   />
-                  <span style={{ fontSize: '0.7rem', color: 'hsl(220 14% 50%)', marginTop: '0.25rem', display: 'block' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', marginTop: '0.25rem', display: 'block' }}>
                     Calculated automatically by system: Total Amount − Paid Amount
                   </span>
                 </div>
 
                 {isWonOverpaid && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'hsl(0 84% 70%)', fontSize: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'var(--destructive-foreground)', fontSize: '0.75rem' }}>
                     <AlertTriangle size={14} />
                     Paid amount cannot exceed total amount.
                   </div>
                 )}
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 75%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Payment Method *
                   </label>
                   <select
@@ -871,10 +877,10 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.15)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                     }}
                   >
@@ -893,10 +899,10 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                   onClick={() => setShowWonModal(false)}
                   style={{
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
+                    borderRadius: 'var(--radius)',
                     background: 'transparent',
-                    border: '1px solid hsla(0 0% 100% / 0.1)',
-                    color: 'hsl(220 14% 70%)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--muted-foreground)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
                   }}
@@ -910,15 +916,16 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(142 76% 36%)',
-                    border: 'none',
-                    color: 'white',
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--primary)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
+                    color: 'var(--primary-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: isWonOverpaid ? 'not-allowed' : 'pointer',
                     opacity: isWonOverpaid ? 0.6 : 1,
+                    boxShadow: '0 2px 6px rgba(76, 69, 65, 0.08)',
                   }}
                 >
                   {isPending && <Loader2 size={14} className="animate-spin" />}
@@ -936,7 +943,7 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
+            background: 'rgba(76, 69, 65, 0.45)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
@@ -947,23 +954,23 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 0% 100% / 0.1)',
-              borderRadius: '0.75rem',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '460px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: 'var(--shadow-card)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <CreditCard size={18} style={{ color: 'hsl(142 76% 65%)' }} />
-                <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>Update Payment Details</h2>
+                <CreditCard size={18} style={{ color: 'var(--success-foreground)' }} />
+                <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Update Payment Details</h2>
               </div>
               <button
                 onClick={() => setShowPaymentModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'hsl(220 14% 60%)', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
@@ -973,9 +980,9 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div
                   style={{
-                    background: 'hsl(222 47% 9%)',
-                    border: '1px solid hsla(0 0% 100% / 0.08)',
-                    borderRadius: '0.5rem',
+                    background: 'var(--surface-muted)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
                     padding: '0.875rem',
                     display: 'flex',
                     flexDirection: 'column',
@@ -983,17 +990,17 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem' }}>
-                    <span style={{ color: 'hsl(220 14% 65%)' }}>Total Deal Amount:</span>
-                    <strong style={{ color: 'white' }}>{formatCurrency(dealTotal)}</strong>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Total Deal Amount:</span>
+                    <strong style={{ color: 'var(--foreground)' }}>{formatCurrency(dealTotal)}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem' }}>
-                    <span style={{ color: 'hsl(220 14% 65%)' }}>Previously Paid:</span>
-                    <span style={{ color: 'hsl(142 76% 65%)', fontWeight: 600 }}>{formatCurrency(dealPaid)}</span>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Previously Paid:</span>
+                    <span style={{ color: 'var(--success-foreground)', fontWeight: 600 }}>{formatCurrency(dealPaid)}</span>
                   </div>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     New Total Paid Amount (EGP) *
                   </label>
                   <input
@@ -1007,17 +1014,17 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Remaining Balance (EGP)
                   </label>
                   <input
@@ -1028,10 +1035,10 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 7%)',
-                      border: '1px solid hsla(0 0% 100% / 0.08)',
-                      color: 'hsl(38 92% 65%)',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--warning-foreground)',
                       fontSize: '0.875rem',
                       fontWeight: 600,
                       cursor: 'not-allowed',
@@ -1040,7 +1047,7 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Payment Method *
                   </label>
                   <select
@@ -1049,10 +1056,10 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                     }}
                   >
@@ -1071,10 +1078,10 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                   onClick={() => setShowPaymentModal(false)}
                   style={{
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
+                    borderRadius: 'var(--radius)',
                     background: 'transparent',
-                    border: '1px solid hsla(0 0% 100% / 0.1)',
-                    color: 'hsl(220 14% 70%)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--muted-foreground)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
                   }}
@@ -1088,14 +1095,15 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(142 76% 36%)',
-                    border: 'none',
-                    color: 'white',
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--primary)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
+                    color: 'var(--primary-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(76, 69, 65, 0.08)',
                   }}
                 >
                   {isPending && <Loader2 size={14} className="animate-spin" />}
@@ -1113,7 +1121,7 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
+            background: 'rgba(76, 69, 65, 0.45)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
@@ -1124,20 +1132,20 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 0% 100% / 0.1)',
-              borderRadius: '0.75rem',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '460px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: 'var(--shadow-card)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>Mark Deal as Lost</h2>
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Mark Deal as Lost</h2>
               <button
                 onClick={() => setShowLostModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'hsl(220 14% 60%)', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
@@ -1145,7 +1153,7 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
 
             <form onSubmit={handleLostSubmit}>
               <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(0 84% 75%)', marginBottom: '0.375rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--destructive-foreground)', marginBottom: '0.375rem' }}>
                   Reason for Loss (Mandatory) *
                 </label>
                 <textarea
@@ -1156,10 +1164,10 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                   style={{
                     width: '100%',
                     padding: '0.5rem 0.75rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(222 47% 9%)',
-                    border: '1px solid hsla(0 0% 100% / 0.12)',
-                    color: 'white',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--surface-muted)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
                     fontSize: '0.875rem',
                     resize: 'vertical',
                   }}
@@ -1172,10 +1180,10 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                   onClick={() => setShowLostModal(false)}
                   style={{
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
+                    borderRadius: 'var(--radius)',
                     background: 'transparent',
-                    border: '1px solid hsla(0 0% 100% / 0.1)',
-                    color: 'hsl(220 14% 70%)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--muted-foreground)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
                   }}
@@ -1189,11 +1197,11 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(0 84% 60%)',
-                    border: 'none',
-                    color: 'white',
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--destructive)',
+                    border: '1px solid var(--destructive-border)',
+                    color: 'var(--destructive-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -1214,7 +1222,7 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
+            background: 'rgba(76, 69, 65, 0.45)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
@@ -1225,20 +1233,20 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 0% 100% / 0.1)',
-              borderRadius: '0.75rem',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '460px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: 'var(--shadow-card)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>Reassign Deal</h2>
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Reassign Deal</h2>
               <button
                 onClick={() => setShowReassignModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'hsl(220 14% 60%)', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
@@ -1246,7 +1254,7 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
 
             <form onSubmit={handleReassignSubmit}>
               <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                   Select New Assignee *
                 </label>
                 <select
@@ -1256,10 +1264,10 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                   style={{
                     width: '100%',
                     padding: '0.5rem 0.75rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(222 47% 9%)',
-                    border: '1px solid hsla(0 0% 100% / 0.12)',
-                    color: 'white',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--surface-muted)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
                     fontSize: '0.875rem',
                   }}
                 >
@@ -1277,10 +1285,10 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                   onClick={() => setShowReassignModal(false)}
                   style={{
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
+                    borderRadius: 'var(--radius)',
                     background: 'transparent',
-                    border: '1px solid hsla(0 0% 100% / 0.1)',
-                    color: 'hsl(220 14% 70%)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--muted-foreground)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
                   }}
@@ -1294,14 +1302,15 @@ export function DealDetailClient({ deal, assignees, user }: DealDetailClientProp
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(262 83% 58%)',
-                    border: 'none',
-                    color: 'white',
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--primary)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
+                    color: 'var(--primary-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(76, 69, 65, 0.08)',
                   }}
                 >
                   {isPending && <Loader2 size={14} className="animate-spin" />}

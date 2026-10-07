@@ -33,16 +33,16 @@ interface DealsClientProps {
   initialCustomerId?: string;
 }
 
-const STAGE_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
-  new: { label: 'New', bg: 'hsla(217 91% 60% / 0.15)', text: 'hsl(217 91% 70%)' },
-  follow_up: { label: 'Follow-up', bg: 'hsla(38 92% 50% / 0.15)', text: 'hsl(38 92% 65%)' },
-  won: { label: 'Won', bg: 'hsla(142 76% 36% / 0.15)', text: 'hsl(142 76% 65%)' },
-  lost: { label: 'Lost', bg: 'hsla(0 84% 60% / 0.15)', text: 'hsl(0 84% 75%)' },
+const STAGE_CONFIG: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  new: { label: 'New', bg: 'var(--info)', text: 'var(--info-foreground)', border: 'var(--info-border)' },
+  follow_up: { label: 'Follow-up', bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
+  won: { label: 'Won', bg: 'var(--success)', text: 'var(--success-foreground)', border: 'var(--success-border)' },
+  lost: { label: 'Lost', bg: 'var(--destructive)', text: 'var(--destructive-foreground)', border: 'var(--destructive-border)' },
   // Backward-compatibility fallbacks
-  contacted: { label: 'Follow-up', bg: 'hsla(38 92% 50% / 0.15)', text: 'hsl(38 92% 65%)' },
-  qualified: { label: 'Follow-up', bg: 'hsla(38 92% 50% / 0.15)', text: 'hsl(38 92% 65%)' },
-  proposal: { label: 'Follow-up', bg: 'hsla(38 92% 50% / 0.15)', text: 'hsl(38 92% 65%)' },
-  negotiation: { label: 'Follow-up', bg: 'hsla(38 92% 50% / 0.15)', text: 'hsl(38 92% 65%)' },
+  contacted: { label: 'Follow-up', bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
+  qualified: { label: 'Follow-up', bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
+  proposal: { label: 'Follow-up', bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
+  negotiation: { label: 'Follow-up', bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
 };
 
 const DEAL_STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -254,7 +254,7 @@ export function DealsClient({
   }
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem' }}>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', color: 'var(--foreground)' }}>
       {/* Header */}
       <div
         style={{
@@ -266,16 +266,31 @@ export function DealsClient({
           gap: '1rem',
         }}
       >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Handshake size={24} style={{ color: 'hsl(217 91% 60%)' }} />
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div
+            style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: 'var(--radius)',
+              backgroundColor: 'var(--primary)',
+              color: 'var(--primary-foreground)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid rgba(174, 172, 120, 0.4)',
+              boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
+            }}
+          >
+            <Handshake size={22} />
+          </div>
+          <div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--foreground)', margin: 0, letterSpacing: '-0.02em' }}>
               Deals
             </h1>
+            <p style={{ color: 'var(--muted-foreground)', fontSize: '0.875rem', margin: 0 }}>
+              Track and manage customer deals, follow-ups, and payment settlements.
+            </p>
           </div>
-          <p style={{ color: 'hsl(220 14% 65%)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-            Track and manage customer deals, follow-ups, and payment settlements.
-          </p>
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -286,15 +301,15 @@ export function DealsClient({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                padding: '0.625rem 1rem',
-                borderRadius: '0.5rem',
-                background: 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
-                color: 'white',
+                padding: '0.625rem 1.25rem',
+                borderRadius: 'var(--radius)',
+                backgroundColor: 'var(--primary)',
+                color: 'var(--primary-foreground)',
                 fontSize: '0.875rem',
                 fontWeight: 600,
-                border: 'none',
+                border: '1px solid rgba(174, 172, 120, 0.4)',
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px hsla(217 91% 60% / 0.25)',
+                boxShadow: '0 2px 6px rgba(76, 69, 65, 0.08)',
               }}
             >
               <Plus size={16} />
@@ -309,10 +324,10 @@ export function DealsClient({
         <div
           style={{
             padding: '0.75rem 1rem',
-            borderRadius: '0.5rem',
-            background: 'hsla(142 76% 36% / 0.15)',
-            border: '1px solid hsl(142 76% 36% / 0.3)',
-            color: 'hsl(142 76% 65%)',
+            borderRadius: 'var(--radius)',
+            background: 'var(--success)',
+            border: '1px solid var(--success-border)',
+            color: 'var(--success-foreground)',
             fontSize: '0.875rem',
             display: 'flex',
             alignItems: 'center',
@@ -329,10 +344,10 @@ export function DealsClient({
         <div
           style={{
             padding: '0.75rem 1rem',
-            borderRadius: '0.5rem',
-            background: 'hsla(0 84% 60% / 0.15)',
-            border: '1px solid hsl(0 84% 60% / 0.3)',
-            color: 'hsl(0 84% 75%)',
+            borderRadius: 'var(--radius)',
+            background: 'var(--destructive)',
+            border: '1px solid var(--destructive-border)',
+            color: 'var(--destructive-foreground)',
             fontSize: '0.875rem',
             display: 'flex',
             alignItems: 'center',
@@ -345,22 +360,23 @@ export function DealsClient({
         </div>
       )}
 
-      {/* Filters: Search & Status Filter ONLY */}
+      {/* Filters: Search & Status Filter */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            background: 'hsl(222 47% 14%)',
-            border: '1px solid hsla(0 0% 100% / 0.08)',
-            borderRadius: '0.5rem',
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
             padding: '0.5rem 0.75rem',
             maxWidth: '320px',
             flex: 1,
+            boxShadow: '0 1px 2px rgba(76, 69, 65, 0.03)',
           }}
         >
-          <Search size={16} style={{ color: 'hsl(220 14% 50%)' }} />
+          <Search size={16} style={{ color: 'var(--muted-foreground)' }} />
           <input
             type="text"
             placeholder="Search deals or customers..."
@@ -369,7 +385,7 @@ export function DealsClient({
             style={{
               background: 'transparent',
               border: 'none',
-              color: 'white',
+              color: 'var(--foreground)',
               fontSize: '0.875rem',
               outline: 'none',
               width: '100%',
@@ -382,27 +398,28 @@ export function DealsClient({
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            background: 'hsl(222 47% 14%)',
-            border: '1px solid hsla(0 0% 100% / 0.08)',
-            borderRadius: '0.5rem',
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
             padding: '0.5rem 0.75rem',
+            boxShadow: '0 1px 2px rgba(76, 69, 65, 0.03)',
           }}
         >
-          <Filter size={16} style={{ color: 'hsl(220 14% 50%)' }} />
+          <Filter size={16} style={{ color: 'var(--muted-foreground)' }} />
           <select
             value={stageFilter}
             onChange={(e) => setStageFilter(e.target.value)}
             style={{
               background: 'transparent',
               border: 'none',
-              color: 'white',
+              color: 'var(--foreground)',
               fontSize: '0.875rem',
               outline: 'none',
               cursor: 'pointer',
             }}
           >
             {DEAL_STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value} style={{ background: 'hsl(222 47% 11%)' }}>
+              <option key={opt.value} value={opt.value} style={{ background: 'var(--card)', color: 'var(--foreground)' }}>
                 {opt.label}
               </option>
             ))}
@@ -413,32 +430,32 @@ export function DealsClient({
       {/* Deals Table */}
       <div
         style={{
-          background: 'hsl(222 47% 12%)',
-          border: '1px solid hsla(0 0% 100% / 0.06)',
-          borderRadius: '0.75rem',
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
           overflow: 'hidden',
-          boxShadow: '0 4px 20px hsla(0 0% 0% / 0.2)',
+          boxShadow: 'var(--shadow-card)',
         }}
       >
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid hsla(0 0% 100% / 0.08)', background: 'hsl(222 47% 10%)' }}>
-              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>
+            <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)' }}>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>
                 Deal / Customer
               </th>
-              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>
                 Status
               </th>
-              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>
                 Total Amount
               </th>
-              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>
                 Paid / Balance
               </th>
-              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>
                 Assigned Rep
               </th>
-              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(220 14% 50%)', textTransform: 'uppercase', textAlign: 'right' }}>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase', textAlign: 'right' }}>
                 Actions
               </th>
             </tr>
@@ -446,13 +463,13 @@ export function DealsClient({
           <tbody>
             {filteredDeals.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ padding: '2.5rem', textAlign: 'center', color: 'hsl(220 14% 50%)' }}>
+                <td colSpan={6} style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--muted-foreground)' }}>
                   No deals found.
                 </td>
               </tr>
             ) : (
               filteredDeals.map((deal) => {
-                const colors = STAGE_CONFIG[deal.stage] || { label: deal.stage, bg: 'hsla(0 0% 100% / 0.1)', text: 'white' };
+                const colors = STAGE_CONFIG[deal.stage] || { label: deal.stage, bg: 'var(--surface-muted)', text: 'var(--foreground)', border: 'var(--border)' };
                 const isOwner = deal.assigned_to === user.employee.id || deal.created_by === user.employee.id;
                 const canModify = canWrite && (isOwner || hasPermission(user, 'crm.deals.read_all'));
                 const canReassignThis = canReassign && (isOwner || hasPermission(user, 'crm.deals.read_all'));
@@ -464,10 +481,10 @@ export function DealsClient({
                   <tr
                     key={deal.id}
                     style={{
-                      borderBottom: '1px solid hsla(0 0% 100% / 0.04)',
+                      borderBottom: '1px solid var(--border)',
                       transition: 'background 0.15s ease',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'hsla(0 0% 100% / 0.02)')}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
                     <td style={{ padding: '0.875rem 1rem' }}>
@@ -475,14 +492,14 @@ export function DealsClient({
                         href={`/crm/deals/${deal.id}`}
                         style={{
                           fontWeight: 600,
-                          color: 'white',
+                          color: 'var(--foreground)',
                           textDecoration: 'none',
                           display: 'block',
                         }}
                       >
                         {deal.title}
                       </Link>
-                      <span style={{ fontSize: '0.75rem', color: 'hsl(220 14% 60%)' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                         {deal.customer?.full_name || 'Unknown Customer'}
                       </span>
                     </td>
@@ -497,35 +514,36 @@ export function DealsClient({
                           fontWeight: 600,
                           background: colors.bg,
                           color: colors.text,
+                          border: `1px solid ${colors.border || 'transparent'}`,
                         }}
                       >
                         {colors.label}
                       </span>
                     </td>
-                    <td style={{ padding: '0.875rem 1rem', color: 'white', fontWeight: 600, fontSize: '0.875rem' }}>
+                    <td style={{ padding: '0.875rem 1rem', color: 'var(--foreground)', fontWeight: 600, fontSize: '0.875rem' }}>
                       {formatCurrency(dealTotal)}
                     </td>
                     <td style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem' }}>
                       {deal.stage === 'won' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
-                          <span style={{ color: 'hsl(142 76% 65%)', fontWeight: 600 }}>
+                          <span style={{ color: 'var(--success-foreground)', fontWeight: 600 }}>
                             Paid: {formatCurrency(dealPaid)}
                           </span>
                           {dealRemaining > 0 ? (
-                            <span style={{ color: 'hsl(38 92% 65%)', fontSize: '0.75rem' }}>
+                            <span style={{ color: 'var(--warning-foreground)', fontSize: '0.75rem' }}>
                               Rem: {formatCurrency(dealRemaining)}
                             </span>
                           ) : (
-                            <span style={{ color: 'hsl(220 14% 65%)', fontSize: '0.75rem' }}>
+                            <span style={{ color: 'var(--muted-foreground)', fontSize: '0.75rem' }}>
                               Fully Settled
                             </span>
                           )}
                         </div>
                       ) : (
-                        <span style={{ color: 'hsl(220 14% 45%)' }}>—</span>
+                        <span style={{ color: 'var(--muted-foreground)' }}>—</span>
                       )}
                     </td>
-                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: 'hsl(220 14% 70%)' }}>
+                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
                       {deal.assigned_to_employee?.full_name || '—'}
                     </td>
                     <td style={{ padding: '0.875rem 1rem', textAlign: 'right' }}>
@@ -535,9 +553,9 @@ export function DealsClient({
                           style={{
                             padding: '0.375rem',
                             borderRadius: '0.375rem',
-                            border: '1px solid hsla(0 0% 100% / 0.1)',
-                            background: 'transparent',
-                            color: 'hsl(220 14% 75%)',
+                            border: '1px solid var(--border)',
+                            background: 'var(--card)',
+                            color: 'var(--muted-foreground)',
                             display: 'inline-flex',
                           }}
                           title="View Details"
@@ -551,9 +569,9 @@ export function DealsClient({
                               style={{
                                 padding: '0.375rem',
                                 borderRadius: '0.375rem',
-                                border: '1px solid hsla(0 0% 100% / 0.1)',
-                                background: 'transparent',
-                                color: 'hsl(217 91% 70%)',
+                                border: '1px solid var(--info-border)',
+                                background: 'var(--info)',
+                                color: 'var(--info-foreground)',
                                 cursor: 'pointer',
                               }}
                               title="Change Status"
@@ -566,9 +584,9 @@ export function DealsClient({
                                 style={{
                                   padding: '0.375rem',
                                   borderRadius: '0.375rem',
-                                  border: '1px solid hsla(142 76% 36% / 0.3)',
-                                  background: 'hsla(142 76% 36% / 0.15)',
-                                  color: 'hsl(142 76% 65%)',
+                                  border: '1px solid var(--success-border)',
+                                  background: 'var(--success)',
+                                  color: 'var(--success-foreground)',
                                   cursor: 'pointer',
                                 }}
                                 title="Update Payment"
@@ -581,9 +599,9 @@ export function DealsClient({
                               style={{
                                 padding: '0.375rem',
                                 borderRadius: '0.375rem',
-                                border: '1px solid hsla(0 0% 100% / 0.1)',
-                                background: 'transparent',
-                                color: 'hsl(220 14% 75%)',
+                                border: '1px solid var(--border)',
+                                background: 'var(--card)',
+                                color: 'var(--foreground)',
                                 cursor: 'pointer',
                               }}
                               title="Edit Deal"
@@ -598,9 +616,9 @@ export function DealsClient({
                             style={{
                               padding: '0.375rem',
                               borderRadius: '0.375rem',
-                              border: '1px solid hsla(0 0% 100% / 0.1)',
-                              background: 'transparent',
-                              color: 'hsl(262 83% 70%)',
+                              border: '1px solid rgba(174, 172, 120, 0.4)',
+                              background: 'var(--accent)',
+                              color: 'var(--foreground)',
                               cursor: 'pointer',
                             }}
                             title="Reassign Deal"
@@ -624,7 +642,7 @@ export function DealsClient({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
+            background: 'rgba(76, 69, 65, 0.45)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
@@ -635,22 +653,22 @@ export function DealsClient({
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 0% 100% / 0.1)',
-              borderRadius: '0.75rem',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '540px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: 'var(--shadow-card)',
               maxHeight: '90vh',
               overflowY: 'auto',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>Create New Deal</h2>
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Create New Deal</h2>
               <button
                 onClick={() => setShowCreateModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'hsl(220 14% 60%)', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
@@ -659,7 +677,7 @@ export function DealsClient({
             <form onSubmit={handleCreateDeal}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Deal Title *
                   </label>
                   <input
@@ -669,10 +687,10 @@ export function DealsClient({
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                     }}
                   />
@@ -680,7 +698,7 @@ export function DealsClient({
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                       Customer *
                     </label>
                     <select
@@ -690,10 +708,10 @@ export function DealsClient({
                       style={{
                         width: '100%',
                         padding: '0.5rem 0.75rem',
-                        borderRadius: '0.375rem',
-                        background: 'hsl(222 47% 9%)',
-                        border: '1px solid hsla(0 0% 100% / 0.12)',
-                        color: 'white',
+                        borderRadius: 'var(--radius)',
+                        background: 'var(--surface-muted)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--foreground)',
                         fontSize: '0.875rem',
                       }}
                     >
@@ -707,7 +725,7 @@ export function DealsClient({
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                       Assigned Sales Rep *
                     </label>
                     <select
@@ -716,10 +734,10 @@ export function DealsClient({
                       style={{
                         width: '100%',
                         padding: '0.5rem 0.75rem',
-                        borderRadius: '0.375rem',
-                        background: 'hsl(222 47% 9%)',
-                        border: '1px solid hsla(0 0% 100% / 0.12)',
-                        color: 'white',
+                        borderRadius: 'var(--radius)',
+                        background: 'var(--surface-muted)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--foreground)',
                         fontSize: '0.875rem',
                       }}
                     >
@@ -734,7 +752,7 @@ export function DealsClient({
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                       Initial Status
                     </label>
                     <select
@@ -743,10 +761,10 @@ export function DealsClient({
                       style={{
                         width: '100%',
                         padding: '0.5rem 0.75rem',
-                        borderRadius: '0.375rem',
-                        background: 'hsl(222 47% 9%)',
-                        border: '1px solid hsla(0 0% 100% / 0.12)',
-                        color: 'white',
+                        borderRadius: 'var(--radius)',
+                        background: 'var(--surface-muted)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--foreground)',
                         fontSize: '0.875rem',
                       }}
                     >
@@ -756,7 +774,7 @@ export function DealsClient({
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                       Total Amount (EGP)
                     </label>
                     <input
@@ -768,10 +786,10 @@ export function DealsClient({
                       style={{
                         width: '100%',
                         padding: '0.5rem 0.75rem',
-                        borderRadius: '0.375rem',
-                        background: 'hsl(222 47% 9%)',
-                        border: '1px solid hsla(0 0% 100% / 0.12)',
-                        color: 'white',
+                        borderRadius: 'var(--radius)',
+                        background: 'var(--surface-muted)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--foreground)',
                         fontSize: '0.875rem',
                       }}
                     />
@@ -780,7 +798,7 @@ export function DealsClient({
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                       Expected Close Date
                     </label>
                     <input
@@ -789,10 +807,10 @@ export function DealsClient({
                       style={{
                         width: '100%',
                         padding: '0.5rem 0.75rem',
-                        borderRadius: '0.375rem',
-                        background: 'hsl(222 47% 9%)',
-                        border: '1px solid hsla(0 0% 100% / 0.12)',
-                        color: 'white',
+                        borderRadius: 'var(--radius)',
+                        background: 'var(--surface-muted)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--foreground)',
                         fontSize: '0.875rem',
                       }}
                     />
@@ -800,7 +818,7 @@ export function DealsClient({
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Notes
                   </label>
                   <textarea
@@ -810,10 +828,10 @@ export function DealsClient({
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                       resize: 'vertical',
                     }}
@@ -827,10 +845,10 @@ export function DealsClient({
                   onClick={() => setShowCreateModal(false)}
                   style={{
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
+                    borderRadius: 'var(--radius)',
                     background: 'transparent',
-                    border: '1px solid hsla(0 0% 100% / 0.1)',
-                    color: 'hsl(220 14% 70%)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--muted-foreground)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
                   }}
@@ -844,14 +862,15 @@ export function DealsClient({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(217 91% 50%)',
-                    border: 'none',
-                    color: 'white',
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--primary)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
+                    color: 'var(--primary-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(76, 69, 65, 0.08)',
                   }}
                 >
                   {isPending && <Loader2 size={14} className="animate-spin" />}
@@ -869,7 +888,7 @@ export function DealsClient({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
+            background: 'rgba(76, 69, 65, 0.45)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
@@ -880,20 +899,20 @@ export function DealsClient({
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 0% 100% / 0.1)',
-              borderRadius: '0.75rem',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '520px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: 'var(--shadow-card)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>Edit Deal</h2>
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Edit Deal</h2>
               <button
                 onClick={() => setEditingDeal(null)}
-                style={{ background: 'transparent', border: 'none', color: 'hsl(220 14% 60%)', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
@@ -903,7 +922,7 @@ export function DealsClient({
               <input type="hidden" name="id" value={editingDeal.id} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Deal Title *
                   </label>
                   <input
@@ -913,10 +932,10 @@ export function DealsClient({
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                     }}
                   />
@@ -924,7 +943,7 @@ export function DealsClient({
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                       Customer *
                     </label>
                     <select
@@ -934,10 +953,10 @@ export function DealsClient({
                       style={{
                         width: '100%',
                         padding: '0.5rem 0.75rem',
-                        borderRadius: '0.375rem',
-                        background: 'hsl(222 47% 9%)',
-                        border: '1px solid hsla(0 0% 100% / 0.12)',
-                        color: 'white',
+                        borderRadius: 'var(--radius)',
+                        background: 'var(--surface-muted)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--foreground)',
                         fontSize: '0.875rem',
                       }}
                     >
@@ -950,7 +969,7 @@ export function DealsClient({
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                       Total Amount (EGP)
                     </label>
                     <input
@@ -968,10 +987,10 @@ export function DealsClient({
                       style={{
                         width: '100%',
                         padding: '0.5rem 0.75rem',
-                        borderRadius: '0.375rem',
-                        background: 'hsl(222 47% 9%)',
-                        border: '1px solid hsla(0 0% 100% / 0.12)',
-                        color: 'white',
+                        borderRadius: 'var(--radius)',
+                        background: 'var(--surface-muted)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--foreground)',
                         fontSize: '0.875rem',
                       }}
                     />
@@ -979,7 +998,7 @@ export function DealsClient({
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Expected Close Date
                   </label>
                   <input
@@ -989,17 +1008,17 @@ export function DealsClient({
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Notes
                   </label>
                   <textarea
@@ -1009,10 +1028,10 @@ export function DealsClient({
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                       resize: 'vertical',
                     }}
@@ -1026,10 +1045,10 @@ export function DealsClient({
                   onClick={() => setEditingDeal(null)}
                   style={{
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
+                    borderRadius: 'var(--radius)',
                     background: 'transparent',
-                    border: '1px solid hsla(0 0% 100% / 0.1)',
-                    color: 'hsl(220 14% 70%)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--muted-foreground)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
                   }}
@@ -1043,14 +1062,15 @@ export function DealsClient({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(217 91% 50%)',
-                    border: 'none',
-                    color: 'white',
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--primary)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
+                    color: 'var(--primary-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(76, 69, 65, 0.08)',
                   }}
                 >
                   {isPending && <Loader2 size={14} className="animate-spin" />}
@@ -1068,7 +1088,7 @@ export function DealsClient({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
+            background: 'rgba(76, 69, 65, 0.45)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
@@ -1079,22 +1099,22 @@ export function DealsClient({
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 0% 100% / 0.1)',
-              borderRadius: '0.75rem',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '480px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: 'var(--shadow-card)',
               maxHeight: '90vh',
               overflowY: 'auto',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>Change Deal Status</h2>
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Change Deal Status</h2>
               <button
                 onClick={() => setStageChangingDeal(null)}
-                style={{ background: 'transparent', border: 'none', color: 'hsl(220 14% 60%)', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
@@ -1104,10 +1124,10 @@ export function DealsClient({
               <input type="hidden" name="deal_id" value={stageChangingDeal.id} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
-                  <div style={{ fontSize: '0.875rem', color: 'hsl(220 14% 60%)', marginBottom: '0.5rem' }}>
-                    Current deal: <strong style={{ color: 'white' }}>{stageChangingDeal.title}</strong>
+                  <div style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>
+                    Current deal: <strong style={{ color: 'var(--foreground)' }}>{stageChangingDeal.title}</strong>
                   </div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Select New Status *
                   </label>
                   <select
@@ -1117,10 +1137,10 @@ export function DealsClient({
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                     }}
                   >
@@ -1136,23 +1156,23 @@ export function DealsClient({
                 {selectedNewStage === 'won' && (
                   <div
                     style={{
-                      background: 'hsla(142 76% 36% / 0.1)',
-                      border: '1px solid hsla(142 76% 36% / 0.25)',
-                      borderRadius: '0.5rem',
+                      background: 'var(--success)',
+                      border: '1px solid var(--success-border)',
+                      borderRadius: 'var(--radius)',
                       padding: '1rem',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '0.75rem',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'hsl(142 76% 65%)', fontWeight: 600, fontSize: '0.875rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success-foreground)', fontWeight: 600, fontSize: '0.875rem' }}>
                       <Banknote size={16} />
                       Deal Settlement & Payment (EGP)
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 500, color: 'hsl(220 14% 75%)', marginBottom: '0.25rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.25rem' }}>
                           Total Amount (EGP) *
                         </label>
                         <input
@@ -1166,17 +1186,17 @@ export function DealsClient({
                           style={{
                             width: '100%',
                             padding: '0.45rem 0.65rem',
-                            borderRadius: '0.375rem',
-                            background: 'hsl(222 47% 9%)',
-                            border: '1px solid hsla(0 0% 100% / 0.15)',
-                            color: 'white',
+                            borderRadius: 'var(--radius)',
+                            background: 'var(--card)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--foreground)',
                             fontSize: '0.875rem',
                           }}
                         />
                       </div>
 
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 500, color: 'hsl(220 14% 75%)', marginBottom: '0.25rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.25rem' }}>
                           Paid Amount (EGP) *
                         </label>
                         <input
@@ -1190,10 +1210,10 @@ export function DealsClient({
                           style={{
                             width: '100%',
                             padding: '0.45rem 0.65rem',
-                            borderRadius: '0.375rem',
-                            background: 'hsl(222 47% 9%)',
-                            border: `1px solid ${isWonOverpaid ? 'hsl(0 84% 60%)' : 'hsla(0 0% 100% / 0.15)'}`,
-                            color: 'white',
+                            borderRadius: 'var(--radius)',
+                            background: 'var(--card)',
+                            border: `1px solid ${isWonOverpaid ? 'var(--destructive-border)' : 'var(--border)'}`,
+                            color: 'var(--foreground)',
                             fontSize: '0.875rem',
                           }}
                         />
@@ -1201,7 +1221,7 @@ export function DealsClient({
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 500, color: 'hsl(220 14% 75%)', marginBottom: '0.25rem' }}>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.25rem' }}>
                         Remaining Amount (EGP)
                       </label>
                       <input
@@ -1212,29 +1232,29 @@ export function DealsClient({
                         style={{
                           width: '100%',
                           padding: '0.45rem 0.65rem',
-                          borderRadius: '0.375rem',
-                          background: 'hsl(222 47% 7%)',
-                          border: '1px solid hsla(0 0% 100% / 0.08)',
-                          color: wonRemainingAmount > 0 ? 'hsl(38 92% 65%)' : 'hsl(142 76% 65%)',
+                          borderRadius: 'var(--radius)',
+                          background: 'var(--surface-muted)',
+                          border: '1px solid var(--border)',
+                          color: wonRemainingAmount > 0 ? 'var(--warning-foreground)' : 'var(--success-foreground)',
                           fontSize: '0.875rem',
                           fontWeight: 600,
                           cursor: 'not-allowed',
                         }}
                       />
-                      <span style={{ fontSize: '0.7rem', color: 'hsl(220 14% 50%)', marginTop: '0.25rem', display: 'block' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', marginTop: '0.25rem', display: 'block' }}>
                         Calculated automatically by system: Total Amount − Paid Amount
                       </span>
                     </div>
 
                     {isWonOverpaid && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'hsl(0 84% 70%)', fontSize: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'var(--destructive-foreground)', fontSize: '0.75rem' }}>
                         <AlertTriangle size={14} />
                         Paid amount cannot exceed total amount.
                       </div>
                     )}
 
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 500, color: 'hsl(220 14% 75%)', marginBottom: '0.25rem' }}>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.25rem' }}>
                         Payment Method *
                       </label>
                       <select
@@ -1243,10 +1263,10 @@ export function DealsClient({
                         style={{
                           width: '100%',
                           padding: '0.45rem 0.65rem',
-                          borderRadius: '0.375rem',
-                          background: 'hsl(222 47% 9%)',
-                          border: '1px solid hsla(0 0% 100% / 0.15)',
-                          color: 'white',
+                          borderRadius: 'var(--radius)',
+                          background: 'var(--card)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--foreground)',
                           fontSize: '0.875rem',
                         }}
                       >
@@ -1264,13 +1284,13 @@ export function DealsClient({
                 {selectedNewStage === 'lost' && (
                   <div
                     style={{
-                      background: 'hsla(0 84% 60% / 0.1)',
-                      border: '1px solid hsla(0 84% 60% / 0.25)',
-                      borderRadius: '0.5rem',
+                      background: 'var(--destructive)',
+                      border: '1px solid var(--destructive-border)',
+                      borderRadius: 'var(--radius)',
                       padding: '0.75rem',
                     }}
                   >
-                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'hsl(0 84% 75%)', marginBottom: '0.375rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--destructive-foreground)', marginBottom: '0.375rem' }}>
                       Lost Reason (Mandatory) *
                     </label>
                     <textarea
@@ -1281,10 +1301,10 @@ export function DealsClient({
                       style={{
                         width: '100%',
                         padding: '0.5rem 0.75rem',
-                        borderRadius: '0.375rem',
-                        background: 'hsl(222 47% 9%)',
-                        border: '1px solid hsla(0 0% 100% / 0.15)',
-                        color: 'white',
+                        borderRadius: 'var(--radius)',
+                        background: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--foreground)',
                         fontSize: '0.875rem',
                         resize: 'vertical',
                       }}
@@ -1299,10 +1319,10 @@ export function DealsClient({
                   onClick={() => setStageChangingDeal(null)}
                   style={{
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
+                    borderRadius: 'var(--radius)',
                     background: 'transparent',
-                    border: '1px solid hsla(0 0% 100% / 0.1)',
-                    color: 'hsl(220 14% 70%)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--muted-foreground)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
                   }}
@@ -1316,15 +1336,16 @@ export function DealsClient({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: selectedNewStage === 'won' ? 'hsl(142 76% 36%)' : 'hsl(217 91% 50%)',
-                    border: 'none',
-                    color: 'white',
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--primary)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
+                    color: 'var(--primary-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: (selectedNewStage === 'won' && isWonOverpaid) ? 'not-allowed' : 'pointer',
                     opacity: (selectedNewStage === 'won' && isWonOverpaid) ? 0.6 : 1,
+                    boxShadow: '0 2px 6px rgba(76, 69, 65, 0.08)',
                   }}
                 >
                   {isPending && <Loader2 size={14} className="animate-spin" />}
@@ -1342,7 +1363,7 @@ export function DealsClient({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
+            background: 'rgba(76, 69, 65, 0.45)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
@@ -1353,23 +1374,23 @@ export function DealsClient({
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 0% 100% / 0.1)',
-              borderRadius: '0.75rem',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '460px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: 'var(--shadow-card)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Banknote size={18} style={{ color: 'hsl(142 76% 65%)' }} />
-                <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>Update Payment</h2>
+                <Banknote size={18} style={{ color: 'var(--success-foreground)' }} />
+                <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Update Payment</h2>
               </div>
               <button
                 onClick={() => setPaymentUpdatingDeal(null)}
-                style={{ background: 'transparent', border: 'none', color: 'hsl(220 14% 60%)', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
@@ -1377,15 +1398,15 @@ export function DealsClient({
 
             <form onSubmit={handlePaymentUpdateSubmit}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ fontSize: '0.875rem', color: 'hsl(220 14% 65%)' }}>
-                  Deal: <strong style={{ color: 'white' }}>{paymentUpdatingDeal.title}</strong>
+                <div style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)' }}>
+                  Deal: <strong style={{ color: 'var(--foreground)' }}>{paymentUpdatingDeal.title}</strong>
                 </div>
 
                 <div
                   style={{
-                    background: 'hsl(222 47% 9%)',
-                    border: '1px solid hsla(0 0% 100% / 0.08)',
-                    borderRadius: '0.5rem',
+                    background: 'var(--surface-muted)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
                     padding: '0.875rem',
                     display: 'flex',
                     flexDirection: 'column',
@@ -1393,21 +1414,21 @@ export function DealsClient({
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem' }}>
-                    <span style={{ color: 'hsl(220 14% 65%)' }}>Total Deal Amount:</span>
-                    <strong style={{ color: 'white' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Total Deal Amount:</span>
+                    <strong style={{ color: 'var(--foreground)' }}>
                       {formatCurrency(paymentUpdatingDeal.total_amount ?? paymentUpdatingDeal.value ?? 0)}
                     </strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem' }}>
-                    <span style={{ color: 'hsl(220 14% 65%)' }}>Previously Paid:</span>
-                    <span style={{ color: 'hsl(142 76% 65%)', fontWeight: 600 }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Previously Paid:</span>
+                    <span style={{ color: 'var(--success-foreground)', fontWeight: 600 }}>
                       {formatCurrency(paymentUpdatingDeal.paid_amount ?? 0)}
                     </span>
                   </div>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     New Total Paid Amount (EGP) *
                   </label>
                   <input
@@ -1421,17 +1442,17 @@ export function DealsClient({
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Remaining Balance (EGP)
                   </label>
                   <input
@@ -1448,10 +1469,10 @@ export function DealsClient({
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 7%)',
-                      border: '1px solid hsla(0 0% 100% / 0.08)',
-                      color: 'hsl(38 92% 65%)',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--warning-foreground)',
                       fontSize: '0.875rem',
                       fontWeight: 600,
                       cursor: 'not-allowed',
@@ -1460,7 +1481,7 @@ export function DealsClient({
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Payment Method *
                   </label>
                   <select
@@ -1469,10 +1490,10 @@ export function DealsClient({
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                     }}
                   >
@@ -1491,10 +1512,10 @@ export function DealsClient({
                   onClick={() => setPaymentUpdatingDeal(null)}
                   style={{
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
+                    borderRadius: 'var(--radius)',
                     background: 'transparent',
-                    border: '1px solid hsla(0 0% 100% / 0.1)',
-                    color: 'hsl(220 14% 70%)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--muted-foreground)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
                   }}
@@ -1508,14 +1529,15 @@ export function DealsClient({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(142 76% 36%)',
-                    border: 'none',
-                    color: 'white',
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--primary)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
+                    color: 'var(--primary-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(76, 69, 65, 0.08)',
                   }}
                 >
                   {isPending && <Loader2 size={14} className="animate-spin" />}
@@ -1533,7 +1555,7 @@ export function DealsClient({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
+            background: 'rgba(76, 69, 65, 0.45)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
@@ -1544,20 +1566,20 @@ export function DealsClient({
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 0% 100% / 0.1)',
-              borderRadius: '0.75rem',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '460px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: 'var(--shadow-card)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>Reassign Deal</h2>
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Reassign Deal</h2>
               <button
                 onClick={() => setReassigningDeal(null)}
-                style={{ background: 'transparent', border: 'none', color: 'hsl(220 14% 60%)', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
@@ -1566,12 +1588,12 @@ export function DealsClient({
             <form onSubmit={handleReassign}>
               <input type="hidden" name="deal_id" value={reassigningDeal.id} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ fontSize: '0.875rem', color: 'hsl(220 14% 65%)' }}>
-                  Reassigning <strong style={{ color: 'white' }}>{reassigningDeal.title}</strong>
+                <div style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)' }}>
+                  Reassigning <strong style={{ color: 'var(--foreground)' }}>{reassigningDeal.title}</strong>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     New Assignee *
                   </label>
                   <select
@@ -1581,10 +1603,10 @@ export function DealsClient({
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                     }}
                   >
@@ -1603,10 +1625,10 @@ export function DealsClient({
                   onClick={() => setReassigningDeal(null)}
                   style={{
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
+                    borderRadius: 'var(--radius)',
                     background: 'transparent',
-                    border: '1px solid hsla(0 0% 100% / 0.1)',
-                    color: 'hsl(220 14% 70%)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--muted-foreground)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
                   }}
@@ -1620,14 +1642,15 @@ export function DealsClient({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(262 83% 58%)',
-                    border: 'none',
-                    color: 'white',
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--primary)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
+                    color: 'var(--primary-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(76, 69, 65, 0.08)',
                   }}
                 >
                   {isPending && <Loader2 size={14} className="animate-spin" />}

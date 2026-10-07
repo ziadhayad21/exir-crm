@@ -30,15 +30,15 @@ interface CustomerDetailClientProps {
   user: CurrentUser;
 }
 
-const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
-  new: { bg: 'hsla(217 91% 60% / 0.15)', text: 'hsl(217 91% 70%)' },
-  follow_up: { bg: 'hsla(38 92% 50% / 0.15)', text: 'hsl(38 92% 65%)' },
-  contacted: { bg: 'hsla(199 89% 48% / 0.15)', text: 'hsl(199 89% 65%)' },
-  qualified: { bg: 'hsla(262 83% 58% / 0.15)', text: 'hsl(262 83% 70%)' },
-  proposal: { bg: 'hsla(38 92% 50% / 0.15)', text: 'hsl(38 92% 65%)' },
-  negotiation: { bg: 'hsla(25 95% 53% / 0.15)', text: 'hsl(25 95% 65%)' },
-  won: { bg: 'hsla(142 76% 36% / 0.15)', text: 'hsl(142 76% 65%)' },
-  lost: { bg: 'hsla(0 84% 60% / 0.15)', text: 'hsl(0 84% 75%)' },
+const STAGE_CONFIG: Record<string, { bg: string; text: string; border: string }> = {
+  new: { bg: 'var(--info)', text: 'var(--info-foreground)', border: 'var(--info-border)' },
+  contacted: { bg: 'var(--success)', text: 'var(--success-foreground)', border: 'var(--success-border)' },
+  qualified: { bg: 'var(--accent)', text: 'var(--foreground)', border: 'var(--border)' },
+  follow_up: { bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
+  proposal: { bg: 'var(--hover)', text: 'var(--foreground)', border: 'var(--border-strong)' },
+  negotiation: { bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
+  won: { bg: 'var(--success)', text: 'var(--success-foreground)', border: 'var(--success-border)' },
+  lost: { bg: 'var(--destructive)', text: 'var(--destructive-foreground)', border: 'var(--destructive-border)' },
 };
 
 export function CustomerDetailClient({ customer, user }: CustomerDetailClientProps) {
@@ -90,7 +90,7 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
   }
 
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '1.5rem' }}>
+    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '1.5rem', color: 'var(--foreground)' }}>
       {/* Back button */}
       <Link
         href="/crm/customers"
@@ -98,10 +98,11 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
           display: 'inline-flex',
           alignItems: 'center',
           gap: '0.375rem',
-          color: 'hsl(220 14% 65%)',
+          color: 'var(--muted-foreground)',
           textDecoration: 'none',
           fontSize: '0.875rem',
           marginBottom: '1rem',
+          transition: 'color 0.15s ease',
         }}
       >
         <ChevronLeft size={16} />
@@ -113,10 +114,10 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
         <div
           style={{
             padding: '0.75rem 1rem',
-            borderRadius: '0.5rem',
-            background: 'hsla(142 76% 36% / 0.15)',
-            border: '1px solid hsl(142 76% 36% / 0.3)',
-            color: 'hsl(142 76% 65%)',
+            borderRadius: 'var(--radius)',
+            backgroundColor: 'var(--success)',
+            border: '1px solid var(--success-border)',
+            color: 'var(--success-foreground)',
             fontSize: '0.875rem',
             display: 'flex',
             alignItems: 'center',
@@ -134,10 +135,10 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
         <div
           style={{
             padding: '0.75rem 1rem',
-            borderRadius: '0.5rem',
-            background: 'hsla(0 84% 60% / 0.15)',
-            border: '1px solid hsl(0 84% 60% / 0.3)',
-            color: 'hsl(0 84% 75%)',
+            borderRadius: 'var(--radius)',
+            backgroundColor: 'var(--destructive)',
+            border: '1px solid var(--destructive-border)',
+            color: 'var(--destructive-foreground)',
             fontSize: '0.875rem',
             display: 'flex',
             alignItems: 'center',
@@ -153,11 +154,12 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
       {/* Main card */}
       <div
         style={{
-          background: 'hsl(222 47% 12%)',
-          border: '1px solid hsla(0 0% 100% / 0.08)',
-          borderRadius: '0.75rem',
+          backgroundColor: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
           padding: '1.75rem',
           marginBottom: '1.5rem',
+          boxShadow: '0 1px 3px rgba(76, 69, 65, 0.04)',
         }}
       >
         <div
@@ -176,11 +178,12 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                   width: '48px',
                   height: '48px',
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
+                  backgroundColor: 'var(--accent)',
+                  border: '1px solid var(--border)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: 'white',
+                  color: 'var(--foreground)',
                   fontWeight: 700,
                   fontSize: '1.25rem',
                 }}
@@ -188,13 +191,13 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                 {customer.full_name.charAt(0).toUpperCase()}
               </div>
               <div>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-0.02em' }}>
                   {customer.full_name}
                 </h1>
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem', alignItems: 'center' }}>
                   <span
                     style={{
-                      color: 'hsl(220 14% 60%)',
+                      color: 'var(--muted-foreground)',
                       fontSize: '0.75rem',
                       display: 'flex',
                       alignItems: 'center',
@@ -221,14 +224,17 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                     alignItems: 'center',
                     gap: '0.375rem',
                     padding: '0.5rem 0.875rem',
-                    borderRadius: '0.5rem',
-                    background: 'hsl(222 47% 16%)',
-                    border: '1px solid hsla(0 0% 100% / 0.1)',
-                    color: 'hsl(220 14% 85%)',
+                    borderRadius: 'var(--radius)',
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 500,
                     cursor: 'pointer',
+                    transition: 'background-color 0.15s ease',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hover)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--surface)')}
                 >
                   <Edit2 size={15} />
                   Edit
@@ -242,14 +248,17 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                     alignItems: 'center',
                     gap: '0.375rem',
                     padding: '0.5rem 0.875rem',
-                    borderRadius: '0.5rem',
-                    background: 'hsla(0 84% 60% / 0.12)',
-                    border: '1px solid hsla(0 84% 60% / 0.25)',
-                    color: 'hsl(0 84% 75%)',
+                    borderRadius: 'var(--radius)',
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--destructive-border)',
+                    color: 'var(--destructive-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 500,
                     cursor: 'pointer',
+                    transition: 'background-color 0.15s ease',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--destructive)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--surface)')}
                 >
                   <Trash2 size={15} />
                   Delete
@@ -264,13 +273,18 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                 alignItems: 'center',
                 gap: '0.5rem',
                 padding: '0.5rem 1rem',
-                borderRadius: '0.5rem',
-                background: 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
-                color: 'white',
+                borderRadius: 'var(--radius)',
+                backgroundColor: 'var(--primary)',
+                border: '1px solid rgba(174, 172, 120, 0.4)',
+                color: 'var(--primary-foreground)',
                 fontSize: '0.875rem',
                 fontWeight: 600,
                 textDecoration: 'none',
+                boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
+                transition: 'background-color 0.15s ease',
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--primary-hover)')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--primary)')}
             >
               <Plus size={16} />
               Create Deal
@@ -286,43 +300,43 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
             gap: '1rem',
             marginTop: '1.5rem',
             paddingTop: '1.25rem',
-            borderTop: '1px solid hsla(0 0% 100% / 0.06)',
+            borderTop: '1px solid rgba(174, 172, 120, 0.2)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-            <Phone size={18} style={{ color: 'hsl(142 76% 65%)' }} />
+            <Phone size={18} style={{ color: 'var(--olive)' }} />
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>Phone</div>
-              <div style={{ fontSize: '0.875rem', color: 'white', fontWeight: 500 }}>{customer.phone || '—'}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>Phone</div>
+              <div style={{ fontSize: '0.875rem', color: 'var(--foreground)', fontWeight: 500 }}>{customer.phone || '—'}</div>
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-            <Mail size={18} style={{ color: 'hsl(217 91% 65%)' }} />
+            <Mail size={18} style={{ color: 'var(--olive)' }} />
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>Email</div>
-              <div style={{ fontSize: '0.875rem', color: 'white' }}>{customer.email || '—'}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>Email</div>
+              <div style={{ fontSize: '0.875rem', color: 'var(--foreground)' }}>{customer.email || '—'}</div>
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-            <Briefcase size={18} style={{ color: 'hsl(262 83% 65%)' }} />
+            <Briefcase size={18} style={{ color: 'var(--olive)' }} />
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>Deals</div>
-              <div style={{ fontSize: '0.875rem', color: 'white' }}>{customer.deals?.length || 0} associated</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>Deals</div>
+              <div style={{ fontSize: '0.875rem', color: 'var(--foreground)' }}>{customer.deals?.length || 0} associated</div>
             </div>
           </div>
         </div>
 
         {/* Notes */}
         {customer.notes && (
-          <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid hsla(0 0% 100% / 0.06)' }}>
+          <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(174, 172, 120, 0.2)' }}>
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.375rem',
-                color: 'hsl(220 14% 50%)',
+                color: 'var(--muted-foreground)',
                 fontSize: '0.75rem',
                 textTransform: 'uppercase',
                 marginBottom: '0.375rem',
@@ -331,7 +345,7 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
               <FileText size={14} />
               Notes
             </div>
-            <p style={{ color: 'hsl(220 14% 80%)', fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>
+            <p style={{ color: 'var(--foreground)', fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>
               {customer.notes}
             </p>
           </div>
@@ -341,7 +355,7 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
       {/* Customer Deals Section */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)' }}>
             Deals ({customer.deals?.length || 0})
           </h2>
         </div>
@@ -351,10 +365,10 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
             style={{
               padding: '2.5rem',
               textAlign: 'center',
-              background: 'hsl(222 47% 12%)',
-              border: '1px solid hsla(0 0% 100% / 0.06)',
-              borderRadius: '0.75rem',
-              color: 'hsl(220 14% 50%)',
+              backgroundColor: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              color: 'var(--muted-foreground)',
             }}
           >
             No deals found for this customer.
@@ -362,7 +376,7 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {customer.deals.map((deal) => {
-              const colors = STAGE_COLORS[deal.stage] || { bg: 'hsla(0 0% 100% / 0.1)', text: 'white' };
+              const cfg = STAGE_CONFIG[deal.stage] || { bg: 'var(--muted)', text: 'var(--foreground)', border: 'var(--border)' };
 
               return (
                 <Link
@@ -373,13 +387,15 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '1rem 1.25rem',
-                    background: 'hsl(222 47% 12%)',
-                    border: '1px solid hsla(0 0% 100% / 0.06)',
-                    borderRadius: '0.5rem',
+                    backgroundColor: 'var(--card)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
                     textDecoration: 'none',
                     color: 'inherit',
-                    transition: 'all 0.15s ease',
+                    transition: 'background-color 0.15s ease',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hover)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--card)')}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <div
@@ -388,16 +404,17 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                         borderRadius: '9999px',
                         fontSize: '0.75rem',
                         fontWeight: 600,
-                        background: colors.bg,
-                        color: colors.text,
+                        backgroundColor: cfg.bg,
+                        color: cfg.text,
+                        border: `1px solid ${cfg.border}`,
                         textTransform: 'capitalize',
                       }}
                     >
                       {deal.stage.replace('_', ' ')}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600, color: 'white', fontSize: '0.9375rem' }}>{deal.title}</div>
-                      <div style={{ color: 'hsl(220 14% 60%)', fontSize: '0.75rem', marginTop: '0.125rem' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--foreground)', fontSize: '0.9375rem' }}>{deal.title}</div>
+                      <div style={{ color: 'var(--muted-foreground)', fontSize: '0.75rem', marginTop: '0.125rem' }}>
                         Created {formatDate(deal.created_at)}
                       </div>
                     </div>
@@ -405,7 +422,7 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ color: 'white', fontWeight: 600, fontSize: '0.9375rem' }}>
+                      <div style={{ color: 'var(--foreground)', fontWeight: 600, fontSize: '0.9375rem' }}>
                         {formatCurrency(deal.total_amount ?? deal.value ?? 0)}
                       </div>
                       {deal.stage === 'won' && (
@@ -413,7 +430,7 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                           style={{
                             fontSize: '0.75rem',
                             color:
-                              (deal.remaining_amount ?? 0) > 0 ? 'hsl(38 92% 65%)' : 'hsl(142 76% 65%)',
+                              (deal.remaining_amount ?? 0) > 0 ? 'var(--warning-foreground)' : 'var(--success-foreground)',
                           }}
                         >
                           {(deal.remaining_amount ?? 0) > 0
@@ -422,7 +439,7 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                         </div>
                       )}
                     </div>
-                    <ArrowRight size={16} style={{ color: 'hsl(220 14% 45%)' }} />
+                    <ArrowRight size={16} style={{ color: 'var(--muted-foreground)' }} />
                   </div>
                 </Link>
               );
@@ -437,8 +454,8 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
-            backdropFilter: 'blur(4px)',
+            background: 'rgba(76, 69, 65, 0.4)',
+            backdropFilter: 'blur(3px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -448,13 +465,13 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 0% 100% / 0.1)',
-              borderRadius: '0.75rem',
+              backgroundColor: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '500px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.12)',
             }}
           >
             <div
@@ -465,11 +482,11 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                 marginBottom: '1.25rem',
               }}
             >
-              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>Edit Customer</h2>
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)' }}>Edit Customer</h2>
               <button
                 type="button"
                 onClick={() => setShowEditModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'hsl(220 14% 60%)', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
@@ -486,7 +503,7 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                       display: 'block',
                       fontSize: '0.8125rem',
                       fontWeight: 500,
-                      color: 'hsl(220 14% 70%)',
+                      color: 'var(--foreground)',
                       marginBottom: '0.375rem',
                     }}
                   >
@@ -500,11 +517,20 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                 </div>
@@ -515,7 +541,7 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                       display: 'block',
                       fontSize: '0.8125rem',
                       fontWeight: 500,
-                      color: 'hsl(220 14% 70%)',
+                      color: 'var(--foreground)',
                       marginBottom: '0.375rem',
                     }}
                   >
@@ -529,11 +555,20 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                 </div>
@@ -544,7 +579,7 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                       display: 'block',
                       fontSize: '0.8125rem',
                       fontWeight: 500,
-                      color: 'hsl(220 14% 70%)',
+                      color: 'var(--foreground)',
                       marginBottom: '0.375rem',
                     }}
                   >
@@ -558,11 +593,20 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                 </div>
@@ -573,7 +617,7 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                       display: 'block',
                       fontSize: '0.8125rem',
                       fontWeight: 500,
-                      color: 'hsl(220 14% 70%)',
+                      color: 'var(--foreground)',
                       marginBottom: '0.375rem',
                     }}
                   >
@@ -587,12 +631,21 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                       resize: 'vertical',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                 </div>
@@ -604,10 +657,10 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                   onClick={() => setShowEditModal(false)}
                   style={{
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'transparent',
-                    border: '1px solid hsla(0 0% 100% / 0.1)',
-                    color: 'hsl(220 14% 70%)',
+                    borderRadius: 'var(--radius)',
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
                   }}
@@ -622,10 +675,10 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                     alignItems: 'center',
                     gap: '0.5rem',
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(217 91% 50%)',
-                    border: 'none',
-                    color: 'white',
+                    borderRadius: 'var(--radius)',
+                    backgroundColor: 'var(--primary)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
+                    color: 'var(--primary-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -646,8 +699,8 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
-            backdropFilter: 'blur(4px)',
+            background: 'rgba(76, 69, 65, 0.4)',
+            backdropFilter: 'blur(3px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -657,13 +710,13 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 84% 60% / 0.3)',
-              borderRadius: '0.75rem',
+              backgroundColor: 'var(--card)',
+              border: '1px solid var(--destructive-border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '440px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.12)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
@@ -672,8 +725,8 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                   width: '36px',
                   height: '36px',
                   borderRadius: '50%',
-                  background: 'hsla(0 84% 60% / 0.15)',
-                  color: 'hsl(0 84% 70%)',
+                  backgroundColor: 'var(--destructive)',
+                  color: 'var(--destructive-foreground)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -681,11 +734,11 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
               >
                 <Trash2 size={18} />
               </div>
-              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>Delete Customer</h2>
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)' }}>Delete Customer</h2>
             </div>
 
-            <p style={{ color: 'hsl(220 14% 75%)', fontSize: '0.875rem', lineHeight: 1.5, marginBottom: '1rem' }}>
-              Are you sure you want to delete <strong>{customer.full_name}</strong>? This customer will be soft-deleted
+            <p style={{ color: 'var(--muted-foreground)', fontSize: '0.875rem', lineHeight: 1.5, marginBottom: '1rem' }}>
+              Are you sure you want to delete <strong style={{ color: 'var(--foreground)' }}>{customer.full_name}</strong>? This customer will be soft-deleted
               and removed from active lists.
             </p>
 
@@ -693,10 +746,10 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
               <div
                 style={{
                   padding: '0.75rem',
-                  borderRadius: '0.375rem',
-                  background: 'hsla(0 84% 60% / 0.1)',
-                  border: '1px solid hsla(0 84% 60% / 0.25)',
-                  color: 'hsl(0 84% 80%)',
+                  borderRadius: 'var(--radius)',
+                  backgroundColor: 'var(--warning)',
+                  border: '1px solid var(--warning-border)',
+                  color: 'var(--warning-foreground)',
                   fontSize: '0.8125rem',
                   marginBottom: '1.25rem',
                 }}
@@ -713,10 +766,10 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                 disabled={isPending}
                 style={{
                   padding: '0.5rem 1rem',
-                  borderRadius: '0.375rem',
-                  background: 'transparent',
-                  border: '1px solid hsla(0 0% 100% / 0.1)',
-                  color: 'hsl(220 14% 70%)',
+                  borderRadius: 'var(--radius)',
+                  backgroundColor: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--foreground)',
                   fontSize: '0.875rem',
                   cursor: 'pointer',
                 }}
@@ -732,10 +785,10 @@ export function CustomerDetailClient({ customer, user }: CustomerDetailClientPro
                   alignItems: 'center',
                   gap: '0.5rem',
                   padding: '0.5rem 1rem',
-                  borderRadius: '0.375rem',
-                  background: customer.deals && customer.deals.length > 0 ? 'hsl(222 47% 20%)' : 'hsl(0 84% 60%)',
-                  border: 'none',
-                  color: 'white',
+                  borderRadius: 'var(--radius)',
+                  backgroundColor: customer.deals && customer.deals.length > 0 ? 'var(--muted)' : 'var(--destructive)',
+                  border: `1px solid ${customer.deals && customer.deals.length > 0 ? 'var(--border)' : 'var(--destructive-border)'}`,
+                  color: customer.deals && customer.deals.length > 0 ? 'var(--muted-foreground)' : 'var(--destructive-foreground)',
                   fontSize: '0.875rem',
                   fontWeight: 600,
                   cursor: customer.deals && customer.deals.length > 0 ? 'not-allowed' : 'pointer',

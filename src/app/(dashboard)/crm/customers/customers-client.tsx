@@ -145,7 +145,7 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
   }
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem' }}>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem', color: 'var(--foreground)' }}>
       {/* Header */}
       <div
         style={{
@@ -159,12 +159,12 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
       >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Users size={24} style={{ color: 'hsl(217 91% 60%)' }} />
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'white', letterSpacing: '-0.025em' }}>
+            <Users size={24} style={{ color: 'var(--olive)' }} />
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-0.02em' }}>
               Customers
             </h1>
           </div>
-          <p style={{ color: 'hsl(220 14% 65%)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+          <p style={{ color: 'var(--muted-foreground)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
             Manage customer contacts, profiles, and relationships.
           </p>
         </div>
@@ -182,15 +182,21 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
               alignItems: 'center',
               gap: '0.5rem',
               padding: '0.625rem 1.25rem',
-              borderRadius: '0.5rem',
-              background: 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
-              color: 'white',
+              borderRadius: 'var(--radius)',
+              backgroundColor: 'var(--primary)',
+              color: 'var(--primary-foreground)',
               fontSize: '0.875rem',
               fontWeight: 600,
-              border: 'none',
+              border: '1px solid rgba(174, 172, 120, 0.4)',
               cursor: 'pointer',
-              boxShadow: '0 4px 12px hsla(217 91% 60% / 0.25)',
-              transition: 'all 0.15s ease',
+              boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
+              transition: 'background-color 0.15s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--primary)';
             }}
           >
             <Plus size={16} />
@@ -204,10 +210,10 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
         <div
           style={{
             padding: '0.75rem 1rem',
-            borderRadius: '0.5rem',
-            background: 'hsla(142 76% 36% / 0.15)',
-            border: '1px solid hsl(142 76% 36% / 0.3)',
-            color: 'hsl(142 76% 65%)',
+            borderRadius: 'var(--radius)',
+            backgroundColor: 'var(--success)',
+            border: '1px solid var(--success-border)',
+            color: 'var(--success-foreground)',
             fontSize: '0.875rem',
             display: 'flex',
             alignItems: 'center',
@@ -224,10 +230,10 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
         <div
           style={{
             padding: '0.75rem 1rem',
-            borderRadius: '0.5rem',
-            background: 'hsla(0 84% 60% / 0.15)',
-            border: '1px solid hsl(0 84% 60% / 0.3)',
-            color: 'hsl(0 84% 75%)',
+            borderRadius: 'var(--radius)',
+            backgroundColor: 'var(--destructive)',
+            border: '1px solid var(--destructive-border)',
+            color: 'var(--destructive-foreground)',
             fontSize: '0.875rem',
             display: 'flex',
             alignItems: 'center',
@@ -247,15 +253,16 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            background: 'hsl(222 47% 14%)',
-            border: '1px solid hsla(0 0% 100% / 0.08)',
-            borderRadius: '0.5rem',
+            backgroundColor: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
             padding: '0.5rem 0.75rem',
             maxWidth: '360px',
             flex: 1,
+            boxShadow: '0 1px 2px rgba(76, 69, 65, 0.03)',
           }}
         >
-          <Search size={16} style={{ color: 'hsl(220 14% 50%)' }} />
+          <Search size={16} style={{ color: 'var(--muted-foreground)' }} />
           <input
             type="text"
             placeholder="Search by name, phone, email..."
@@ -264,7 +271,7 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
             style={{
               background: 'transparent',
               border: 'none',
-              color: 'white',
+              color: 'var(--foreground)',
               fontSize: '0.875rem',
               outline: 'none',
               width: '100%',
@@ -274,7 +281,7 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              style={{ background: 'transparent', border: 'none', color: 'hsl(220 14% 50%)', cursor: 'pointer' }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}
             >
               <X size={14} />
             </button>
@@ -285,32 +292,32 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
       {/* Table */}
       <div
         style={{
-          background: 'hsl(222 47% 12%)',
-          border: '1px solid hsla(0 0% 100% / 0.06)',
-          borderRadius: '0.75rem',
+          backgroundColor: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
           overflow: 'hidden',
-          boxShadow: '0 4px 20px hsla(0 0% 0% / 0.2)',
+          boxShadow: '0 1px 3px rgba(76, 69, 65, 0.04)',
         }}
       >
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid hsla(0 0% 100% / 0.08)', background: 'hsl(222 47% 10%)' }}>
-              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>
+            <tr style={{ borderBottom: '1px solid var(--border)', backgroundColor: 'var(--surface-muted)' }}>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>
                 Full Name
               </th>
-              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>
                 Phone
               </th>
-              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>
                 Email
               </th>
-              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>
                 Notes
               </th>
-              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(220 14% 50%)', textTransform: 'uppercase' }}>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>
                 Created At
               </th>
-              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(220 14% 50%)', textTransform: 'uppercase', textAlign: 'right' }}>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase', textAlign: 'right' }}>
                 Actions
               </th>
             </tr>
@@ -318,7 +325,7 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
           <tbody>
             {filteredCustomers.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ padding: '2.5rem', textAlign: 'center', color: 'hsl(220 14% 50%)' }}>
+                <td colSpan={6} style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--muted-foreground)' }}>
                   {searchQuery ? 'No customers match your search.' : 'No customers found.'}
                 </td>
               </tr>
@@ -330,18 +337,18 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                   <tr
                     key={customer.id}
                     style={{
-                      borderBottom: '1px solid hsla(0 0% 100% / 0.04)',
-                      transition: 'background 0.15s ease',
+                      borderBottom: '1px solid rgba(174, 172, 120, 0.15)',
+                      transition: 'background-color 0.1s ease',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'hsla(0 0% 100% / 0.02)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hover)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
                     <td style={{ padding: '0.875rem 1rem' }}>
                       <Link
                         href={`/crm/customers/${customer.id}`}
                         style={{
                           fontWeight: 600,
-                          color: 'white',
+                          color: 'var(--foreground)',
                           textDecoration: 'none',
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -353,8 +360,9 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                             width: '28px',
                             height: '28px',
                             borderRadius: '50%',
-                            background: 'hsl(222 47% 20%)',
-                            color: 'hsl(217 91% 70%)',
+                            backgroundColor: 'var(--accent)',
+                            color: 'var(--foreground)',
+                            border: '1px solid var(--border)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -368,29 +376,29 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                       </Link>
                     </td>
 
-                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: 'hsl(220 14% 85%)' }}>
+                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: 'var(--foreground)' }}>
                       {customer.phone ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                          <Phone size={13} style={{ color: 'hsl(142 76% 65%)' }} />
+                          <Phone size={13} style={{ color: 'var(--olive)' }} />
                           <span>{customer.phone}</span>
                         </div>
                       ) : (
-                        <span style={{ color: 'hsl(220 14% 40%)' }}>—</span>
+                        <span style={{ color: 'var(--muted-foreground)' }}>—</span>
                       )}
                     </td>
 
-                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: 'hsl(220 14% 70%)' }}>
+                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: 'var(--foreground)' }}>
                       {customer.email ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                          <Mail size={13} style={{ color: 'hsl(217 91% 65%)' }} />
+                          <Mail size={13} style={{ color: 'var(--olive)' }} />
                           <span>{customer.email}</span>
                         </div>
                       ) : (
-                        <span style={{ color: 'hsl(220 14% 40%)' }}>—</span>
+                        <span style={{ color: 'var(--muted-foreground)' }}>—</span>
                       )}
                     </td>
 
-                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: 'hsl(220 14% 60%)', maxWidth: '220px' }}>
+                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: 'var(--muted-foreground)', maxWidth: '220px' }}>
                       {customer.notes ? (
                         <span
                           title={customer.notes}
@@ -404,11 +412,11 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                           {customer.notes}
                         </span>
                       ) : (
-                        <span style={{ color: 'hsl(220 14% 35%)' }}>—</span>
+                        <span style={{ color: 'var(--muted-foreground)' }}>—</span>
                       )}
                     </td>
 
-                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: 'hsl(220 14% 60%)' }}>
+                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
                       {formatDate(customer.created_at)}
                     </td>
 
@@ -418,12 +426,15 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                           href={`/crm/customers/${customer.id}`}
                           style={{
                             padding: '0.375rem',
-                            borderRadius: '0.375rem',
-                            border: '1px solid hsla(0 0% 100% / 0.1)',
-                            background: 'transparent',
-                            color: 'hsl(220 14% 75%)',
+                            borderRadius: 'var(--radius)',
+                            border: '1px solid var(--border)',
+                            backgroundColor: 'var(--surface)',
+                            color: 'var(--foreground)',
                             display: 'inline-flex',
+                            transition: 'background-color 0.15s ease',
                           }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hover)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--surface)')}
                           title="View Customer Details"
                         >
                           <Eye size={14} />
@@ -436,12 +447,15 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                               onClick={() => setEditingCustomer(customer)}
                               style={{
                                 padding: '0.375rem',
-                                borderRadius: '0.375rem',
-                                border: '1px solid hsla(0 0% 100% / 0.1)',
-                                background: 'transparent',
-                                color: 'hsl(220 14% 75%)',
+                                borderRadius: 'var(--radius)',
+                                border: '1px solid var(--border)',
+                                backgroundColor: 'var(--surface)',
+                                color: 'var(--foreground)',
                                 cursor: 'pointer',
+                                transition: 'background-color 0.15s ease',
                               }}
+                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hover)')}
+                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--surface)')}
                               title="Edit Customer"
                             >
                               <Edit2 size={14} />
@@ -452,12 +466,15 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                               onClick={() => setDeletingCustomer(customer)}
                               style={{
                                 padding: '0.375rem',
-                                borderRadius: '0.375rem',
-                                border: '1px solid hsla(0 84% 60% / 0.2)',
-                                background: 'transparent',
-                                color: 'hsl(0 84% 75%)',
+                                borderRadius: 'var(--radius)',
+                                border: '1px solid var(--destructive-border)',
+                                backgroundColor: 'var(--surface)',
+                                color: 'var(--destructive-foreground)',
                                 cursor: 'pointer',
+                                transition: 'background-color 0.15s ease',
                               }}
+                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--destructive)')}
+                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--surface)')}
                               title="Delete Customer"
                             >
                               <Trash2 size={14} />
@@ -480,8 +497,8 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
-            backdropFilter: 'blur(4px)',
+            background: 'rgba(76, 69, 65, 0.4)',
+            backdropFilter: 'blur(3px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -491,24 +508,24 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 0% 100% / 0.1)',
-              borderRadius: '0.75rem',
+              backgroundColor: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '500px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.12)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>New Customer</h2>
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)' }}>New Customer</h2>
               <button
                 type="button"
                 onClick={() => {
                   setShowCreateModal(false);
                   setDuplicateWarning(null);
                 }}
-                style={{ background: 'transparent', border: 'none', color: 'hsl(220 14% 60%)', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
@@ -518,18 +535,18 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
             {duplicateWarning && (
               <div
                 style={{
-                  background: 'hsla(38 92% 50% / 0.15)',
-                  border: '1px solid hsl(38 92% 50% / 0.3)',
-                  borderRadius: '0.5rem',
+                  backgroundColor: 'var(--warning)',
+                  border: '1px solid var(--warning-border)',
+                  borderRadius: 'var(--radius)',
                   padding: '1rem',
                   marginBottom: '1rem',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'hsl(38 92% 65%)', fontWeight: 600, fontSize: '0.875rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--warning-foreground)', fontWeight: 600, fontSize: '0.875rem' }}>
                   <AlertTriangle size={16} />
                   <span>Existing Customer Found</span>
                 </div>
-                <p style={{ color: 'hsl(38 92% 80%)', fontSize: '0.8125rem', marginTop: '0.375rem' }}>
+                <p style={{ color: 'var(--warning-foreground)', fontSize: '0.8125rem', marginTop: '0.375rem' }}>
                   {duplicateWarning.message}
                 </p>
                 <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -538,8 +555,9 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                       key={dup.id}
                       style={{
                         fontSize: '0.75rem',
-                        color: 'hsl(220 14% 85%)',
-                        background: 'hsla(0 0% 0% / 0.2)',
+                        color: 'var(--foreground)',
+                        backgroundColor: 'var(--surface)',
+                        border: '1px solid var(--border)',
                         padding: '0.375rem 0.5rem',
                         borderRadius: '0.25rem',
                       }}
@@ -554,10 +572,10 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                     onClick={() => setDuplicateWarning(null)}
                     style={{
                       padding: '0.375rem 0.75rem',
-                      borderRadius: '0.25rem',
-                      background: 'transparent',
-                      border: '1px solid hsla(0 0% 100% / 0.1)',
-                      color: 'hsl(220 14% 75%)',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.75rem',
                       cursor: 'pointer',
                     }}
@@ -570,10 +588,10 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                     disabled={isPending}
                     style={{
                       padding: '0.375rem 0.75rem',
-                      borderRadius: '0.25rem',
-                      background: 'hsl(38 92% 50%)',
-                      border: 'none',
-                      color: 'black',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--primary)',
+                      border: '1px solid rgba(174, 172, 120, 0.4)',
+                      color: 'var(--primary-foreground)',
                       fontWeight: 600,
                       fontSize: '0.75rem',
                       cursor: 'pointer',
@@ -590,7 +608,7 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Full Name *
                   </label>
                   <input
@@ -600,17 +618,26 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Phone *
                   </label>
                   <input
@@ -620,17 +647,26 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Email (Optional)
                   </label>
                   <input
@@ -640,17 +676,26 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Notes (Optional)
                   </label>
                   <textarea
@@ -660,12 +705,21 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                       resize: 'vertical',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                 </div>
@@ -680,10 +734,10 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                   }}
                   style={{
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'transparent',
-                    border: '1px solid hsla(0 0% 100% / 0.1)',
-                    color: 'hsl(220 14% 70%)',
+                    borderRadius: 'var(--radius)',
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
                   }}
@@ -698,10 +752,10 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                     alignItems: 'center',
                     gap: '0.5rem',
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(217 91% 50%)',
-                    border: 'none',
-                    color: 'white',
+                    borderRadius: 'var(--radius)',
+                    backgroundColor: 'var(--primary)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
+                    color: 'var(--primary-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -722,8 +776,8 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
-            backdropFilter: 'blur(4px)',
+            background: 'rgba(76, 69, 65, 0.4)',
+            backdropFilter: 'blur(3px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -733,21 +787,21 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 0% 100% / 0.1)',
-              borderRadius: '0.75rem',
+              backgroundColor: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '500px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.12)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>Edit Customer</h2>
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)' }}>Edit Customer</h2>
               <button
                 type="button"
                 onClick={() => setEditingCustomer(null)}
-                style={{ background: 'transparent', border: 'none', color: 'hsl(220 14% 60%)', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
@@ -759,7 +813,7 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Full Name *
                   </label>
                   <input
@@ -769,17 +823,26 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Phone *
                   </label>
                   <input
@@ -789,17 +852,26 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Email (Optional)
                   </label>
                   <input
@@ -809,17 +881,26 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 14% 70%)', marginBottom: '0.375rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Notes (Optional)
                   </label>
                   <textarea
@@ -829,12 +910,21 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      background: 'hsl(222 47% 9%)',
-                      border: '1px solid hsla(0 0% 100% / 0.12)',
-                      color: 'white',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                       resize: 'vertical',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                 </div>
@@ -846,10 +936,10 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                   onClick={() => setEditingCustomer(null)}
                   style={{
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'transparent',
-                    border: '1px solid hsla(0 0% 100% / 0.1)',
-                    color: 'hsl(220 14% 70%)',
+                    borderRadius: 'var(--radius)',
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
                     fontSize: '0.875rem',
                     cursor: 'pointer',
                   }}
@@ -864,10 +954,10 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                     alignItems: 'center',
                     gap: '0.5rem',
                     padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    background: 'hsl(217 91% 50%)',
-                    border: 'none',
-                    color: 'white',
+                    borderRadius: 'var(--radius)',
+                    backgroundColor: 'var(--primary)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
+                    color: 'var(--primary-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -888,8 +978,8 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.7)',
-            backdropFilter: 'blur(4px)',
+            background: 'rgba(76, 69, 65, 0.4)',
+            backdropFilter: 'blur(3px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -899,13 +989,13 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
         >
           <div
             style={{
-              background: 'hsl(222 47% 13%)',
-              border: '1px solid hsla(0 84% 60% / 0.3)',
-              borderRadius: '0.75rem',
+              backgroundColor: 'var(--card)',
+              border: '1px solid var(--destructive-border)',
+              borderRadius: 'var(--radius)',
               width: '100%',
               maxWidth: '440px',
               padding: '1.5rem',
-              boxShadow: '0 8px 32px hsla(0 0% 0% / 0.4)',
+              boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.12)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
@@ -914,8 +1004,8 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                   width: '36px',
                   height: '36px',
                   borderRadius: '50%',
-                  background: 'hsla(0 84% 60% / 0.15)',
-                  color: 'hsl(0 84% 70%)',
+                  backgroundColor: 'var(--destructive)',
+                  color: 'var(--destructive-foreground)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -923,11 +1013,11 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
               >
                 <Trash2 size={18} />
               </div>
-              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'white' }}>Delete Customer</h2>
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--foreground)' }}>Delete Customer</h2>
             </div>
 
-            <p style={{ color: 'hsl(220 14% 75%)', fontSize: '0.875rem', lineHeight: 1.5, marginBottom: '1.25rem' }}>
-              Are you sure you want to delete <strong>{deletingCustomer.full_name}</strong>? This customer will be
+            <p style={{ color: 'var(--muted-foreground)', fontSize: '0.875rem', lineHeight: 1.5, marginBottom: '1.25rem' }}>
+              Are you sure you want to delete <strong style={{ color: 'var(--foreground)' }}>{deletingCustomer.full_name}</strong>? This customer will be
               soft-deleted and removed from active customer lists.
             </p>
 
@@ -938,10 +1028,10 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                 disabled={isPending}
                 style={{
                   padding: '0.5rem 1rem',
-                  borderRadius: '0.375rem',
-                  background: 'transparent',
-                  border: '1px solid hsla(0 0% 100% / 0.1)',
-                  color: 'hsl(220 14% 70%)',
+                  borderRadius: 'var(--radius)',
+                  backgroundColor: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--foreground)',
                   fontSize: '0.875rem',
                   cursor: 'pointer',
                 }}
@@ -957,10 +1047,10 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                   alignItems: 'center',
                   gap: '0.5rem',
                   padding: '0.5rem 1rem',
-                  borderRadius: '0.375rem',
-                  background: 'hsl(0 84% 60%)',
-                  border: 'none',
-                  color: 'white',
+                  borderRadius: 'var(--radius)',
+                  backgroundColor: 'var(--destructive)',
+                  border: '1px solid var(--destructive-border)',
+                  color: 'var(--destructive-foreground)',
                   fontSize: '0.875rem',
                   fontWeight: 600,
                   cursor: 'pointer',

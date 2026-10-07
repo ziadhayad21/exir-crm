@@ -29,11 +29,11 @@ interface LeadsClientProps {
   todayCount: number;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
-  new: { label: 'New', bg: 'hsla(217 91% 60% / 0.15)', text: 'hsl(217 91% 70%)' },
-  contacted: { label: 'Contacted', bg: 'hsla(38 92% 50% / 0.15)', text: 'hsl(38 92% 65%)' },
-  converted: { label: 'Converted', bg: 'hsla(142 76% 36% / 0.15)', text: 'hsl(142 76% 65%)' },
-  lost: { label: 'Lost', bg: 'hsla(0 84% 60% / 0.15)', text: 'hsl(0 84% 75%)' },
+const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  new: { label: 'New', bg: 'var(--info)', text: 'var(--info-foreground)', border: 'var(--info-border)' },
+  contacted: { label: 'Contacted', bg: 'var(--warning)', text: 'var(--warning-foreground)', border: 'var(--warning-border)' },
+  converted: { label: 'Converted', bg: 'var(--success)', text: 'var(--success-foreground)', border: 'var(--success-border)' },
+  lost: { label: 'Lost', bg: 'var(--destructive)', text: 'var(--destructive-foreground)', border: 'var(--destructive-border)' },
 };
 
 const LEAD_STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -149,7 +149,7 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
   }
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', color: 'var(--foreground)' }}>
       {/* Header */}
       <div
         style={{
@@ -157,6 +157,8 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
           alignItems: 'center',
           justifyContent: 'space-between',
           marginBottom: '1.5rem',
+          flexWrap: 'wrap',
+          gap: '1rem',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -164,20 +166,23 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
             style={{
               width: '44px',
               height: '44px',
-              borderRadius: '12px',
-              background: 'linear-gradient(135deg, hsl(262 83% 58%) 0%, hsl(217 91% 50%) 100%)',
+              borderRadius: 'var(--radius)',
+              backgroundColor: 'var(--primary)',
+              color: 'var(--primary-foreground)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              border: '1px solid rgba(174, 172, 120, 0.4)',
+              boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
             }}
           >
-            <Inbox size={22} color="white" />
+            <Inbox size={22} />
           </div>
           <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'hsl(222 47% 11%)', margin: 0 }}>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--foreground)', margin: 0, letterSpacing: '-0.02em' }}>
               Leads
             </h1>
-            <p style={{ fontSize: '0.875rem', color: 'hsl(220 8% 46%)', margin: 0 }}>
+            <p style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', margin: 0 }}>
               Incoming inquiries &amp; automatic assignment
             </p>
           </div>
@@ -189,9 +194,10 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
             <div
               style={{
                 padding: '0.5rem 1rem',
-                borderRadius: '0.75rem',
-                background: 'hsla(262 83% 58% / 0.1)',
-                color: 'hsl(262 83% 58%)',
+                borderRadius: '999px',
+                backgroundColor: 'var(--accent)',
+                color: 'var(--foreground)',
+                border: '1px solid var(--border)',
                 fontSize: '0.875rem',
                 fontWeight: 600,
               }}
@@ -208,16 +214,18 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                 alignItems: 'center',
                 gap: '0.5rem',
                 padding: '0.625rem 1.25rem',
-                borderRadius: '0.75rem',
-                border: 'none',
-                background: 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
-                color: 'white',
+                borderRadius: 'var(--radius)',
+                border: '1px solid rgba(174, 172, 120, 0.4)',
+                backgroundColor: 'var(--primary)',
+                color: 'var(--primary-foreground)',
                 fontWeight: 600,
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 2px 8px hsla(217 91% 50% / 0.25)',
+                transition: 'background-color 0.15s ease',
+                boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--primary-hover)')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--primary)')}
             >
               <Plus size={18} />
               New Lead
@@ -231,9 +239,10 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
         <div
           style={{
             padding: '0.75rem 1rem',
-            borderRadius: '0.75rem',
-            background: 'hsla(0 84% 60% / 0.1)',
-            color: 'hsl(0 84% 40%)',
+            borderRadius: 'var(--radius)',
+            backgroundColor: 'var(--destructive)',
+            border: '1px solid var(--destructive-border)',
+            color: 'var(--destructive-foreground)',
             marginBottom: '1rem',
             fontSize: '0.875rem',
             display: 'flex',
@@ -251,9 +260,10 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
         <div
           style={{
             padding: '0.75rem 1rem',
-            borderRadius: '0.75rem',
-            background: 'hsla(142 76% 36% / 0.1)',
-            color: 'hsl(142 76% 26%)',
+            borderRadius: 'var(--radius)',
+            backgroundColor: 'var(--success)',
+            border: '1px solid var(--success-border)',
+            color: 'var(--success-foreground)',
             marginBottom: '1rem',
             fontSize: '0.875rem',
             display: 'flex',
@@ -283,13 +293,14 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
             alignItems: 'center',
             gap: '0.5rem',
             padding: '0.5rem 1rem',
-            borderRadius: '0.75rem',
-            background: 'white',
-            border: '1px solid hsl(220 13% 91%)',
+            borderRadius: 'var(--radius)',
+            backgroundColor: 'var(--card)',
+            border: '1px solid var(--border)',
             flex: '1 1 300px',
+            boxShadow: '0 1px 2px rgba(76, 69, 65, 0.03)',
           }}
         >
-          <Search size={16} style={{ color: 'hsl(220 8% 46%)' }} />
+          <Search size={16} style={{ color: 'var(--muted-foreground)' }} />
           <input
             type="text"
             placeholder="Search leads..."
@@ -301,6 +312,7 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
               flex: 1,
               fontSize: '0.875rem',
               background: 'transparent',
+              color: 'var(--foreground)',
             }}
           />
         </div>
@@ -311,12 +323,13 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
             alignItems: 'center',
             gap: '0.5rem',
             padding: '0.5rem 1rem',
-            borderRadius: '0.75rem',
-            background: 'white',
-            border: '1px solid hsl(220 13% 91%)',
+            borderRadius: 'var(--radius)',
+            backgroundColor: 'var(--card)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 1px 2px rgba(76, 69, 65, 0.03)',
           }}
         >
-          <Filter size={16} style={{ color: 'hsl(220 8% 46%)' }} />
+          <Filter size={16} style={{ color: 'var(--muted-foreground)' }} />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -324,7 +337,8 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
               border: 'none',
               outline: 'none',
               fontSize: '0.875rem',
-              background: 'transparent',
+              backgroundColor: 'transparent',
+              color: 'var(--foreground)',
               cursor: 'pointer',
             }}
           >
@@ -343,11 +357,13 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'hsla(0 0% 0% / 0.5)',
+            background: 'rgba(76, 69, 65, 0.4)',
+            backdropFilter: 'blur(3px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 100,
+            padding: '1rem',
           }}
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowCreate(false);
@@ -355,25 +371,26 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
         >
           <div
             style={{
-              background: 'white',
-              borderRadius: '1rem',
+              backgroundColor: 'var(--card)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
               padding: '2rem',
               width: '100%',
               maxWidth: '500px',
-              boxShadow: '0 20px 60px hsla(0 0% 0% / 0.2)',
+              boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.12)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'hsl(222 47% 11%)', margin: 0 }}>New Lead</h2>
-              <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <X size={20} style={{ color: 'hsl(220 8% 46%)' }} />
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>New Lead</h2>
+              <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }}>
+                <X size={20} />
               </button>
             </div>
 
             <form onSubmit={handleCreate}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
-                  <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 8% 46%)', display: 'block', marginBottom: '0.25rem' }}>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: '0.25rem' }}>
                     Full Name *
                   </label>
                   <input
@@ -384,18 +401,28 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                     style={{
                       width: '100%',
                       padding: '0.625rem 0.875rem',
-                      borderRadius: '0.5rem',
-                      border: '1px solid hsl(220 13% 91%)',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                       outline: 'none',
                       boxSizing: 'border-box',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
-                    <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 8% 46%)', display: 'block', marginBottom: '0.25rem' }}>
+                    <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: '0.25rem' }}>
                       Phone
                     </label>
                     <input
@@ -405,16 +432,26 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                       style={{
                         width: '100%',
                         padding: '0.625rem 0.875rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid hsl(220 13% 91%)',
+                        borderRadius: 'var(--radius)',
+                        border: '1px solid var(--border)',
+                        backgroundColor: 'var(--surface)',
+                        color: 'var(--foreground)',
                         fontSize: '0.875rem',
                         outline: 'none',
                         boxSizing: 'border-box',
                       }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border-strong)';
+                        e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 8% 46%)', display: 'block', marginBottom: '0.25rem' }}>
+                    <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: '0.25rem' }}>
                       Email
                     </label>
                     <input
@@ -424,18 +461,28 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                       style={{
                         width: '100%',
                         padding: '0.625rem 0.875rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid hsl(220 13% 91%)',
+                        borderRadius: 'var(--radius)',
+                        border: '1px solid var(--border)',
+                        backgroundColor: 'var(--surface)',
+                        color: 'var(--foreground)',
                         fontSize: '0.875rem',
                         outline: 'none',
                         boxSizing: 'border-box',
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border-strong)';
+                        e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border)';
+                        e.currentTarget.style.boxShadow = 'none';
                       }}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 8% 46%)', display: 'block', marginBottom: '0.25rem' }}>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: '0.25rem' }}>
                     Source
                   </label>
                   <select
@@ -444,11 +491,12 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                     style={{
                       width: '100%',
                       padding: '0.625rem 0.875rem',
-                      borderRadius: '0.5rem',
-                      border: '1px solid hsl(220 13% 91%)',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                       outline: 'none',
-                      background: 'white',
                       boxSizing: 'border-box',
                     }}
                   >
@@ -464,7 +512,7 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                 </div>
 
                 <div>
-                  <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'hsl(220 8% 46%)', display: 'block', marginBottom: '0.25rem' }}>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: '0.25rem' }}>
                     Notes
                   </label>
                   <textarea
@@ -474,17 +522,27 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                     style={{
                       width: '100%',
                       padding: '0.625rem 0.875rem',
-                      borderRadius: '0.5rem',
-                      border: '1px solid hsl(220 13% 91%)',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
                       fontSize: '0.875rem',
                       outline: 'none',
                       resize: 'vertical',
                       boxSizing: 'border-box',
                     }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-strong)';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px var(--ring)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
                   />
                 </div>
 
-                <p style={{ fontSize: '0.75rem', color: 'hsl(220 8% 56%)', margin: 0 }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0 }}>
                   The lead will be automatically assigned to an available Sales employee.
                 </p>
 
@@ -493,10 +551,10 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                   disabled={isPending}
                   style={{
                     padding: '0.75rem',
-                    borderRadius: '0.75rem',
-                    border: 'none',
-                    background: 'linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(262 83% 58%) 100%)',
-                    color: 'white',
+                    borderRadius: 'var(--radius)',
+                    border: '1px solid rgba(174, 172, 120, 0.4)',
+                    backgroundColor: 'var(--primary)',
+                    color: 'var(--primary-foreground)',
                     fontWeight: 600,
                     fontSize: '0.875rem',
                     cursor: isPending ? 'not-allowed' : 'pointer',
@@ -505,6 +563,7 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '0.5rem',
+                    boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
                   }}
                 >
                   {isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
@@ -519,10 +578,11 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
       {/* Leads Table */}
       <div
         style={{
-          background: 'white',
-          borderRadius: '1rem',
-          border: '1px solid hsl(220 13% 91%)',
+          backgroundColor: 'var(--card)',
+          borderRadius: 'var(--radius)',
+          border: '1px solid var(--border)',
           overflow: 'hidden',
+          boxShadow: '0 1px 3px rgba(76, 69, 65, 0.04)',
         }}
       >
         {filteredLeads.length === 0 ? (
@@ -530,14 +590,14 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
             style={{
               padding: '3rem',
               textAlign: 'center',
-              color: 'hsl(220 8% 46%)',
+              color: 'var(--muted-foreground)',
             }}
           >
-            <Inbox size={48} style={{ color: 'hsl(220 13% 91%)', marginBottom: '1rem' }} />
-            <p style={{ fontSize: '1rem', fontWeight: 500 }}>
+            <Inbox size={48} style={{ color: 'var(--olive)', opacity: 0.5, marginBottom: '1rem' }} />
+            <p style={{ fontSize: '1rem', fontWeight: 500, color: 'var(--foreground)' }}>
               {leads.length === 0 ? 'No leads yet' : 'No matching leads'}
             </p>
-            <p style={{ fontSize: '0.875rem', opacity: 0.7 }}>
+            <p style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)' }}>
               {leads.length === 0
                 ? 'Create your first lead to get started.'
                 : 'Try adjusting your search or filter.'}
@@ -555,29 +615,29 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
               <thead>
                 <tr
                   style={{
-                    background: 'hsl(220 14% 96%)',
-                    borderBottom: '1px solid hsl(220 13% 91%)',
+                    backgroundColor: 'var(--surface-muted)',
+                    borderBottom: '1px solid var(--border)',
                   }}
                 >
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'hsl(220 8% 46%)' }}>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--muted-foreground)' }}>
                     Name
                   </th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'hsl(220 8% 46%)' }}>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--muted-foreground)' }}>
                     Contact
                   </th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'hsl(220 8% 46%)' }}>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--muted-foreground)' }}>
                     Source
                   </th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'hsl(220 8% 46%)' }}>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--muted-foreground)' }}>
                     Status
                   </th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'hsl(220 8% 46%)' }}>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--muted-foreground)' }}>
                     Assigned To
                   </th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'hsl(220 8% 46%)' }}>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--muted-foreground)' }}>
                     Created
                   </th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 600, color: 'hsl(220 8% 46%)' }}>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 600, color: 'var(--muted-foreground)' }}>
                     Actions
                   </th>
                 </tr>
@@ -589,34 +649,34 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                     <tr
                       key={lead.id}
                       style={{
-                        borderBottom: '1px solid hsl(220 13% 95%)',
-                        transition: 'background 0.1s ease',
+                        borderBottom: '1px solid rgba(174, 172, 120, 0.15)',
+                        transition: 'background-color 0.1s ease',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'hsl(220 14% 98%)';
+                        e.currentTarget.style.backgroundColor = 'var(--hover)';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.backgroundColor = 'transparent';
                       }}
                     >
-                      <td style={{ padding: '0.75rem 1rem', fontWeight: 500, color: 'hsl(222 47% 11%)' }}>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 500, color: 'var(--foreground)' }}>
                         {lead.full_name}
                       </td>
                       <td style={{ padding: '0.75rem 1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           {lead.phone && (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8125rem', color: 'hsl(220 8% 46%)' }}>
-                              <Phone size={12} /> {lead.phone}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
+                              <Phone size={12} style={{ color: 'var(--olive)' }} /> {lead.phone}
                             </span>
                           )}
                           {lead.email && (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8125rem', color: 'hsl(220 8% 46%)' }}>
-                              <Mail size={12} /> {lead.email}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
+                              <Mail size={12} style={{ color: 'var(--olive)' }} /> {lead.email}
                             </span>
                           )}
                         </div>
                       </td>
-                      <td style={{ padding: '0.75rem 1rem', fontSize: '0.8125rem', color: 'hsl(220 8% 46%)' }}>
+                      <td style={{ padding: '0.75rem 1rem', fontSize: '0.8125rem', color: 'var(--foreground)' }}>
                         {SOURCE_LABELS[lead.source] ?? lead.source}
                       </td>
                       <td style={{ padding: '0.75rem 1rem' }}>
@@ -627,8 +687,9 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                             borderRadius: '999px',
                             fontSize: '0.75rem',
                             fontWeight: 600,
-                            background: statusInfo.bg,
+                            backgroundColor: statusInfo.bg,
                             color: statusInfo.text,
+                            border: `1px solid ${statusInfo.border}`,
                           }}
                         >
                           {statusInfo.label}
@@ -637,18 +698,18 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                       <td style={{ padding: '0.75rem 1rem' }}>
                         {lead.assigned_to_employee ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <UserCheck size={14} style={{ color: 'hsl(142 76% 36%)' }} />
-                            <span style={{ fontSize: '0.8125rem', color: 'hsl(222 47% 11%)' }}>
+                            <UserCheck size={14} style={{ color: 'var(--success-foreground)' }} />
+                            <span style={{ fontSize: '0.8125rem', color: 'var(--foreground)' }}>
                               {lead.assigned_to_employee.full_name}
                             </span>
                           </div>
                         ) : (
-                          <span style={{ fontSize: '0.8125rem', color: 'hsl(0 84% 60%)', fontStyle: 'italic' }}>
+                          <span style={{ fontSize: '0.8125rem', color: 'var(--destructive-foreground)', fontStyle: 'italic' }}>
                             Unassigned
                           </span>
                         )}
                       </td>
-                      <td style={{ padding: '0.75rem 1rem', fontSize: '0.8125rem', color: 'hsl(220 8% 46%)' }}>
+                      <td style={{ padding: '0.75rem 1rem', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
                         {formatDateTime(lead.created_at)}
                       </td>
                       <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
@@ -661,10 +722,11 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                               disabled={isPending}
                               style={{
                                 padding: '0.25rem 0.5rem',
-                                borderRadius: '0.375rem',
-                                border: '1px solid hsl(220 13% 91%)',
+                                borderRadius: 'var(--radius)',
+                                border: '1px solid var(--border)',
                                 fontSize: '0.75rem',
-                                background: 'white',
+                                backgroundColor: 'var(--surface)',
+                                color: 'var(--foreground)',
                                 cursor: 'pointer',
                               }}
                               title="Change status"
@@ -686,10 +748,11 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                               disabled={isPending}
                               style={{
                                 padding: '0.25rem 0.5rem',
-                                borderRadius: '0.375rem',
-                                border: '1px solid hsl(220 13% 91%)',
+                                borderRadius: 'var(--radius)',
+                                border: '1px solid var(--border)',
                                 fontSize: '0.75rem',
-                                background: 'white',
+                                backgroundColor: 'var(--surface)',
+                                color: 'var(--foreground)',
                                 cursor: 'pointer',
                                 maxWidth: '120px',
                               }}
@@ -711,7 +774,7 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                                 alignItems: 'center',
                                 gap: '4px',
                                 fontSize: '0.75rem',
-                                color: 'hsl(142 76% 36%)',
+                                color: 'var(--success-foreground)',
                               }}
                             >
                               <ArrowRightCircle size={14} />
@@ -737,7 +800,7 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
           alignItems: 'center',
           marginTop: '1rem',
           fontSize: '0.8125rem',
-          color: 'hsl(220 8% 46%)',
+          color: 'var(--muted-foreground)',
         }}
       >
         <span>
