@@ -9,6 +9,7 @@
     "lint": "eslint",
     "type-check": "tsc --noEmit",
     "seed": "tsx scripts/seed.ts",
+    "seed:clean-accounts": "tsx scripts/seed_clean_accounts.ts",
     "check:colors": "tsx scripts/check_colors.ts",
     "test:chat-perf": "tsx --conditions=react-server scripts/test_chat_perf.ts",
     "test:security": "tsx --conditions=react-server scripts/test_security_suite.ts"
