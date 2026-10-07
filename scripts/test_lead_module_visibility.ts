@@ -39,11 +39,12 @@ async function runLeadVisibilityTests() {
   console.log(`Mohamed (Sales 2): ${mohamedEmp.full_name} (${mohamedEmp.id})`);
   console.log(`Admin:            ${adminEmp.full_name} (${adminEmp.id})\n`);
 
-  // Set known passwords for authentication
-  const TEST_PASSWORD = 'TestPassword123!Safe';
-  await admin.auth.admin.updateUserById(ahmedEmp.auth_user_id, { password: TEST_PASSWORD });
-  await admin.auth.admin.updateUserById(mohamedEmp.auth_user_id, { password: TEST_PASSWORD });
-  await admin.auth.admin.updateUserById(adminEmp.auth_user_id, { password: TEST_PASSWORD });
+  // Use standard passwords for testing
+  const SALES_PASSWORD = 'Sales123!';
+  const ADMIN_PASSWORD = 'Admin123!';
+  await admin.auth.admin.updateUserById(ahmedEmp.auth_user_id, { password: SALES_PASSWORD });
+  await admin.auth.admin.updateUserById(mohamedEmp.auth_user_id, { password: SALES_PASSWORD });
+  await admin.auth.admin.updateUserById(adminEmp.auth_user_id, { password: ADMIN_PASSWORD });
 
   // 2. Clean previous test leads
   const testTag = `vis_test_${Date.now()}`;
@@ -120,7 +121,7 @@ async function runLeadVisibilityTests() {
     const ahmedClient = createClient(supabaseUrl, anonKey);
     const { error: ahmedLoginErr } = await ahmedClient.auth.signInWithPassword({
       email: ahmedEmp.email,
-      password: TEST_PASSWORD,
+      password: SALES_PASSWORD,
     });
     if (ahmedLoginErr) throw new Error(`Ahmed login failed: ${ahmedLoginErr.message}`);
 
@@ -153,7 +154,7 @@ async function runLeadVisibilityTests() {
     const mohamedClient = createClient(supabaseUrl, anonKey);
     const { error: mohamedLoginErr } = await mohamedClient.auth.signInWithPassword({
       email: mohamedEmp.email,
-      password: TEST_PASSWORD,
+      password: SALES_PASSWORD,
     });
     if (mohamedLoginErr) throw new Error(`Mohamed login failed: ${mohamedLoginErr.message}`);
 
@@ -186,7 +187,7 @@ async function runLeadVisibilityTests() {
     const adminClient = createClient(supabaseUrl, anonKey);
     const { error: adminLoginErr } = await adminClient.auth.signInWithPassword({
       email: adminEmp.email,
-      password: TEST_PASSWORD,
+      password: ADMIN_PASSWORD,
     });
     if (adminLoginErr) throw new Error(`Admin login failed: ${adminLoginErr.message}`);
 

@@ -755,16 +755,24 @@ async function test10_Security() {
     throw new Error(`Failed to assign lead to Ahmed: ${salesAssignErr.message}`);
   }
 
-  // Set password for Mohamed (Sales 2) to authenticate
-  await admin.auth.admin.updateUserById(ctx.sales2Emp.auth_user_id, {
-    password: 'TemporarySalesPassword123!',
+  // Authenticate as Mohamed (Sales 2)
+  const sales2AuthClient = createClient(supabaseUrl, supabaseAnonKey);
+  let { data: authData, error: signInErr } = await sales2AuthClient.auth.signInWithPassword({
+    email: 'sales2@gmail.com',
+    password: 'Sales123!',
   });
 
-  const sales2AuthClient = createClient(supabaseUrl, supabaseAnonKey);
-  const { data: authData, error: signInErr } = await sales2AuthClient.auth.signInWithPassword({
-    email: 'sales2@gmail.com',
-    password: 'TemporarySalesPassword123!',
-  });
+  if (signInErr || !authData?.session) {
+    await admin.auth.admin.updateUserById(ctx.sales2Emp.auth_user_id, {
+      password: 'Sales123!',
+    });
+    const retry = await sales2AuthClient.auth.signInWithPassword({
+      email: 'sales2@gmail.com',
+      password: 'Sales123!',
+    });
+    authData = retry.data;
+    signInErr = retry.error;
+  }
 
   if (signInErr || !authData?.session) {
     throw new Error(`Failed to sign in as Mohamed (Sales 2): ${signInErr?.message}`);
