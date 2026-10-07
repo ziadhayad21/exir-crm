@@ -604,7 +604,6 @@ export async function createDeal(formData: FormData): Promise<ActionResult<Deal>
   });
 
   revalidatePath('/crm/deals');
-  revalidatePath('/crm/pipeline');
   revalidatePath(`/crm/customers/${parsed.data.customer_id}`);
   revalidatePath('/dashboard');
 
@@ -686,7 +685,6 @@ export async function updateDeal(formData: FormData): Promise<ActionResult<Deal>
   });
 
   revalidatePath('/crm/deals');
-  revalidatePath('/crm/pipeline');
   revalidatePath(`/crm/deals/${updated.id}`);
   return { success: true, data: updated as Deal };
 }
@@ -777,7 +775,6 @@ export async function changeDealStage(formData: FormData): Promise<ActionResult>
   });
 
   revalidatePath('/crm/deals');
-  revalidatePath('/crm/pipeline');
   revalidatePath(`/crm/deals/${parsed.data.deal_id}`);
   revalidatePath('/dashboard');
 
@@ -854,7 +851,6 @@ export async function updateDealPayment(formData: FormData): Promise<ActionResul
   });
 
   revalidatePath('/crm/deals');
-  revalidatePath('/crm/pipeline');
   revalidatePath(`/crm/deals/${parsed.data.deal_id}`);
   revalidatePath('/dashboard');
 
@@ -924,7 +920,6 @@ export async function reassignDeal(formData: FormData): Promise<ActionResult> {
   });
 
   revalidatePath('/crm/deals');
-  revalidatePath('/crm/pipeline');
   revalidatePath(`/crm/deals/${parsed.data.deal_id}`);
   return { success: true };
 }

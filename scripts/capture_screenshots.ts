@@ -41,8 +41,8 @@ async function capture() {
         const filePath = path.join(OUTPUT_DIR, `${p.name}-${vp.name}.png`);
         await page.screenshot({ path: filePath, fullPage: false });
         console.log(`✅ Saved: ${filePath}`);
-      } catch (err: any) {
-        console.warn(`⚠️ Failed ${p.name}:`, err.message);
+      } catch (err: unknown) {
+        console.warn(`⚠️ Failed ${p.name}:`, (err as Error).message);
       }
     }
 
@@ -76,12 +76,12 @@ async function capture() {
           const filePath = path.join(OUTPUT_DIR, `${p.name}-${vp.name}.png`);
           await page.screenshot({ path: filePath, fullPage: false });
           console.log(`✅ Saved: ${filePath}`);
-        } catch (err: any) {
-          console.warn(`⚠️ Failed ${p.name}:`, err.message);
+        } catch (err: unknown) {
+          console.warn(`⚠️ Failed ${p.name}:`, (err as Error).message);
         }
       }
-    } catch (err: any) {
-      console.warn('⚠️ Login failed:', err.message);
+    } catch (err: unknown) {
+      console.warn('⚠️ Login failed:', (err as Error).message);
     }
 
     await context.close();

@@ -78,18 +78,6 @@ const navItems: NavItem[] = [
         icon: <Handshake size={18} />,
         permissionKeys: ['crm.deals.read_own', 'crm.deals.read_all'],
       },
-      {
-        label: 'Pipeline',
-        href: '/crm/pipeline',
-        icon: <Briefcase size={18} />,
-        permissionKeys: ['crm.deals.read_own', 'crm.deals.read_all'],
-      },
-      {
-        label: 'Services',
-        href: '/crm/services',
-        icon: <Plane size={18} />,
-        permissionKeys: ['crm.deals.read_own', 'crm.deals.read_all'],
-      },
     ],
   },
   {

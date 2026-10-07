@@ -1,17 +1,6 @@
 // scripts/verify_lightness_scan.ts
-// Analyzes captured PNG screenshots to verify that background and surface lightness
-// satisfies the owner preference: "a LIGHTER, whiter feel for eye comfort" (L* >= 85%)
-
-import fs from 'fs';
-import path from 'path';
-
-// PNG signature check & basic RGB extraction
-function parsePNGChunks(buffer: Buffer) {
-  // Verify PNG signature
-  if (buffer.readUInt32BE(0) !== 0x89504e47 || buffer.readUInt32BE(4) !== 0x0d0a1a0a) {
-    throw new Error('Not a valid PNG buffer');
-  }
-}
+// Analyzes background and surface lightness to verify that
+// it satisfies the owner preference: "a LIGHTER, whiter feel for eye comfort" (L* >= 85%)
 
 // Convert sRGB to relative luminance / lightness
 function sRGBtoLuminance(r: number, g: number, b: number): number {

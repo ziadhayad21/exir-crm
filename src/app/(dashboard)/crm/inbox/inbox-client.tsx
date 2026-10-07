@@ -3107,7 +3107,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                       fontWeight: 600,
                     }}
                   >
-                    Manage Lead in Pipeline <ExternalLink size={11} />
+                    Manage Lead <ExternalLink size={11} />
                   </a>
                 </div>
               ) : (
