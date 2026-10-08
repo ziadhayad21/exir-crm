@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 import { LogOut, User, ChevronDown } from 'lucide-react';
 import type { CurrentUser } from '@/types';
 import { logoutAction } from '@/app/(dashboard)/actions';
+import { NotificationBell } from '@/components/notification-bell';
 
 interface TopbarProps {
   user: CurrentUser;
@@ -45,8 +46,11 @@ export function Topbar({ user }: TopbarProps) {
       {/* Left side — page context */}
       <div />
 
-      {/* Right side — user menu */}
-      <div ref={menuRef} style={{ position: 'relative' }}>
+      {/* Right side — notifications & user menu */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <NotificationBell employeeId={user.employee.id} />
+
+        <div ref={menuRef} style={{ position: 'relative' }}>
         <button
           onClick={() => setMenuOpen(!menuOpen)}
           style={{
@@ -257,6 +261,7 @@ export function Topbar({ user }: TopbarProps) {
             </div>
           </div>
         )}
+      </div>
       </div>
     </header>
   );

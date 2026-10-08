@@ -21,7 +21,6 @@ import {
   AlertCircle,
   X,
   Clock,
-  Layers,
   Copy,
   CheckCircle2,
   Paperclip,
@@ -30,6 +29,9 @@ import {
   Music,
   Download,
   Trash2,
+  Calendar,
+  XCircle,
+  Loader2,
 } from 'lucide-react';
 import type {
   CurrentUser,
@@ -39,6 +41,8 @@ import type {
   Message,
   ChannelType,
   MessageAttachment,
+  LeadStatus,
+  Lead,
 } from '@/types';
 import {
   getConversations,
@@ -50,10 +54,12 @@ import {
   retryOutboundMediaReply,
   getMediaSignedUrl,
   updateConversationStatus,
+  ensureConversationLead,
   linkConversationCustomer,
   simulateInboundMessage,
   markConversationAsRead,
 } from '../inbox-actions';
+import { updateLeadStatus } from '../lead-actions';
 import { createClient } from '@/lib/supabase/client';
 import { resolveConversationDisplayName, mergeMessages } from '@/lib/utils';
 
@@ -123,6 +129,36 @@ const CHANNEL_THEMES: Record<
     text: 'var(--muted-foreground)',
     border: 'var(--border)',
     badgeBg: 'var(--muted-foreground)',
+  },
+};
+
+const LEAD_STATUS_CONFIG: Record<
+  string,
+  { label: string; bg: string; text: string; border: string }
+> = {
+  in_progress: {
+    label: 'In Progress',
+    bg: 'var(--info)',
+    text: 'var(--info-foreground)',
+    border: 'var(--info-border)',
+  },
+  follow_up: {
+    label: 'Follow Up',
+    bg: 'var(--warning)',
+    text: 'var(--warning-foreground)',
+    border: 'var(--warning-border)',
+  },
+  won: {
+    label: 'Won',
+    bg: 'var(--success)',
+    text: 'var(--success-foreground)',
+    border: 'var(--success-border)',
+  },
+  lose: {
+    label: 'Lose',
+    bg: 'var(--destructive)',
+    text: 'var(--destructive-foreground)',
+    border: 'var(--destructive-border)',
   },
 };
 
@@ -202,8 +238,30 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
   const [replyText, setReplyText] = useState<string>('');
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [showRightSidebar, setShowRightSidebar] = useState<boolean>(true);
   const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  // Lead status workflow state & modals (matching CRM Leads system)
+  const [followUpModal, setFollowUpModal] = useState<{ leadId: string } | null>(null);
+  const [followUpAt, setFollowUpAt] = useState<string>('');
+  const [followUpNotes, setFollowUpNotes] = useState<string>('');
+
+  const [wonModal, setWonModal] = useState<{
+    leadId: string;
+    leadName: string;
+    service_name: string;
+    total_amount: string;
+    paid_amount: string;
+  } | null>(null);
+
+  const [loseModal, setLoseModal] = useState<{
+    leadId: string;
+    leadName: string;
+    service_name: string;
+    lost_reason: string;
+  } | null>(null);
+
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<boolean>(false);
+  const [statusSuccessMsg, setStatusSuccessMsg] = useState<string | null>(null);
 
   // Phase 4E: Outbound media attachment state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -506,6 +564,19 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
       });
     });
   }, [initialConversations]);
+
+  // Handle direct navigation via conversationId URL param (e.g. from follow-up notifications)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetConvId = urlParams.get('conversationId');
+    if (targetConvId && targetConvId !== selectedConvIdRef.current) {
+      const target = conversations.find((c) => c.id === targetConvId);
+      if (target) {
+        handleSelectConversation(target);
+      }
+    }
+  }, [conversations, handleSelectConversation]);
 
   // Keep background cache warmed for active conversation list
   useEffect(() => {
@@ -1005,6 +1076,9 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               : c
           )
         );
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('follow_up_updated'));
+        }
       } else {
         setMessages((prev) => {
           const next = prev.map((m) =>
@@ -1355,7 +1429,242 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
     }
   };
 
-  // Status Change
+  // Helper to ensure active conversation has an associated Lead
+  const getOrEnsureLead = async (conv: ConversationWithDetails): Promise<Lead | null> => {
+    if (conv.lead) return conv.lead;
+    const res = await ensureConversationLead(conv.id);
+    if (res.success && res.data) {
+      const enrichedLead = res.data;
+      setActiveConv((prev) =>
+        prev && prev.id === conv.id ? { ...prev, lead: enrichedLead, lead_id: enrichedLead.id } : prev
+      );
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conv.id ? { ...c, lead: enrichedLead, lead_id: enrichedLead.id } : c
+        )
+      );
+      return enrichedLead;
+    }
+    return null;
+  };
+
+  // Lead Status Selection Handler (Matching CRM Leads properties & modals)
+  const handleLeadStatusSelect = async (newStatus: string) => {
+    if (!activeConv) return;
+    if (newStatus === 'pending_assignment') return;
+
+    let lead = activeConv.lead;
+    if (!lead) {
+      setIsUpdatingStatus(true);
+      lead = await getOrEnsureLead(activeConv);
+      setIsUpdatingStatus(false);
+      if (!lead) {
+        setErrorMsg('Could not find or create a sales lead for this thread.');
+        return;
+      }
+    }
+
+    if (newStatus === 'follow_up') {
+      setFollowUpModal({ leadId: lead.id });
+      setFollowUpAt(
+        lead.follow_up_at ? new Date(lead.follow_up_at).toISOString().slice(0, 16) : ''
+      );
+      setFollowUpNotes(lead.notes || '');
+      return;
+    }
+
+    if (newStatus === 'won') {
+      setWonModal({
+        leadId: lead.id,
+        leadName: resolveDisplayName(activeConv),
+        service_name: lead.service_name || '',
+        total_amount: lead.total_amount != null ? String(lead.total_amount) : '',
+        paid_amount: lead.paid_amount != null ? String(lead.paid_amount) : '0',
+      });
+      return;
+    }
+
+    if (newStatus === 'lose') {
+      setLoseModal({
+        leadId: lead.id,
+        leadName: resolveDisplayName(activeConv),
+        service_name: lead.service_name || lead.service_type || '',
+        lost_reason: lead.lost_reason || '',
+      });
+      return;
+    }
+
+    if (newStatus === 'in_progress') {
+      await executeLeadStatusUpdate(lead.id, 'in_progress');
+    }
+  };
+
+  // Authoritative Lead Status update execution
+  const executeLeadStatusUpdate = async (
+    leadId: string,
+    newStatus: LeadStatus,
+    extra?: {
+      follow_up_at?: string;
+      notes?: string;
+      service_name?: string;
+      total_amount?: string;
+      paid_amount?: string;
+      remaining_amount?: string;
+      lost_reason?: string;
+    }
+  ) => {
+    if (!selectedConvId) return;
+    setIsUpdatingStatus(true);
+    setErrorMsg(null);
+    setStatusSuccessMsg(null);
+
+    const formData = new FormData();
+    formData.set('lead_id', leadId);
+    formData.set('status', newStatus);
+    if (extra?.follow_up_at) formData.set('follow_up_at', extra.follow_up_at);
+    if (extra?.notes) formData.set('notes', extra.notes);
+    if (extra?.service_name) formData.set('service_name', extra.service_name);
+    if (extra?.total_amount) formData.set('total_amount', extra.total_amount);
+    if (extra?.paid_amount) formData.set('paid_amount', extra.paid_amount);
+    if (extra?.remaining_amount) formData.set('remaining_amount', extra.remaining_amount);
+    if (extra?.lost_reason) formData.set('lost_reason', extra.lost_reason);
+
+    const res = await updateLeadStatus(formData);
+    setIsUpdatingStatus(false);
+
+    if (!res.success) {
+      setErrorMsg(res.error || 'Failed to update lead status');
+      return;
+    }
+
+    setStatusSuccessMsg(`Lead status updated to ${newStatus.replace('_', ' ')}.`);
+    setTimeout(() => setStatusSuccessMsg(null), 3000);
+
+    // Optimistic state updates for instant UI feedback
+    setActiveConv((prev) => {
+      if (!prev || prev.id !== selectedConvId) return prev;
+      const currentLead = prev.lead;
+      const updatedLead: Lead = currentLead
+        ? {
+            ...currentLead,
+            status: newStatus,
+            ...(extra?.follow_up_at ? { follow_up_at: extra.follow_up_at } : {}),
+            ...(extra?.notes ? { notes: extra.notes } : {}),
+            ...(extra?.service_name ? { service_name: extra.service_name } : {}),
+            ...(extra?.total_amount ? { total_amount: parseFloat(extra.total_amount) } : {}),
+            ...(extra?.paid_amount ? { paid_amount: parseFloat(extra.paid_amount) } : {}),
+            ...(extra?.remaining_amount ? { remaining_amount: parseFloat(extra.remaining_amount) } : {}),
+            ...(extra?.lost_reason ? { lost_reason: extra.lost_reason } : {}),
+          }
+        : ({
+            id: leadId,
+            full_name: resolveDisplayName(prev),
+            phone: prev.channel_identity?.phone || null,
+            email: prev.channel_identity?.email || null,
+            source: prev.channel === 'whatsapp' ? 'whatsapp' : 'social_media',
+            status: newStatus,
+            assignment_source: 'automatic',
+            assigned_to: prev.assigned_to,
+            assigned_at: null,
+            follow_up_at: extra?.follow_up_at || null,
+            follow_up_notification_sent_at: null,
+            converted_to_customer_id: null,
+            converted_to_deal_id: null,
+            notes: extra?.notes || null,
+          } as Lead);
+
+      return {
+        ...prev,
+        lead: updatedLead,
+        status: newStatus === 'won' || newStatus === 'lose' ? 'closed' : prev.status,
+      };
+    });
+
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (c.id !== selectedConvId) return c;
+        return {
+          ...c,
+          lead: c.lead ? { ...c.lead, status: newStatus } : c.lead,
+          status: newStatus === 'won' || newStatus === 'lose' ? 'closed' : c.status,
+        };
+      })
+    );
+
+    // Refresh active conversation details from DB to sync any triggers & joined customer
+    void getConversationDetails(selectedConvId).then((fresh) => {
+      if (fresh) {
+        setActiveConv(fresh);
+      }
+    });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('follow_up_updated'));
+    }
+  };
+
+  const handleFollowUpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!followUpModal || !followUpAt) {
+      setErrorMsg('Follow-up date and time is required');
+      return;
+    }
+    const isoDate = new Date(followUpAt).toISOString();
+    await executeLeadStatusUpdate(followUpModal.leadId, 'follow_up', {
+      follow_up_at: isoDate,
+      notes: followUpNotes,
+    });
+    setFollowUpModal(null);
+  };
+
+  const handleWonSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!wonModal) return;
+    if (!wonModal.service_name.trim()) {
+      setErrorMsg('Service name is required when marking as Won');
+      return;
+    }
+    const total = parseFloat(wonModal.total_amount);
+    if (isNaN(total) || total < 0) {
+      setErrorMsg('Total service amount is required and must be >= 0');
+      return;
+    }
+    const paid = parseFloat(wonModal.paid_amount) || 0;
+    if (paid < 0) {
+      setErrorMsg('Amount paid must be >= 0');
+      return;
+    }
+    if (paid > total) {
+      setErrorMsg('Amount paid cannot exceed total service amount');
+      return;
+    }
+    const remaining = Math.max(0, total - paid);
+
+    await executeLeadStatusUpdate(wonModal.leadId, 'won', {
+      service_name: wonModal.service_name.trim(),
+      total_amount: String(total),
+      paid_amount: String(paid),
+      remaining_amount: String(remaining),
+    });
+    setWonModal(null);
+  };
+
+  const handleLoseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loseModal) return;
+    if (!loseModal.lost_reason.trim()) {
+      setErrorMsg('Reason for not selling is required');
+      return;
+    }
+
+    await executeLeadStatusUpdate(loseModal.leadId, 'lose', {
+      service_name: loseModal.service_name.trim(),
+      lost_reason: loseModal.lost_reason.trim(),
+    });
+    setLoseModal(null);
+  };
+
+  // Fallback conversation status change
   const handleStatusChange = async (newStatus: ConversationStatus) => {
     if (!selectedConvId) return;
     const res = await updateConversationStatus({
@@ -1520,52 +1829,6 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button
-            onClick={() => setShowSimulateModal(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'var(--accent)',
-              color: 'var(--foreground)',
-              border: '1px solid rgba(174, 172, 120, 0.4)',
-              padding: '7px 14px',
-              borderRadius: 'var(--radius)',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 1px 3px rgba(76, 69, 65, 0.05)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <Sparkles size={14} style={{ color: 'var(--primary-dark)' }} /> Simulate Inbound Message
-          </button>
-          <button
-            onClick={() => void refreshConversations(false)}
-            disabled={isPending}
-            style={{
-              background: 'var(--card)',
-              border: '1px solid var(--border)',
-              color: 'var(--foreground)',
-              padding: '7px 12px',
-              borderRadius: 'var(--radius)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '12px',
-              fontWeight: 500,
-            }}
-            title="Refresh Conversations"
-          >
-            <RefreshCw
-              size={13}
-              style={{ animation: isPending ? 'spin 1s linear infinite' : 'none' }}
-            />
-            <span>Refresh</span>
-          </button>
-        </div>
       </header>
 
       {/* Error notification bar */}
@@ -1909,7 +2172,35 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           {conv.assigned_to_employee?.full_name ||
                             (conv.status === 'pending_assignment' ? 'Pending Routing' : 'Unassigned')}
                         </span>
-                        {conv.status === 'closed' && (
+                        {conv.status === 'pending_assignment' ? (
+                          <span
+                            style={{
+                              background: 'var(--warning)',
+                              color: 'var(--warning-foreground)',
+                              border: '1px solid var(--warning-border)',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              fontSize: '9px',
+                              fontWeight: 600,
+                            }}
+                          >
+                            Pending
+                          </span>
+                        ) : conv.lead?.status ? (
+                          <span
+                            style={{
+                              background: LEAD_STATUS_CONFIG[conv.lead.status]?.bg,
+                              color: LEAD_STATUS_CONFIG[conv.lead.status]?.text,
+                              border: `1px solid ${LEAD_STATUS_CONFIG[conv.lead.status]?.border}`,
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              fontSize: '9px',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {LEAD_STATUS_CONFIG[conv.lead.status]?.label}
+                          </span>
+                        ) : conv.status === 'closed' ? (
                           <span
                             style={{
                               background: 'rgba(255,255,255,0.06)',
@@ -1921,7 +2212,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                           >
                             Closed
                           </span>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -2040,46 +2331,95 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                   </div>
                 </div>
 
-                {/* Right controls: Status selector & Sidebar toggle */}
+                {/* Right controls: Lead Status dropdown (in_progress, follow_up, won, lose) & Sidebar toggle */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <select
-                    value={activeConv.status}
-                    onChange={(e) => handleStatusChange(e.target.value as ConversationStatus)}
-                    style={{
-                      background: 'rgba(255,255,255,0.06)',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      color: 'var(--foreground)',
-                      borderRadius: '6px',
-                      padding: '5px 10px',
-                      fontSize: '12px',
-                      outline: 'none',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {activeConv.status === 'pending_assignment' && (
-                      <option value="pending_assignment">Pending Routing</option>
-                    )}
-                    <option value="open">Open</option>
-                    <option value="closed">Closed</option>
-                    <option value="archived">Archived</option>
-                  </select>
+                  {activeConv.status === 'pending_assignment' && !activeConv.lead?.status ? (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        background: 'var(--warning)',
+                        color: 'var(--warning-foreground)',
+                        border: '1px solid var(--warning-border)',
+                      }}
+                      title="Pending automatic routing to an online sales representative"
+                    >
+                      <Clock size={13} /> Pending Routing
+                    </span>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                      <select
+                        value={activeConv.lead?.status || 'in_progress'}
+                        onChange={(e) => void handleLeadStatusSelect(e.target.value)}
+                        disabled={isUpdatingStatus}
+                        style={{
+                          background:
+                            LEAD_STATUS_CONFIG[activeConv.lead?.status || 'in_progress']?.bg ||
+                            'var(--surface)',
+                          color:
+                            LEAD_STATUS_CONFIG[activeConv.lead?.status || 'in_progress']?.text ||
+                            'var(--foreground)',
+                          border: `1px solid ${
+                            LEAD_STATUS_CONFIG[activeConv.lead?.status || 'in_progress']?.border ||
+                            'var(--border)'
+                          }`,
+                          borderRadius: '6px',
+                          padding: '5px 12px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          outline: 'none',
+                          cursor: isUpdatingStatus ? 'not-allowed' : 'pointer',
+                          opacity: isUpdatingStatus ? 0.7 : 1,
+                          transition: 'all 0.15s ease',
+                          boxShadow: '0 1px 2px rgba(76, 69, 65, 0.05)',
+                        }}
+                        title="Change Sales Lead Status (In Progress, Follow Up, Won, Lose)"
+                      >
+                        {activeConv.status === 'pending_assignment' && (
+                          <option value="pending_assignment" disabled>
+                            Pending Routing
+                          </option>
+                        )}
+                        <option value="in_progress">In Progress</option>
+                        <option value="follow_up">Follow Up</option>
+                        <option value="won">Won</option>
+                        <option value="lose">Lose</option>
+                      </select>
+                      {isUpdatingStatus && (
+                        <span
+                          style={{
+                            marginLeft: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Loader2
+                            size={14}
+                            className="animate-spin"
+                            style={{ color: 'var(--muted-foreground)' }}
+                          />
+                        </span>
+                      )}
+                    </div>
+                  )}
 
-                  <button
-                    onClick={() => setShowRightSidebar((prev) => !prev)}
-                    style={{
-                      background: showRightSidebar ? 'var(--hover)' : 'transparent',
-                      border: '1px solid var(--border)',
-                      color: 'var(--foreground)',
-                      padding: '6px 8px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                    }}
-                    title={showRightSidebar ? 'Hide Details' : 'Show Details'}
-                  >
-                    <Layers size={14} />
-                  </button>
+                  {statusSuccessMsg && (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        color: 'var(--success-foreground)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {statusSuccessMsg}
+                    </span>
+                  )}
+
                 </div>
               </div>
 
@@ -2797,326 +3137,6 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           )}
         </main>
 
-        {/* ═══════════════════════════════════════════════════════════
-            PANE 3: Customer & Context Sidebar (Right, 320px)
-        ═══════════════════════════════════════════════════════════ */}
-        {activeConv && showRightSidebar && (
-          <aside
-            style={{
-              width: '320px',
-              borderLeft: '1px solid var(--border)',
-              background: 'var(--card)',
-              padding: '16px',
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-              flexShrink: 0,
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  color: 'var(--muted-foreground)',
-                  margin: 0,
-                }}
-              >
-                Customer & Thread Context
-              </h3>
-            </div>
-
-            {/* 1. Channel Profile Card */}
-            <div
-              style={{
-                background: 'var(--surface-muted)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                padding: '14px',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  marginBottom: '10px',
-                }}
-              >
-                <User size={15} style={{ color: 'var(--foreground)' }} />
-                <span style={{ fontWeight: 600, fontSize: '13px' }}>Channel Profile</span>
-              </div>
-
-              <div
-                style={{
-                  fontSize: '12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  color: 'var(--muted-foreground)',
-                }}
-              >
-                <div>
-                  <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '10px' }}>
-                    Display Name
-                  </span>
-                  <strong style={{ color: 'var(--foreground)', fontSize: '13px' }}>
-                    {resolveDisplayName(activeConv)}
-                  </strong>
-                </div>
-
-                {activeConv.channel_identity?.phone && (
-                  <div>
-                    <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '10px' }}>
-                      Phone / Handle
-                    </span>
-                    <strong style={{ color: 'var(--foreground)' }}>
-                      {activeConv.channel_identity.phone}
-                    </strong>
-                  </div>
-                )}
-
-                {activeConv.channel_identity?.email && (
-                  <div>
-                    <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '10px' }}>
-                      Email
-                    </span>
-                    <strong style={{ color: 'var(--foreground)' }}>
-                      {activeConv.channel_identity.email}
-                    </strong>
-                  </div>
-                )}
-
-                <div>
-                  <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '10px' }}>
-                    Platform External ID
-                  </span>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      background: 'var(--card)',
-                      border: '1px solid var(--border)',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      marginTop: '2px',
-                    }}
-                  >
-                    <span
-                      style={{
-                        color: 'var(--foreground)',
-                        fontSize: '11px',
-                        wordBreak: 'break-all',
-                        fontFamily: 'monospace',
-                      }}
-                    >
-                      {activeConv.channel_identity?.external_id}
-                    </span>
-                    <button
-                      onClick={() =>
-                        handleCopy(activeConv.channel_identity?.external_id || '', 'id')
-                      }
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: copiedText === 'id' ? 'var(--primary-dark)' : 'var(--muted-foreground)',
-                        cursor: 'pointer',
-                        padding: '2px',
-                      }}
-                      title="Copy ID"
-                    >
-                      {copiedText === 'id' ? <CheckCircle2 size={12} /> : <Copy size={12} />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 2. Linked Customer Card */}
-            <div
-              style={{
-                background: 'var(--surface-muted)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                padding: '14px',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: '10px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <User size={15} style={{ color: 'var(--success-foreground)' }} />
-                  <span style={{ fontWeight: 600, fontSize: '13px' }}>Linked Customer</span>
-                </div>
-                {!activeConv.customer && (
-                  <button
-                    onClick={() => setShowLinkModal(true)}
-                    style={{
-                      background: 'var(--primary)',
-                      border: '1px solid rgba(174, 172, 120, 0.4)',
-                      color: 'var(--primary-foreground)',
-                      fontSize: '11px',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Link Customer
-                  </button>
-                )}
-              </div>
-
-              {activeConv.customer ? (
-                <div
-                  style={{
-                    fontSize: '12px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                    color: 'var(--muted-foreground)',
-                  }}
-                >
-                  <div>
-                    Name: <strong style={{ color: 'var(--foreground)' }}>{activeConv.customer.full_name}</strong>
-                  </div>
-                  {activeConv.customer.phone && (
-                    <div>
-                      Phone:{' '}
-                      <strong style={{ color: 'var(--foreground)' }}>{activeConv.customer.phone}</strong>
-                    </div>
-                  )}
-                  {activeConv.customer.email && (
-                    <div>
-                      Email:{' '}
-                      <strong style={{ color: 'var(--foreground)' }}>{activeConv.customer.email}</strong>
-                    </div>
-                  )}
-                  <a
-                    href={`/crm/customers`}
-                    style={{
-                      color: 'var(--foreground)',
-                      fontSize: '11px',
-                      marginTop: '4px',
-                      textDecoration: 'none',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    View in Customer Directory <ExternalLink size={11} />
-                  </a>
-                </div>
-              ) : (
-                <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>
-                  No customer linked yet. Link an existing customer record to persist CRM history.
-                </div>
-              )}
-            </div>
-
-            {/* 3. Sales Lead Opportunity Card */}
-            <div
-              style={{
-                background: 'var(--surface-muted)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                padding: '14px',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  marginBottom: '10px',
-                }}
-              >
-                <Sparkles size={15} style={{ color: 'var(--warning-foreground)' }} />
-                <span style={{ fontWeight: 600, fontSize: '13px' }}>Sales Lead Opportunity</span>
-              </div>
-
-              {activeConv.lead ? (
-                <div
-                  style={{
-                    fontSize: '12px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                    color: 'var(--muted-foreground)',
-                  }}
-                >
-                  <div>
-                    Lead:{' '}
-                    <strong style={{ color: 'var(--foreground)' }}>{activeConv.lead.full_name}</strong>
-                  </div>
-                  <div>
-                    Status:{' '}
-                    <span
-                      style={{
-                        background: 'rgba(245, 158, 11, 0.15)',
-                        color: 'var(--warning-foreground)',
-                        padding: '1px 6px',
-                        borderRadius: '4px',
-                        fontWeight: 600,
-                        fontSize: '10px',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      {activeConv.lead.status}
-                    </span>
-                  </div>
-                  <div>
-                    Source:{' '}
-                    <strong style={{ color: 'var(--foreground)', textTransform: 'capitalize' }}>
-                      {activeConv.lead.source}
-                    </strong>
-                  </div>
-                  <div>
-                    Assigned Rep:{' '}
-                    <strong style={{ color: 'var(--foreground)' }}>
-                      {activeConv.assigned_to_employee?.full_name || 'Unassigned'}
-                    </strong>
-                  </div>
-                  <a
-                    href={`/crm/leads`}
-                    style={{
-                      color: 'var(--warning-foreground)',
-                      fontSize: '11px',
-                      marginTop: '6px',
-                      textDecoration: 'none',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Manage Lead <ExternalLink size={11} />
-                  </a>
-                </div>
-              ) : (
-                <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>
-                  No active sales lead associated with this thread.
-                </div>
-              )}
-            </div>
-          </aside>
-        )}
       </div>
 
       {/* ─── Modal: Link Customer ───────────────────────────────── */}
@@ -3554,6 +3574,589 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
                 />
               )}
             </div>
+          </div>
+        </div>
+      )}
+      {/* ─── Modal: Schedule Follow Up ─────────────────────────── */}
+      {followUpModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(76, 69, 65, 0.45)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1rem',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setFollowUpModal(null);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--card)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
+              padding: '1.75rem',
+              width: '100%',
+              maxWidth: '440px',
+              boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.15)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '1.25rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Calendar size={18} style={{ color: 'var(--warning-foreground)' }} />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>
+                  Schedule Follow Up
+                </h3>
+              </div>
+              <button
+                onClick={() => setFollowUpModal(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleFollowUpSubmit}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label
+                    style={{
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      color: 'var(--foreground)',
+                      display: 'block',
+                      marginBottom: '0.35rem',
+                    }}
+                  >
+                    Follow-Up Date &amp; Time (Cairo Time) *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={followUpAt}
+                    onChange={(e) => setFollowUpAt(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.875rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: '0.25rem', marginBottom: 0 }}>
+                    A notification reminder will trigger when this scheduled time arrives.
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      color: 'var(--foreground)',
+                      display: 'block',
+                      marginBottom: '0.35rem',
+                    }}
+                  >
+                    Follow-Up Notes (Optional)
+                  </label>
+                  <textarea
+                    value={followUpNotes}
+                    onChange={(e) => setFollowUpNotes(e.target.value)}
+                    rows={2}
+                    placeholder="e.g. Customer requested a callback tomorrow afternoon"
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.875rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      resize: 'vertical',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setFollowUpModal(null)}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.8125rem',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdatingStatus || !followUpAt}
+                    style={{
+                      padding: '0.5rem 1.25rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid rgba(174, 172, 120, 0.4)',
+                      backgroundColor: 'var(--primary)',
+                      color: 'var(--primary-foreground)',
+                      fontWeight: 600,
+                      fontSize: '0.8125rem',
+                      cursor: isUpdatingStatus || !followUpAt ? 'not-allowed' : 'pointer',
+                      opacity: isUpdatingStatus || !followUpAt ? 0.6 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    {isUpdatingStatus ? <Loader2 size={14} className="animate-spin" /> : null}
+                    Save Follow Up
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modal: Close Sale (Won) ────────────────────────────── */}
+      {wonModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(76, 69, 65, 0.45)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1rem',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setWonModal(null);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--card)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
+              padding: '1.75rem',
+              width: '100%',
+              maxWidth: '480px',
+              boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.15)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '1.25rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <CheckCircle2 size={20} style={{ color: 'var(--success-foreground)' }} />
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>
+                    Close Sale (Won)
+                  </h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0 }}>
+                    {wonModal.leadName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setWonModal(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleWonSubmit}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label
+                    style={{
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      color: 'var(--foreground)',
+                      display: 'block',
+                      marginBottom: '0.35rem',
+                    }}
+                  >
+                    Service Package / Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Nile Cruise VIP / Sharm El-Sheikh Tour"
+                    value={wonModal.service_name}
+                    onChange={(e) => setWonModal({ ...wonModal, service_name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.875rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label
+                      style={{
+                        fontSize: '0.8125rem',
+                        fontWeight: 600,
+                        color: 'var(--foreground)',
+                        display: 'block',
+                        marginBottom: '0.35rem',
+                      }}
+                    >
+                      Total Amount (EGP) *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      step="any"
+                      placeholder="0.00"
+                      value={wonModal.total_amount}
+                      onChange={(e) => setWonModal({ ...wonModal, total_amount: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.625rem 0.875rem',
+                        borderRadius: 'var(--radius)',
+                        border: '1px solid var(--border)',
+                        backgroundColor: 'var(--surface)',
+                        color: 'var(--foreground)',
+                        fontSize: '0.875rem',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        fontSize: '0.8125rem',
+                        fontWeight: 600,
+                        color: 'var(--foreground)',
+                        display: 'block',
+                        marginBottom: '0.35rem',
+                      }}
+                    >
+                      Amount Paid (EGP) *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      step="any"
+                      placeholder="0.00"
+                      value={wonModal.paid_amount}
+                      onChange={(e) => setWonModal({ ...wonModal, paid_amount: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.625rem 0.875rem',
+                        borderRadius: 'var(--radius)',
+                        border: '1px solid var(--border)',
+                        backgroundColor: 'var(--surface)',
+                        color: 'var(--foreground)',
+                        fontSize: '0.875rem',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Remaining Amount */}
+                <div
+                  style={{
+                    padding: '0.75rem 1rem',
+                    borderRadius: 'var(--radius)',
+                    backgroundColor: 'var(--surface-muted)',
+                    border: '1px solid var(--border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', display: 'block' }}>
+                      Remaining Balance
+                    </span>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--foreground)' }}>
+                      {Math.max(
+                        0,
+                        (parseFloat(wonModal.total_amount) || 0) - (parseFloat(wonModal.paid_amount) || 0)
+                      ).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--muted-foreground)' }}>EGP</span>
+                    </span>
+                  </div>
+                  {(parseFloat(wonModal.paid_amount) || 0) > (parseFloat(wonModal.total_amount) || 0) && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--destructive-foreground)', fontWeight: 600 }}>
+                      Paid exceeds Total!
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setWonModal(null)}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.8125rem',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={
+                      isUpdatingStatus ||
+                      !wonModal.service_name.trim() ||
+                      !wonModal.total_amount ||
+                      (parseFloat(wonModal.paid_amount) || 0) > (parseFloat(wonModal.total_amount) || 0)
+                    }
+                    style={{
+                      padding: '0.5rem 1.25rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid rgba(174, 172, 120, 0.4)',
+                      backgroundColor: 'var(--success)',
+                      color: 'var(--success-foreground)',
+                      fontWeight: 600,
+                      fontSize: '0.8125rem',
+                      cursor:
+                        isUpdatingStatus ||
+                        !wonModal.service_name.trim() ||
+                        !wonModal.total_amount ||
+                        (parseFloat(wonModal.paid_amount) || 0) > (parseFloat(wonModal.total_amount) || 0)
+                          ? 'not-allowed'
+                          : 'pointer',
+                      opacity:
+                        isUpdatingStatus ||
+                        !wonModal.service_name.trim() ||
+                        !wonModal.total_amount ||
+                        (parseFloat(wonModal.paid_amount) || 0) > (parseFloat(wonModal.total_amount) || 0)
+                          ? 0.6
+                          : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    {isUpdatingStatus ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    Save Won Sale
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modal: Mark as Lose ─────────────────────────────────── */}
+      {loseModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(76, 69, 65, 0.45)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1rem',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLoseModal(null);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--card)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
+              padding: '1.75rem',
+              width: '100%',
+              maxWidth: '440px',
+              boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.15)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '1.25rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <XCircle size={20} style={{ color: 'var(--destructive-foreground)' }} />
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>
+                    Mark as Lose
+                  </h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0 }}>
+                    {loseModal.leadName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setLoseModal(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleLoseSubmit}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label
+                    style={{
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      color: 'var(--foreground)',
+                      display: 'block',
+                      marginBottom: '0.35rem',
+                    }}
+                  >
+                    Service Package (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Egypt Classic Tour"
+                    value={loseModal.service_name}
+                    onChange={(e) => setLoseModal({ ...loseModal, service_name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.875rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      color: 'var(--foreground)',
+                      display: 'block',
+                      marginBottom: '0.35rem',
+                    }}
+                  >
+                    Reason for Not Selling *
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="e.g. Price too high, chosen competitor, changed travel dates..."
+                    value={loseModal.lost_reason}
+                    onChange={(e) => setLoseModal({ ...loseModal, lost_reason: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.875rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      resize: 'vertical',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setLoseModal(null)}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '0.8125rem',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdatingStatus || !loseModal.lost_reason.trim()}
+                    style={{
+                      padding: '0.5rem 1.25rem',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--destructive-border)',
+                      backgroundColor: 'var(--destructive)',
+                      color: 'var(--destructive-foreground)',
+                      fontWeight: 600,
+                      fontSize: '0.8125rem',
+                      cursor: isUpdatingStatus || !loseModal.lost_reason.trim() ? 'not-allowed' : 'pointer',
+                      opacity: isUpdatingStatus || !loseModal.lost_reason.trim() ? 0.6 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    {isUpdatingStatus ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
+                    Record Lose
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

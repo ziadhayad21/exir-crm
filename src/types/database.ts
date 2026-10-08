@@ -152,6 +152,7 @@ export interface DealActivity {
 
 export interface CustomerWithDeals extends Customer {
   deals: Deal[];
+  leads?: Lead[];
   created_by_name?: string;
 }
 

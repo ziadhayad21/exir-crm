@@ -1,13 +1,14 @@
 // src/app/(dashboard)/crm/customers/customers-client.tsx
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createCustomer, updateCustomer, softDeleteCustomer } from '../actions';
 import { formatDate } from '@/lib/utils';
-import type { Customer, CurrentUser } from '@/types';
+import type { Customer, CurrentUser, Lead } from '@/types';
 import { hasPermission } from '@/lib/auth/client-helpers';
+import { SearchableSelect, type SearchableOption } from '@/components/searchable-select';
 import {
   Plus,
   Users,
@@ -21,14 +22,24 @@ import {
   AlertTriangle,
   Mail,
   Phone,
+  FileDown,
+  UploadCloud,
 } from 'lucide-react';
+import {
+  exportCustomersExcel,
+  validateCustomersImportExcel,
+  executeCustomersImportExcel,
+  getCustomerExcelTemplate,
+} from '../excel-actions';
+import { ExcelImportModal } from '@/components/excel-import-modal';
 
 interface CustomersClientProps {
   customers: Customer[];
+  leads?: Lead[];
   user: CurrentUser;
 }
 
-export function CustomersClient({ customers, user }: CustomersClientProps) {
+export function CustomersClient({ customers, leads = [], user }: CustomersClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,12 +47,66 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
 
-  // Soft deduplication warning state
+  // Excel Import / Export state
+  const [isExporting, setIsExporting] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  // Strict deduplication warning state
   const [duplicateWarning, setDuplicateWarning] = useState<{
     message: string;
     duplicates: Customer[];
-    pendingFormData: FormData | null;
   } | null>(null);
+
+  // Link to existing Lead state
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [createFormData, setCreateFormData] = useState({
+    full_name: '',
+    phone: '',
+    email: '',
+    notes: '',
+  });
+
+  // Real-time check while typing: detect if phone or email matches an existing customer
+  const duplicateMatch = useMemo(() => {
+    const trimmedPhone = createFormData.phone.trim();
+    const trimmedEmail = createFormData.email.trim().toLowerCase();
+    if (!trimmedPhone && !trimmedEmail) return null;
+
+    return (customers || []).find((c) => {
+      const matchPhone = Boolean(trimmedPhone && c.phone && c.phone.trim() === trimmedPhone);
+      const matchEmail = Boolean(trimmedEmail && c.email && c.email.trim().toLowerCase() === trimmedEmail);
+      return matchPhone || matchEmail;
+    }) || null;
+  }, [createFormData.phone, createFormData.email, customers]);
+
+  const leadOptions: SearchableOption[] = useMemo(() => {
+    return (leads || []).map((l) => ({
+      id: l.id,
+      title: l.full_name,
+      subtitle: l.phone || 'No phone',
+      badge: l.status.replace('_', ' ').toUpperCase(),
+      badgeStyle: {
+        bg: l.status === 'won' ? 'rgba(34, 197, 94, 0.12)' : l.status === 'lose' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+        text: l.status === 'won' ? '#16a34a' : l.status === 'lose' ? '#dc2626' : '#2563eb',
+        border: 'transparent',
+      },
+      detail: l.email ? `Email: ${l.email}` : `Lead ID: ${l.id.slice(0, 8)}...`,
+      meta: l,
+    }));
+  }, [leads]);
+
+  const handleLeadSelect = (leadId: string | null, option?: SearchableOption | null) => {
+    setSelectedLeadId(leadId);
+    if (option?.meta) {
+      const lead = option.meta as Lead;
+      setCreateFormData({
+        full_name: lead.full_name || '',
+        phone: lead.phone || '',
+        email: lead.email || '',
+        notes: lead.notes || '',
+      });
+    }
+  };
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -65,42 +130,42 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
     e.preventDefault();
     setError(null);
     setDuplicateWarning(null);
+
+    // Immediate client-side duplicate check
+    if (duplicateMatch) {
+      const matchField = duplicateMatch.phone === createFormData.phone.trim() ? 'phone number' : 'email';
+      setDuplicateWarning({
+        message: `A customer with this ${matchField} already exists (${duplicateMatch.full_name}). Creating duplicate customer records is strictly blocked.`,
+        duplicates: [duplicateMatch],
+      });
+      return;
+    }
+
     const formData = new FormData(e.currentTarget);
+    if (selectedLeadId) {
+      formData.set('lead_id', selectedLeadId);
+    }
+    formData.set('full_name', createFormData.full_name);
+    formData.set('phone', createFormData.phone);
+    formData.set('email', createFormData.email);
+    formData.set('notes', createFormData.notes);
 
     startTransition(async () => {
       const result = await createCustomer(formData);
       if (result.success) {
         setShowCreateModal(false);
-        setSuccess('Customer created successfully');
-        router.refresh();
-        setTimeout(() => setSuccess(null), 3000);
-      } else if (result.warning && result.duplicates) {
-        // Soft deduplication warning triggered
-        setDuplicateWarning({
-          message: result.warning,
-          duplicates: result.duplicates,
-          pendingFormData: formData,
-        });
-      } else {
-        setError(result.error ?? 'Failed to create customer');
-      }
-    });
-  }
-
-  function handleForceCreate() {
-    if (!duplicateWarning?.pendingFormData) return;
-    setError(null);
-    const formData = duplicateWarning.pendingFormData;
-    formData.set('force', 'true');
-
-    startTransition(async () => {
-      const result = await createCustomer(formData);
-      if (result.success) {
-        setShowCreateModal(false);
+        setSelectedLeadId(null);
+        setCreateFormData({ full_name: '', phone: '', email: '', notes: '' });
         setDuplicateWarning(null);
-        setSuccess('Customer created successfully');
+        setSuccess('Customer created successfully and linked to Lead!');
         router.refresh();
         setTimeout(() => setSuccess(null), 3000);
+      } else if (result.duplicates && result.duplicates.length > 0) {
+        // Strict duplicate blocked by server
+        setDuplicateWarning({
+          message: result.error || 'A customer with this phone number or email already exists.',
+          duplicates: result.duplicates,
+        });
       } else {
         setError(result.error ?? 'Failed to create customer');
       }
@@ -144,6 +209,44 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
     });
   }
 
+  function handleExport() {
+    setIsExporting(true);
+    startTransition(async () => {
+      try {
+        const res = await exportCustomersExcel();
+        if (!res.success || !res.base64) {
+          setError(res.error || 'Failed to export customers');
+          return;
+        }
+
+        const byteCharacters = atob(res.base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = res.filename || 'Customers_Report.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        setSuccess(`Exported ${res.rowCount} customers successfully.`);
+        setTimeout(() => setSuccess(null), 3000);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Export failed');
+      } finally {
+        setIsExporting(false);
+      }
+    });
+  }
+
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem', color: 'var(--foreground)' }}>
       {/* Header */}
@@ -169,40 +272,105 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
           </p>
         </div>
 
-        {canWrite && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+          {/* Generate Report Button */}
           <button
             type="button"
-            id="create-customer-button"
-            onClick={() => {
-              setDuplicateWarning(null);
-              setShowCreateModal(true);
-            }}
+            onClick={handleExport}
+            disabled={isExporting}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
-              padding: '0.625rem 1.25rem',
+              padding: '0.625rem 1rem',
               borderRadius: 'var(--radius)',
-              backgroundColor: 'var(--primary)',
-              color: 'var(--primary-foreground)',
+              backgroundColor: 'var(--surface)',
+              color: 'var(--foreground)',
               fontSize: '0.875rem',
               fontWeight: 600,
-              border: '1px solid rgba(174, 172, 120, 0.4)',
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
+              border: '1px solid var(--border)',
+              cursor: isExporting ? 'wait' : 'pointer',
+              boxShadow: '0 1px 2px rgba(76, 69, 65, 0.05)',
               transition: 'background-color 0.15s ease',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
+              e.currentTarget.style.backgroundColor = 'var(--muted)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--primary)';
+              e.currentTarget.style.backgroundColor = 'var(--surface)';
             }}
           >
-            <Plus size={16} />
-            Create Customer
+            {isExporting ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
+            Generate Report
           </button>
-        )}
+
+          {/* Import Report Button */}
+          {canWrite && (
+            <button
+              type="button"
+              onClick={() => setShowImportModal(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.625rem 1rem',
+                borderRadius: 'var(--radius)',
+                backgroundColor: 'var(--surface)',
+                color: 'var(--foreground)',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                border: '1px solid var(--border)',
+                cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(76, 69, 65, 0.05)',
+                transition: 'background-color 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--muted)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--surface)';
+              }}
+            >
+              <UploadCloud size={16} />
+              Import Report
+            </button>
+          )}
+
+          {canWrite && (
+            <button
+              type="button"
+              id="create-customer-button"
+              onClick={() => {
+                setDuplicateWarning(null);
+                setShowCreateModal(true);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.625rem 1.25rem',
+                borderRadius: 'var(--radius)',
+                backgroundColor: 'var(--primary)',
+                color: 'var(--primary-foreground)',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                border: '1px solid rgba(174, 172, 120, 0.4)',
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(76, 69, 65, 0.08)',
+                transition: 'background-color 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--primary)';
+              }}
+            >
+              <Plus size={16} />
+              Create Customer
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
@@ -531,38 +699,57 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
               </button>
             </div>
 
-            {/* Soft Deduplication Alert */}
+            {/* Duplicate Customer Blocked Alert */}
             {duplicateWarning && (
               <div
                 style={{
-                  backgroundColor: 'var(--warning)',
-                  border: '1px solid var(--warning-border)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
                   borderRadius: 'var(--radius)',
                   padding: '1rem',
-                  marginBottom: '1rem',
+                  marginBottom: '1.25rem',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--warning-foreground)', fontWeight: 600, fontSize: '0.875rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--destructive)', fontWeight: 600, fontSize: '0.875rem' }}>
                   <AlertTriangle size={16} />
-                  <span>Existing Customer Found</span>
+                  <span>Existing Customer Found — Creation Blocked</span>
                 </div>
-                <p style={{ color: 'var(--warning-foreground)', fontSize: '0.8125rem', marginTop: '0.375rem' }}>
+                <p style={{ color: 'var(--foreground)', fontSize: '0.8125rem', marginTop: '0.375rem', marginBottom: '0.5rem', lineHeight: 1.4 }}>
                   {duplicateWarning.message}
                 </p>
-                <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
                   {duplicateWarning.duplicates.map((dup) => (
                     <div
                       key={dup.id}
                       style={{
-                        fontSize: '0.75rem',
+                        fontSize: '0.8125rem',
                         color: 'var(--foreground)',
                         backgroundColor: 'var(--surface)',
                         border: '1px solid var(--border)',
-                        padding: '0.375rem 0.5rem',
+                        padding: '0.5rem 0.75rem',
                         borderRadius: '0.25rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.5rem',
                       }}
                     >
-                      <strong>{dup.full_name}</strong> {dup.phone ? `• ${dup.phone}` : ''} {dup.email ? `• ${dup.email}` : ''}
+                      <div>
+                        <strong>{dup.full_name}</strong> {dup.phone ? `• ${dup.phone}` : ''} {dup.email ? `• ${dup.email}` : ''}
+                      </div>
+                      <Link
+                        href={`/crm/customers/${dup.id}`}
+                        target="_blank"
+                        style={{
+                          color: 'var(--primary)',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          textDecoration: 'underline',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        View Profile →
+                      </Link>
                     </div>
                   ))}
                 </div>
@@ -580,24 +767,7 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                       cursor: 'pointer',
                     }}
                   >
-                    Review Details
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleForceCreate}
-                    disabled={isPending}
-                    style={{
-                      padding: '0.375rem 0.75rem',
-                      borderRadius: 'var(--radius)',
-                      backgroundColor: 'var(--primary)',
-                      border: '1px solid rgba(174, 172, 120, 0.4)',
-                      color: 'var(--primary-foreground)',
-                      fontWeight: 600,
-                      fontSize: '0.75rem',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {isPending ? 'Creating...' : 'Create Anyway'}
+                    Dismiss
                   </button>
                 </div>
               </div>
@@ -605,8 +775,26 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
 
             <form onSubmit={handleCreate}>
               <input type="hidden" name="source" value="manual" />
+              <input type="hidden" name="lead_id" value={selectedLeadId || ''} />
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* 1. Searchable Lead Selection */}
+                <div>
+                  <SearchableSelect
+                    label="Select Lead"
+                    required
+                    placeholder="Search by name, phone, or Lead ID..."
+                    options={leadOptions}
+                    value={selectedLeadId}
+                    onChange={handleLeadSelect}
+                    helperText={
+                      selectedLeadId
+                        ? '✓ Customer details auto-populated from this Sales Lead.'
+                        : 'Select the existing Lead that this Customer belongs to.'
+                    }
+                  />
+                </div>
+
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Full Name *
@@ -614,6 +802,8 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                   <input
                     name="full_name"
                     required
+                    value={createFormData.full_name}
+                    onChange={(e) => setCreateFormData({ ...createFormData, full_name: e.target.value })}
                     placeholder="e.g. Ahmed Mahmoud"
                     style={{
                       width: '100%',
@@ -643,6 +833,8 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                   <input
                     name="phone"
                     required
+                    value={createFormData.phone}
+                    onChange={(e) => setCreateFormData({ ...createFormData, phone: e.target.value })}
                     placeholder="+20 100 123 4567"
                     style={{
                       width: '100%',
@@ -672,6 +864,8 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                   <input
                     name="email"
                     type="email"
+                    value={createFormData.email}
+                    onChange={(e) => setCreateFormData({ ...createFormData, email: e.target.value })}
                     placeholder="ahmed@example.com"
                     style={{
                       width: '100%',
@@ -694,6 +888,50 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                   />
                 </div>
 
+                {/* Real-time inline duplicate notification */}
+                {duplicateMatch && (
+                  <div
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: 'var(--radius)',
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: 'var(--destructive)',
+                      fontSize: '0.8125rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.375rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+                      <AlertTriangle size={16} />
+                      <span>
+                        Customer Already Exists with this {duplicateMatch.phone === createFormData.phone.trim() ? 'Phone Number' : 'Email'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--foreground)' }}>
+                      Existing Profile: <strong>{duplicateMatch.full_name}</strong> ({duplicateMatch.phone || 'No phone'} • {duplicateMatch.email || 'No email'})
+                    </div>
+                    <div>
+                      <Link
+                        href={`/crm/customers/${duplicateMatch.id}`}
+                        target="_blank"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          color: 'var(--primary)',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          textDecoration: 'underline',
+                        }}
+                      >
+                        Open existing customer profile →
+                      </Link>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.375rem' }}>
                     Notes (Optional)
@@ -701,6 +939,8 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                   <textarea
                     name="notes"
                     rows={3}
+                    value={createFormData.notes}
+                    onChange={(e) => setCreateFormData({ ...createFormData, notes: e.target.value })}
                     placeholder="Preferences, requirements, or reference notes"
                     style={{
                       width: '100%',
@@ -746,23 +986,24 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
                 </button>
                 <button
                   type="submit"
-                  disabled={isPending}
+                  disabled={isPending || Boolean(duplicateMatch)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
                     padding: '0.5rem 1rem',
                     borderRadius: 'var(--radius)',
-                    backgroundColor: 'var(--primary)',
-                    border: '1px solid rgba(174, 172, 120, 0.4)',
-                    color: 'var(--primary-foreground)',
+                    backgroundColor: duplicateMatch ? 'var(--muted)' : 'var(--primary)',
+                    border: duplicateMatch ? '1px solid var(--border)' : '1px solid rgba(174, 172, 120, 0.4)',
+                    color: duplicateMatch ? 'var(--muted-foreground)' : 'var(--primary-foreground)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
-                    cursor: 'pointer',
+                    cursor: isPending || Boolean(duplicateMatch) ? 'not-allowed' : 'pointer',
+                    opacity: isPending ? 0.7 : 1,
                   }}
                 >
                   {isPending && <Loader2 size={14} className="animate-spin" />}
-                  Save Customer
+                  {duplicateMatch ? 'Customer Already Exists' : 'Save Customer'}
                 </button>
               </div>
             </form>
@@ -1063,6 +1304,22 @@ export function CustomersClient({ customers, user }: CustomersClientProps) {
           </div>
         </div>
       )}
+
+      {/* Excel Import Modal */}
+      <ExcelImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Import Customers Report"
+        description="Upload an Excel file (.xlsx) to create or update authorized customer records."
+        moduleType="customers"
+        onValidate={validateCustomersImportExcel}
+        onExecute={executeCustomersImportExcel}
+        onDownloadTemplate={getCustomerExcelTemplate}
+        onSuccess={() => {
+          setShowImportModal(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

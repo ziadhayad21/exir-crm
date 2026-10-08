@@ -28,6 +28,7 @@ import type {
   MessageAttachment,
   MessageAttachmentType,
   Employee,
+  Lead,
 } from '@/types';
 import { resolveConversationDisplayName, isGenericDisplayName } from '@/lib/utils';
 import { fetchFacebookProfile, fetchInstagramProfile } from '@/lib/messaging/meta-adapter';
@@ -544,7 +545,7 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
     // Check conversation channel & identity for external outbound dispatching
     const { data: conv } = await admin
       .from('conversations')
-      .select('id, channel, channel_identity_id')
+      .select('id, channel, channel_identity_id, lead_id')
       .eq('id', parsed.data.conversation_id)
       .single();
 
@@ -706,6 +707,19 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
       },
     });
 
+    // If conversation is linked to a lead, automatically mark its follow-up notifications as read
+    if (conv?.lead_id) {
+      try {
+        await admin
+          .from('notifications')
+          .update({ is_read: true })
+          .eq('entity_id', conv.lead_id)
+          .eq('type', 'follow_up_reminder');
+      } catch (notifUpdateErr) {
+        console.warn('[Inbox] Failed marking lead follow-up notification as read:', notifUpdateErr);
+      }
+    }
+
     if (finalStatus === 'failed') {
       const fallbackChannelName = conv?.channel === 'whatsapp' ? 'WhatsApp' : 'Facebook Messenger';
       return { success: false, error: errorDetail || `Failed to deliver message to customer on ${fallbackChannelName}` };
@@ -771,6 +785,86 @@ export async function updateConversationStatus(
 
     revalidatePath('/crm/inbox');
     return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unexpected error' };
+  }
+}
+
+/**
+ * Ensures a lead exists for the given conversation.
+ * If lead_id is already present, returns the existing lead.
+ * Otherwise creates a new lead and links it to conversation.lead_id.
+ */
+export async function ensureConversationLead(
+  conversationId: string
+): Promise<ActionResult<Lead>> {
+  try {
+    await requirePermission('crm.inbox.write');
+    const admin = createAdminClient();
+
+    const { data: conv, error: convErr } = await admin
+      .from('conversations')
+      .select('id, lead_id, channel_identity_id, customer_id, channel, assigned_to')
+      .eq('id', conversationId)
+      .maybeSingle();
+
+    if (convErr || !conv) {
+      return { success: false, error: 'Conversation not found' };
+    }
+
+    if (conv.lead_id) {
+      const { data: existingLead } = await admin
+        .from('leads')
+        .select('*')
+        .eq('id', conv.lead_id)
+        .maybeSingle();
+
+      if (existingLead) {
+        return { success: true, data: existingLead as Lead };
+      }
+    }
+
+    // Resolve channel identity for contact details
+    const { data: ident } = await admin
+      .from('channel_identities')
+      .select('*')
+      .eq('id', conv.channel_identity_id)
+      .maybeSingle();
+
+    const fullName = ident?.display_name || 'Customer';
+    const phone = ident?.phone || null;
+    const email = ident?.email || null;
+    const source = conv.channel === 'whatsapp' ? 'whatsapp' : 'social_media';
+
+    const { data: newLead, error: insertErr } = await admin
+      .from('leads')
+      .insert({
+        full_name: fullName,
+        phone,
+        email,
+        source,
+        status: 'in_progress',
+        assignment_source: conv.assigned_to ? 'automatic' : 'unassigned',
+        assigned_to: conv.assigned_to,
+        customer_id: conv.customer_id,
+        received_at: new Date().toISOString(),
+      })
+      .select('*')
+      .single();
+
+    if (insertErr || !newLead) {
+      return { success: false, error: insertErr?.message || 'Failed to create lead' };
+    }
+
+    await admin
+      .from('conversations')
+      .update({ lead_id: newLead.id, updated_at: new Date().toISOString() })
+      .eq('id', conversationId);
+
+    revalidatePath('/crm/inbox');
+    revalidatePath('/crm/leads');
+
+    return { success: true, data: newLead as Lead };
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : 'Unexpected error' };
   }

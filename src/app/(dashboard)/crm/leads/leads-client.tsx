@@ -3,12 +3,14 @@
 // Shows incoming leads, assignment info, today's count, and create/status/reassign actions.
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { createLead, updateLeadStatus, reassignLead } from '../lead-actions';
 import { formatDateTime } from '@/lib/utils';
-import type { LeadWithAssignee, Employee, CurrentUser, LeadStatus } from '@/types';
+import type { LeadWithAssignee, Employee, CurrentUser, LeadStatus, Customer } from '@/types';
 import { hasPermission, hasAnyPermission } from '@/lib/auth/client-helpers';
+import { SearchableSelect, type SearchableOption } from '@/components/searchable-select';
 import {
   Plus,
   Inbox,
@@ -19,18 +21,27 @@ import {
   Phone,
   Mail,
   UserCheck,
-  Calendar,
+  UserPlus,
   CheckCircle2,
   XCircle,
-  DollarSign,
-  Tag,
+  Calendar,
+  FileDown,
+  UploadCloud,
 } from 'lucide-react';
+import {
+  exportLeadsExcel,
+  validateLeadsImportExcel,
+  executeLeadsImportExcel,
+  getLeadExcelTemplate,
+} from '../excel-actions';
+import { ExcelImportModal } from '@/components/excel-import-modal';
 
 interface LeadsClientProps {
   leads: LeadWithAssignee[];
   assignees: Employee[];
   user: CurrentUser;
   todayCount: number;
+  customers?: Customer[];
 }
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -63,12 +74,14 @@ const SOURCE_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
-export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientProps) {
+export function LeadsClient({ leads, assignees, user, todayCount, customers = [] }: LeadsClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   // UI state
   const [showCreate, setShowCreate] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +109,10 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
     lost_reason: string;
   } | null>(null);
 
+  // Customer link state
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [createNewCustomer, setCreateNewCustomer] = useState(false);
+
   // Create form state
   const [createForm, setCreateForm] = useState({
     full_name: '',
@@ -104,6 +121,41 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
     source: 'manual',
     notes: '',
   });
+
+  const customerOptions: SearchableOption[] = useMemo(() => {
+    return (customers || []).map((c) => ({
+      id: c.id,
+      title: c.full_name,
+      subtitle: c.phone || 'No phone',
+      detail: c.email ? `Email: ${c.email}` : `ID: ${c.id.slice(0, 8)}...`,
+      badge: 'Customer',
+      badgeStyle: {
+        bg: 'rgba(174, 172, 120, 0.15)',
+        text: 'var(--foreground)',
+        border: '1px solid rgba(174, 172, 120, 0.3)',
+      },
+      meta: c,
+    }));
+  }, [customers]);
+
+  function handleCustomerSelect(customerId: string | null, option?: SearchableOption | null) {
+    setSelectedCustomerId(customerId);
+    if (option?.meta) {
+      const c = option.meta as Customer;
+      setCreateForm((prev) => ({
+        ...prev,
+        full_name: c.full_name || prev.full_name,
+        phone: c.phone || prev.phone,
+        email: c.email || prev.email,
+      }));
+      setCreateNewCustomer(false);
+    }
+  }
+
+  function handleAddNewCustomer() {
+    setSelectedCustomerId(null);
+    setCreateNewCustomer(true);
+  }
 
   const canWrite = hasAnyPermission(user, ['crm.leads.write']);
   const canReadAll = hasPermission(user, 'crm.leads.read_all');
@@ -123,6 +175,44 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
     return true;
   });
 
+  function handleExport() {
+    setIsExporting(true);
+    startTransition(async () => {
+      try {
+        const res = await exportLeadsExcel();
+        if (!res.success || !res.base64) {
+          setError(res.error || 'Failed to export leads');
+          return;
+        }
+
+        const byteCharacters = atob(res.base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = res.filename || 'Leads_Report.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        setSuccess(`Exported ${res.rowCount} leads successfully.`);
+        setTimeout(() => setSuccess(null), 3000);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Export failed');
+      } finally {
+        setIsExporting(false);
+      }
+    });
+  }
+
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -134,12 +224,20 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
     formData.set('email', createForm.email);
     formData.set('source', createForm.source);
     formData.set('notes', createForm.notes);
+    if (selectedCustomerId) {
+      formData.set('customer_id', selectedCustomerId);
+    }
+    if (createNewCustomer) {
+      formData.set('create_new_customer', 'true');
+    }
 
     startTransition(async () => {
       const result = await createLead(formData);
       if (result.success) {
         setSuccess('Lead created and assigned successfully!');
         setCreateForm({ full_name: '', phone: '', email: '', source: 'manual', notes: '' });
+        setSelectedCustomerId(null);
+        setCreateNewCustomer(false);
         setShowCreate(false);
         router.refresh();
       } else {
@@ -355,6 +453,61 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
             </div>
           )}
 
+          {/* Generate Report Button */}
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={isExporting}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.625rem 1rem',
+              borderRadius: 'var(--radius)',
+              backgroundColor: 'var(--surface)',
+              color: 'var(--foreground)',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              border: '1px solid var(--border)',
+              cursor: isExporting ? 'wait' : 'pointer',
+              boxShadow: '0 1px 2px rgba(76, 69, 65, 0.05)',
+              transition: 'background-color 0.15s ease',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--surface)')}
+          >
+            {isExporting ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
+            Generate Report
+          </button>
+
+          {/* Import Report Button */}
+          {canWrite && (
+            <button
+              type="button"
+              onClick={() => setShowImportModal(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.625rem 1rem',
+                borderRadius: 'var(--radius)',
+                backgroundColor: 'var(--surface)',
+                color: 'var(--foreground)',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                border: '1px solid var(--border)',
+                cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(76, 69, 65, 0.05)',
+                transition: 'background-color 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--surface)')}
+            >
+              <UploadCloud size={16} />
+              Import Report
+            </button>
+          )}
+
           {canWrite && (
             <button
               onClick={() => setShowCreate(true)}
@@ -515,7 +668,11 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
             padding: '1rem',
           }}
           onClick={(e) => {
-            if (e.target === e.currentTarget) setShowCreate(false);
+            if (e.target === e.currentTarget) {
+              setShowCreate(false);
+              setSelectedCustomerId(null);
+              setCreateNewCustomer(false);
+            }
           }}
         >
           <div
@@ -525,19 +682,131 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
               border: '1px solid var(--border)',
               padding: '2rem',
               width: '100%',
-              maxWidth: '500px',
+              maxWidth: '520px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
               boxShadow: '0 20px 25px -5px rgba(76, 69, 65, 0.12)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>New Lead</h2>
-              <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>New Lead</h2>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: '0.25rem 0 0' }}>
+                  Create a new sales opportunity or link to a returning customer.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowCreate(false);
+                  setSelectedCustomerId(null);
+                  setCreateNewCustomer(false);
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }}
+              >
                 <X size={20} />
               </button>
             </div>
 
             <form onSubmit={handleCreate}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* 1. Customer Selection / Linking */}
+                <div>
+                  <SearchableSelect
+                    label="Select Customer (Optional)"
+                    placeholder="Search by customer name or phone..."
+                    options={customerOptions}
+                    value={selectedCustomerId}
+                    onChange={handleCustomerSelect}
+                    onAddNew={handleAddNewCustomer}
+                    addNewLabel="+ Create New Customer"
+                    helperText={
+                      selectedCustomerId
+                        ? 'Returning customer selected: creates a NEW Lead without duplicating the customer.'
+                        : createNewCustomer
+                        ? 'New customer mode: will create and link a new customer record with this lead.'
+                        : 'Select an existing customer to link this new lead, or click + Create New Customer.'
+                    }
+                  />
+
+                  {selectedCustomerId && (
+                    <div
+                      style={{
+                        marginTop: '0.5rem',
+                        padding: '0.625rem 0.875rem',
+                        backgroundColor: 'rgba(174, 172, 120, 0.15)',
+                        borderRadius: 'var(--radius)',
+                        border: '1px solid rgba(174, 172, 120, 0.35)',
+                        fontSize: '0.8125rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.5rem',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <UserCheck size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                        <span>
+                          Linked Customer: <strong>{customerOptions.find((o) => o.id === selectedCustomerId)?.title}</strong>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCustomerId(null)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--muted-foreground)',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          textDecoration: 'underline',
+                          flexShrink: 0,
+                        }}
+                      >
+                        Unlink
+                      </button>
+                    </div>
+                  )}
+
+                  {createNewCustomer && !selectedCustomerId && (
+                    <div
+                      style={{
+                        marginTop: '0.5rem',
+                        padding: '0.625rem 0.875rem',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        borderRadius: 'var(--radius)',
+                        border: '1px solid rgba(34, 197, 94, 0.25)',
+                        fontSize: '0.8125rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.5rem',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <UserPlus size={16} style={{ color: '#16a34a', flexShrink: 0 }} />
+                        <span>
+                          <strong>+ Create New Customer</strong> active. Customer record will be created and linked.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCreateNewCustomer(false)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--muted-foreground)',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          textDecoration: 'underline',
+                          flexShrink: 0,
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: '0.25rem' }}>
                     Full Name *
@@ -690,6 +959,28 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                     }}
                   />
                 </div>
+
+                {!selectedCustomerId && (
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.8125rem',
+                      color: 'var(--foreground)',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={createNewCustomer}
+                      onChange={(e) => setCreateNewCustomer(e.target.checked)}
+                      style={{ accentColor: 'var(--primary)', cursor: 'pointer' }}
+                    />
+                    Also create and link a Customer profile in Customers module
+                  </label>
+                )}
 
                 <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0 }}>
                   The lead will be automatically assigned to an available Sales employee.
@@ -1322,7 +1613,33 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
                       }}
                     >
                       <td style={{ padding: '0.75rem 1rem', fontWeight: 500, color: 'var(--foreground)' }}>
-                        {lead.full_name}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <span>{lead.full_name}</span>
+                          {(lead.customer_id || lead.converted_to_customer_id) && (
+                            <Link
+                              href={`/crm/customers/${lead.customer_id || lead.converted_to_customer_id}`}
+                              title="View linked Customer Profile"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                fontSize: '0.6875rem',
+                                backgroundColor: 'rgba(174, 172, 120, 0.15)',
+                                color: 'var(--foreground)',
+                                textDecoration: 'none',
+                                border: '1px solid rgba(174, 172, 120, 0.3)',
+                                transition: 'background-color 0.15s ease',
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(174, 172, 120, 0.28)')}
+                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(174, 172, 120, 0.15)')}
+                            >
+                              <UserCheck size={11} style={{ color: 'var(--primary)' }} />
+                              Customer
+                            </Link>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: '0.75rem 1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -1496,6 +1813,22 @@ export function LeadsClient({ leads, assignees, user, todayCount }: LeadsClientP
           Showing {filteredLeads.length} of {leads.length} leads
         </span>
       </div>
+
+      {/* Excel Import Modal */}
+      <ExcelImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Import Leads Report"
+        description="Upload an Excel file (.xlsx) to create or update authorized lead records."
+        moduleType="leads"
+        onValidate={validateLeadsImportExcel}
+        onExecute={executeLeadsImportExcel}
+        onDownloadTemplate={getLeadExcelTemplate}
+        onSuccess={() => {
+          setShowImportModal(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

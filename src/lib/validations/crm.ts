@@ -52,6 +52,13 @@ export const createCustomerSchema = z.object({
     .optional()
     .or(z.literal(''))
     .transform((val) => (val === '' ? null : val)),
+  lead_id: z
+    .string()
+    .regex(uuidRegex, 'Invalid lead ID')
+    .nullable()
+    .optional()
+    .or(z.literal(''))
+    .transform((val) => (val === '' ? null : val)),
   force: z.boolean().optional().default(false), // bypass soft-dedup warning
 });
 
@@ -307,6 +314,14 @@ export const createLeadSchema = z.object({
     .or(z.literal(''))
     .transform((val) => (val === '' ? null : val)),
   source: z.enum(LEAD_SOURCES).optional().default('manual'),
+  customer_id: z
+    .string()
+    .regex(uuidRegex, 'Invalid customer ID')
+    .nullable()
+    .optional()
+    .or(z.literal(''))
+    .transform((val) => (val === '' ? null : val)),
+  create_new_customer: z.boolean().optional().default(false),
   notes: z
     .string()
     .max(5000, 'Notes too long')

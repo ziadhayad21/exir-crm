@@ -27,6 +27,7 @@ import type {
   DealActivity,
   CurrentUser,
   Employee,
+  Lead,
 } from '@/types';
 import { revalidatePath } from 'next/cache';
 
@@ -140,9 +141,18 @@ export async function getCustomerById(id: string): Promise<CustomerWithDeals | n
 
   const { data: deals } = await dealsBuilder.order('created_at', { ascending: false });
 
+  // Fetch customer's leads respecting visibility
+  const admin = createAdminClient();
+  let leadsBuilder = admin.from('leads').select('*').or(`customer_id.eq.${id},converted_to_customer_id.eq.${id}`);
+  if (!hasPermission(currentUser, 'crm.leads.read_all')) {
+    leadsBuilder = leadsBuilder.eq('assigned_to', currentUser.employee.id);
+  }
+  const { data: leads } = await leadsBuilder.order('created_at', { ascending: false });
+
   return {
     ...(customer as Customer),
     deals: (deals ?? []) as Deal[],
+    leads: (leads ?? []) as Lead[],
   };
 }
 
@@ -160,6 +170,7 @@ export async function createCustomer(formData: FormData): Promise<CreateCustomer
     phone: formData.get('phone'),
     source: formData.get('source') || 'manual',
     notes: formData.get('notes'),
+    lead_id: formData.get('lead_id') || undefined,
     force: formData.get('force') === 'true',
   };
 
@@ -171,26 +182,26 @@ export async function createCustomer(formData: FormData): Promise<CreateCustomer
 
   const admin = createAdminClient();
 
-  // Soft deduplication check on active customers (unless forced)
-  if (!parsed.data.force) {
-    const checks: string[] = [];
-    if (parsed.data.email) checks.push(`email.eq.${parsed.data.email}`);
-    if (parsed.data.phone) checks.push(`phone.eq.${parsed.data.phone}`);
+  // Strict uniqueness check on active customers: duplicate phone or email MUST NOT be created
+  const checks: string[] = [];
+  if (parsed.data.phone) checks.push(`phone.eq.${parsed.data.phone}`);
+  if (parsed.data.email) checks.push(`email.eq.${parsed.data.email}`);
 
-    if (checks.length > 0) {
-      const { data: duplicates } = await admin
-        .from('customers')
-        .select('*')
-        .is('deleted_at', null)
-        .or(checks.join(','));
+  if (checks.length > 0) {
+    const { data: duplicates } = await admin
+      .from('customers')
+      .select('*')
+      .is('deleted_at', null)
+      .or(checks.join(','));
 
-      if (duplicates && duplicates.length > 0) {
-        return {
-          success: false,
-          warning: 'A customer with this email or phone number already exists.',
-          duplicates: duplicates as Customer[],
-        };
-      }
+    if (duplicates && duplicates.length > 0) {
+      const match = duplicates[0];
+      const matchField = match.phone === parsed.data.phone ? `phone number "${parsed.data.phone}"` : `email "${parsed.data.email}"`;
+      return {
+        success: false,
+        error: `Cannot create customer: A customer with the same ${matchField} already exists (${match.full_name}). Duplicate customers are not allowed.`,
+        duplicates: duplicates as Customer[],
+      };
     }
   }
 
@@ -211,16 +222,40 @@ export async function createCustomer(formData: FormData): Promise<CreateCustomer
     return { success: false, error: error?.message || 'Failed to create customer' };
   }
 
+  // If a Lead was selected, link the newly created Customer to that Lead
+  if (parsed.data.lead_id) {
+    await admin
+      .from('leads')
+      .update({
+        customer_id: customer.id,
+        converted_to_customer_id: customer.id,
+      })
+      .eq('id', parsed.data.lead_id);
+
+    // Also update any conversation attached to this lead
+    await admin
+      .from('conversations')
+      .update({
+        customer_id: customer.id,
+      })
+      .eq('lead_id', parsed.data.lead_id);
+  }
+
   await writeAuditLog({
     actor_id: currentUser.employee.id,
     action: 'customer.created',
     module: 'crm',
     entity_type: 'customer',
     entity_id: customer.id,
-    new_value: customer,
+    new_value: {
+      ...customer,
+      linked_lead_id: parsed.data.lead_id || null,
+    },
   });
 
   revalidatePath('/crm/customers');
+  revalidatePath('/crm/leads');
+  revalidatePath('/crm/inbox');
   revalidatePath('/crm/deals');
   revalidatePath('/dashboard');
 
@@ -264,6 +299,33 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
 
   if (!isOwner && !hasFullAccess) {
     return { success: false, error: 'You do not have permission to modify this customer.' };
+  }
+
+  // Strict uniqueness check on update: verify phone/email does not collide with another active customer
+  const updateChecks: string[] = [];
+  if (parsed.data.phone && parsed.data.phone !== existing.phone) {
+    updateChecks.push(`phone.eq.${parsed.data.phone}`);
+  }
+  if (parsed.data.email && parsed.data.email !== existing.email) {
+    updateChecks.push(`email.eq.${parsed.data.email}`);
+  }
+
+  if (updateChecks.length > 0) {
+    const { data: collisions } = await admin
+      .from('customers')
+      .select('id, full_name, phone, email')
+      .neq('id', parsed.data.id)
+      .is('deleted_at', null)
+      .or(updateChecks.join(','));
+
+    if (collisions && collisions.length > 0) {
+      const match = collisions[0];
+      const matchField = match.phone === parsed.data.phone ? `phone number "${parsed.data.phone}"` : `email "${parsed.data.email}"`;
+      return {
+        success: false,
+        error: `Cannot update customer: Another customer (${match.full_name}) already has the same ${matchField}.`,
+      };
+    }
   }
 
   const updates: Record<string, unknown> = {

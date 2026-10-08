@@ -258,13 +258,28 @@ async function main() {
       .from('employees')
       .update({ is_active: true })
       .eq('id', a.id);
+
+    // Ensure Auth user password is confirmed and set to Admin123!
+    if (a.auth_user_id) {
+      const { error: pwErr } = await adminClient.auth.admin.updateUserById(a.auth_user_id, {
+        password: 'Admin123!',
+        email_confirm: true,
+      });
+      if (pwErr) {
+        console.warn(`   ⚠️ Could not set password for ${a.email}:`, pwErr.message);
+      } else {
+        console.log(`   🔑 Guaranteed Admin password for ${a.email}: Admin123!`);
+      }
+    }
   }
 
   console.log('\n====================================================');
   console.log('🎉 Cleanup Completed Successfully!');
   console.log('====================================================');
   console.log('All non-admin accounts have been wiped.');
-  console.log(`Preserved Admin: ${primaryAdmin.full_name} (${primaryAdmin.email})`);
+  for (const a of adminEmployees) {
+    console.log(`Preserved Admin: ${a.full_name} (${a.email}) | Password: Admin123!`);
+  }
   console.log('====================================================\n');
 }
 

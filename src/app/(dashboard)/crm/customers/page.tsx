@@ -1,7 +1,6 @@
-// src/app/(dashboard)/crm/customers/page.tsx
-
 import { requireAuth } from '@/lib/auth';
 import { getCustomers } from '../actions';
+import { getLeads } from '../lead-actions';
 import { CustomersClient } from './customers-client';
 
 export const metadata = {
@@ -11,7 +10,10 @@ export const metadata = {
 
 export default async function CustomersPage() {
   const user = await requireAuth();
-  const customers = await getCustomers();
+  const [customers, leads] = await Promise.all([
+    getCustomers(),
+    getLeads().catch(() => []),
+  ]);
 
-  return <CustomersClient customers={customers} user={user} />;
+  return <CustomersClient customers={customers} leads={leads} user={user} />;
 }

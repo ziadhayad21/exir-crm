@@ -191,6 +191,8 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
     email: formData.get('email'),
     source: formData.get('source') || 'manual',
     notes: formData.get('notes'),
+    customer_id: formData.get('customer_id') || undefined,
+    create_new_customer: formData.get('create_new_customer') === 'true',
   };
 
   const parsed = createLeadSchema.safeParse(raw);
@@ -201,7 +203,52 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
 
   const admin = createAdminClient();
 
-  // 1. Insert the lead (unassigned initially)
+  let linkedCustomerId: string | null = parsed.data.customer_id || null;
+
+  // Handle + Create New Customer flow if requested
+  if (parsed.data.create_new_customer && !linkedCustomerId) {
+    // 1. Soft-deduplication check: avoid duplicate customer if phone or email already exists
+    const checks: string[] = [];
+    if (parsed.data.phone) checks.push(`phone.eq.${parsed.data.phone}`);
+    if (parsed.data.email) checks.push(`email.eq.${parsed.data.email}`);
+
+    if (checks.length > 0) {
+      const { data: existingCust } = await admin
+        .from('customers')
+        .select('id')
+        .is('deleted_at', null)
+        .or(checks.join(','))
+        .limit(1);
+
+      if (existingCust && existingCust.length > 0) {
+        linkedCustomerId = existingCust[0].id;
+      }
+    }
+
+    // 2. If no existing customer, create new customer record
+    if (!linkedCustomerId) {
+      const { data: newCust, error: custErr } = await admin
+        .from('customers')
+        .insert({
+          full_name: parsed.data.full_name,
+          phone: parsed.data.phone || null,
+          email: parsed.data.email || null,
+          source: parsed.data.source || 'manual',
+          notes: parsed.data.notes || null,
+          created_by: currentUser.employee.id,
+        })
+        .select('id')
+        .single();
+
+      if (custErr) {
+        console.warn('[Leads] Warning creating customer during lead creation:', custErr.message);
+      } else if (newCust) {
+        linkedCustomerId = newCust.id;
+      }
+    }
+  }
+
+  // 1. Insert the lead (unassigned initially, linked to customer if specified)
   const { data: lead, error: insertError } = await admin
     .from('leads')
     .insert({
@@ -210,6 +257,8 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
       email: parsed.data.email || null,
       source: parsed.data.source,
       notes: parsed.data.notes || null,
+      customer_id: linkedCustomerId,
+      converted_to_customer_id: linkedCustomerId,
       status: 'in_progress',
       assignment_source: 'unassigned',
     })
@@ -253,6 +302,7 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
   });
 
   revalidatePath('/crm/leads');
+  revalidatePath('/crm/customers');
   revalidatePath('/dashboard');
 
   return { success: true, data: (finalLead ?? lead) as Lead };
@@ -461,8 +511,22 @@ export async function updateLeadStatus(formData: FormData): Promise<ActionResult
     }
   }
 
+  // Mark existing follow_up notifications as read if lead moved to won, lose, or in_progress
+  if (parsed.data.status !== 'follow_up') {
+    try {
+      await admin
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('entity_id', parsed.data.lead_id)
+        .eq('type', 'follow_up_reminder');
+    } catch (notifErr) {
+      console.warn('[Leads] Auto-mark follow-up notification as read error:', notifErr);
+    }
+  }
+
   revalidatePath('/crm/leads');
   revalidatePath('/crm/customers');
+  revalidatePath('/crm/inbox');
   revalidatePath('/dashboard');
   return { success: true };
 }
