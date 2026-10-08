@@ -17,7 +17,7 @@ A production-grade CRM, Tourism Business Management System, and Realtime Omnicha
 - **Phase 4D — Multi-Channel Outbound Messaging Engine**: Outbound reply dispatching across WhatsApp, Facebook Messenger, and Instagram, 24-hour WhatsApp customer service window compliance, and delivery status tracking (`sending` ➔ `sent` ➔ `delivered` ➔ `read` ➔ `failed`).
 - **Phase 4E — Media & Attachment Messaging Engine**:
   - Secure private Supabase Storage bucket (`message-attachments`).
-  - Validation engine: Magic byte inspection, mime-type verification, extension validation, and file size limits (Images: 10MB, Videos: 50MB, Audio: 25MB, Documents: 50MB).
+  - Validation engine: Magic byte inspection, MIME-type verification, extension validation, and file size limits (Images: 10MB, Videos: 50MB, Audio: 25MB, Documents: 50MB).
   - Outbound media dispatch via signed URLs to Meta Graph API and WhatsApp Cloud API.
   - Inbound media parsing and signed URL preview resolution.
 - **Unified Inbox Realtime & Zero-Latency Experience**:
@@ -26,6 +26,23 @@ A production-grade CRM, Tourism Business Management System, and Realtime Omnicha
   - **In-Flight Message Protection**: Safe background synchronization engine that protects messages currently uploading/sending from premature eviction.
   - **Seamless Media Previews**: Local blob preview streaming preventing flicker or disappearance during storage upload.
   - **Non-Blocking Server Actions**: High-frequency replies bypass full-page RSC revalidation for sub-200ms API response times.
+- **Lead Status Workflow & Follow-Up Engine**:
+  - Authoritative lifecycle transitions (`new` ➔ `in_progress` ➔ `follow_up` ➔ `won` / `lose`) powered by PostgreSQL RPC (`change_lead_status`).
+  - Cairo timezone-aware follow-up scheduling (`Africa/Cairo`) with live overdue, due, and upcoming badges.
+  - Won deals financial tracking: Service package, Total Amount, Paid Amount, and auto-calculated Remaining Amount (`paid <= total`).
+  - Topbar Notification Bell (`notification-bell.tsx`) with real-time due follow-up counters.
+- **Customer ↔ Lead Bi-Directional Linking**:
+  - Reusable `SearchableSelect` component with real-time multi-field search across Name, Phone, and ID.
+  - When creating a Customer: link directly to an existing Lead without generating duplicate leads.
+  - When creating a Lead: link directly to an existing Customer.
+  - Customer uniqueness protection on manual form creation: blocks duplicate phone numbers and emails.
+- **Excel (.xlsx / .csv) Import & Export Engine**:
+  - **100% Local & Server-Side**: Powered by SheetJS (`xlsx`) without external services or data exposure.
+  - **Role-Based Report Generation**: Sales export only their assigned records; Admins export all accessible data.
+  - **Interactive Pre-Import Validation**: Validates spreadsheets before database writes, displaying New (`create`), Update (`update`), Skipped (`skip`), and Error rows in an interactive preview modal.
+  - **Arbitrary ID Normalization (`normalizeToUuid`)**: Supports any ID style (numeric `1, 2, 100`, text `LD-01, CUST-05`, or standard UUIDs) mapped deterministically to PostgreSQL RFC-4122 UUIDs.
+  - **Strict ID-Based Deduplication**: Matches existing records solely by ID to update them in-place, while allowing repeated or constant contact details (phone, email, notes). Duplicate IDs in the same file are safely skipped.
+  - **Sample Template Downloads**: Built-in `.xlsx` template generator for easy data formatting.
 
 ---
 
@@ -33,14 +50,15 @@ A production-grade CRM, Tourism Business Management System, and Realtime Omnicha
 
 | Technology | Purpose |
 |---|---|
-| **Next.js 16** | React framework with App Router, Server Actions & Streaming |
-| **React 19** | Modern UI components with Hooks & Optimistic State |
+| **Next.js 16** | React framework with App Router, Server Actions & Streaming (Turbopack) |
+| **React 19** | Modern UI components with Hooks, Transitions & Optimistic State |
 | **TypeScript** | Strict end-to-end type safety |
-| **Supabase** | Authentication, Database Engine, Storage & Realtime RLS |
-| **PostgreSQL** | Database engine with PL/pgSQL RPCs & Advisory Locks |
-| **Tailwind CSS v4** | Modern responsive styling & Glassmorphism aesthetics |
+| **Supabase** | Authentication, PostgreSQL Database, Storage & Realtime Subscriptions |
+| **PostgreSQL** | Database engine with PL/pgSQL RPCs, Partial Indexes & Advisory Locks |
+| **SheetJS (xlsx)** | Local, zero-dependency Excel file generation and parsing |
+| **Tailwind CSS v4** | Modern responsive styling & Glassmorphism design tokens |
 | **Zod** | Schema validation for forms, APIs, server actions, and webhooks |
-| **Lucide React** | Production iconography |
+| **Lucide React** | Modern iconography |
 
 ---
 
@@ -93,11 +111,11 @@ WHATSAPP_VERIFY_TOKEN=your_whatsapp_webhook_verify_token
 WHATSAPP_BUSINESS_ACCOUNT_ID=your_whatsapp_waba_id
 ```
 
-> ⚠️ **Security Warning**: `SUPABASE_SERVICE_ROLE_KEY`, `META_APP_SECRET`, and access tokens are strictly server-side credentials and must never be exposed to the client bundle.
+> ⚠️ **Security Warning**: `SUPABASE_SERVICE_ROLE_KEY`, `META_APP_SECRET`, and access tokens are strictly server-side credentials and must never be exposed to client bundles.
 
 ### 4. Database Migrations
 
-Apply database migrations sequentially from `supabase/migrations/` (`000001` through `000030`) via the Supabase Dashboard SQL Editor or the Supabase CLI:
+Apply database migrations sequentially from `supabase/migrations/` (`000001` through `000044`) via the Supabase Dashboard SQL Editor or the Supabase CLI:
 
 ```bash
 npx supabase db push
@@ -110,7 +128,7 @@ Populate default roles, permissions, tourism services, and test employee account
 ```bash
 npm run seed
 # or
-npx tsx scripts/seed.ts
+npx tsx scripts/seed_clean_accounts.ts
 ```
 
 #### Pre-configured Test Accounts:
@@ -140,11 +158,16 @@ src/
 │   ├── (dashboard)/            # Protected dashboard layout & views
 │   │   ├── admin/              # System admin & employee management
 │   │   ├── crm/                # CRM core modules
-│   │   │   ├── customers/      # Customer directory & details
+│   │   │   ├── customers/      # Customer directory, details & Excel Import/Export
 │   │   │   ├── deals/          # Deal pipeline & Kanban stages
-│   │   │   ├── leads/          # Inbound leads & conversion
+│   │   │   ├── leads/          # Leads pipeline, status workflow & Excel Import/Export
 │   │   │   ├── services/       # Tourism services catalogue
-│   │   │   └── inbox/          # Omnichannel Unified Messaging Inbox UI
+│   │   │   ├── inbox/          # Omnichannel Unified Messaging Inbox UI
+│   │   │   ├── actions.ts      # Customer server actions & uniqueness checks
+│   │   │   ├── excel-actions.ts# Excel Export/Import parsing, preview & execution
+│   │   │   ├── inbox-actions.ts# Real-time messaging server actions
+│   │   │   └── lead-actions.ts # Lead lifecycle transitions & search actions
+│   │   ├── notification-actions.ts # Follow-up alerts & notification badges
 │   │   └── dashboard/          # Analytics overview & KPIs
 │   ├── api/
 │   │   ├── heartbeat/          # Availability heartbeat ping endpoint
@@ -154,9 +177,14 @@ src/
 │   ├── login/                  # Authentication interface
 │   └── unauthorized/           # 403 Forbidden access boundary
 ├── components/                 # Reusable UI widgets & layout navigation
+│   ├── excel-import-modal.tsx  # Interactive Excel drag-and-drop & preview modal
+│   ├── notification-bell.tsx   # Due follow-ups alert bell in topbar
+│   ├── searchable-select.tsx   # Multi-field searchable dropdown component
+│   └── topbar.tsx              # Application header & user menu
 ├── lib/                        # Core system services
 │   ├── audit/                  # Audit trail logger (audit.audit_logs)
 │   ├── auth/                   # RBAC helpers, permissions & session guards
+│   ├── excel/                  # SheetJS base64 builder, parser & normalizeToUuid
 │   ├── messaging/              # Meta adapter, signature verification, media manager
 │   ├── supabase/               # Supabase SSR clients (client, server, admin)
 │   └── validations/            # Zod validation schemas
@@ -166,9 +194,40 @@ src/
 
 ---
 
+## 📊 Excel Import/Export Engine & Deduplication
+
+The CRM features a dedicated, local-only Excel import/export engine designed for high data integrity:
+
+### 1. Generate Report (Export)
+- Available in both **Leads** and **Customers** modules.
+- Generates a styled `.xlsx` workbook containing all authorized records.
+- Preserves primary record UUIDs in the `ID` column, enabling safe round-trip editing and re-importing.
+- Enforces strict RLS: Sales reps can only export their assigned data, while Admins export all active data.
+
+### 2. Import Report & Pre-Import Preview
+- Accepts `.xlsx`, `.xls`, and `.csv` spreadsheets via file selector or drag & drop.
+- Features a **Download sample Excel template** link for instant formatting reference.
+- **Two-Step Safe Workflow**:
+  1. **Validation & Preview**: Evaluates the entire file without writing to the database. Displays summary counts:
+     - **New**: Records with new or unassigned IDs ready for creation.
+     - **Updates**: Records matching existing database IDs ready for in-place modification.
+     - **Skipped**: Duplicate IDs repeated within the same file (first occurrence processed, subsequent skipped).
+     - **Errors**: Invalid data (missing name, missing contact method, invalid follow-up date, or unauthorized records).
+  2. **Execution**: Requires explicit user confirmation. Executes atomic bulk inserts/updates with full audit log tracking.
+
+### 3. Arbitrary ID Normalization (`normalizeToUuid`)
+- PostgreSQL requires UUID primary keys, but users often use custom or numeric IDs in spreadsheets (`1`, `2`, `LD-01`, `CUST-10`).
+- The `normalizeToUuid` helper deterministically maps any arbitrary string or number into a standard RFC-4122 UUID:
+  - If already a valid UUID: preserved exactly.
+  - If a number or text (e.g. `'1'`, `'LD-01'`): deterministically hashed using MD5 so that ID `'1'` always resolves to the exact same UUID every time.
+  - If empty or omitted: a fresh `crypto.randomUUID()` is generated.
+- **Deduplication Rule**: Matching is performed **strictly by ID**. Repeated or static contact information (phone, email, notes) across multiple records is fully supported without unwanted skipping.
+
+---
+
 ## 🔒 Security & RBAC Architecture
 
-1. **Permission Key Convention**: Structured dot-notation strings `module.resource.action` (e.g. `crm.leads.read_own`, `crm.inbox.write`, `admin.system`).
+1. **Permission Key Convention**: Structured dot-notation strings `module.resource.action` (e.g. `crm.leads.read_own`, `crm.leads.write`, `crm.customers.read_all`, `crm.inbox.write`).
 2. **Deny-by-Default RLS**: PostgreSQL Row-Level Security on all business tables enforced via `app.has_permission()` and `app.get_current_employee_id()`.
 3. **Webhook HMAC Validation**: Webhook POST endpoints verify `X-Hub-Signature-256` signatures against app secrets using constant-time `crypto.timingSafeEqual` comparison.
 4. **Media Security & Magic Bytes**: All uploaded media files undergo strict magic byte validation, file size enforcement, and storage path sanitization against directory traversal.
@@ -192,7 +251,7 @@ Inbound Webhook (WhatsApp / Messenger / Instagram)
         ├─► Resolve / Upsert app.conversations Thread
         ├─► Insert app.messages (ON CONFLICT IGNORE by external_message_id)
         ├─► Link/Create app.leads with Channel Metadata
-        └─► Execute Phase 3/4B Routing Engine (app.assign_lead_to_sales)
+        └─► Execute Routing Engine (app.assign_lead_to_sales)
               ├─► IF Online Sales Rep Available & Active Backlog < 5: Assign immediately
               └─► ELSE: Enqueue as unassigned (pending_assignment)
 ```
@@ -213,7 +272,7 @@ Client Outbound Dispatch
 
 ## 🗄️ Database Migrations History
 
-| Migration | Scope / Purpose |
+| Migration Range | Scope / Purpose |
 |---|---|
 | `000001` - `000008` | Base schemas (`app`, `audit`), Employees, RBAC tables, Audit logs, Auth functions, RLS policies |
 | `000009` - `000012` | CRM Core: Customers, Tourism Services, Deals, and Deal Activity timeline |
@@ -225,15 +284,22 @@ Client Outbound Dispatch
 | `000027` - `000028` | Meta Messenger Atomic Ingestion (`app.ingest_inbound_message`), Thread Advisory Locks |
 | `000029` | Supabase Realtime publication enablement for `messages`, `conversations`, and `channel_identities` |
 | `000030` | Media Attachments table (`app.message_attachments`), Storage metadata, and private bucket policies |
+| `000031` - `000035` | Performance indexes, RLS optimizations, offline transferable leads, and expanded assignment sources |
+| `000036` - `000040` | Lead status workflow engine (`change_lead_status` RPC), Cairo follow-ups, role transition checks |
+| `000041` - `000044` | Customer ↔ Lead relationship alignment (`customer_id`), won/lost service fields, omnichannel sources |
 
 ---
 
 ## 🧪 Verification & Testing Suites
 
-The repository contains automated verification scripts covering every layer of the architecture:
+Automated verification scripts covering every layer of the architecture:
 
 | Command | Suite Description |
 |---|---|
+| `npx tsx scripts/verify_id_dedup_import.ts` | Arbitrary ID normalization, deterministic UUIDs & duplicate suppression |
+| `npx tsx scripts/verify_excel_import_export.ts` | Excel roundtrip build/parse, RLS isolation & constraint verification |
+| `npx tsx scripts/verify_customer_lead_linking.ts` | Customer ↔ Lead bi-directional linking & search integrity |
+| `npx tsx scripts/verify_customer_uniqueness.ts` | Customer form phone & email uniqueness enforcement |
 | `npx tsx scripts/test_phase4c1_messenger.ts` | Facebook Messenger Inbound & Webhook Signature Tests |
 | `npx tsx scripts/test_phase4c2_instagram.ts` | Instagram Inbound & Profile Resolution Tests |
 | `npx tsx scripts/test_phase4c3_whatsapp.ts` | WhatsApp Cloud API Inbound Tests |
@@ -251,7 +317,8 @@ The repository contains automated verification scripts covering every layer of t
 
 | Script | Purpose |
 |---|---|
-| `npx tsx scripts/seed.ts` | Seed database with initial roles, permissions, services, and employee accounts |
+| `npx tsx scripts/seed_clean_accounts.ts` | Seed database with initial roles, permissions, services, and employee accounts |
+| `npx tsx scripts/seed_20_leads.ts` | Seed 20 realistic Egyptian tourism leads for pipeline demonstration |
 | `npx tsx scripts/wipe_data.ts` | Reset test operational data (messages, leads, customers) while preserving staff accounts |
 | `npm run type-check` | Run static type checking without emitting files |
 | `npm run build` | Compile and bundle production application |

@@ -506,13 +506,13 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
  */
 export async function sendOutboundReply(input: SendReplyInput): Promise<ActionResult<Message>> {
   try {
-    await requirePermission('crm.inbox.write');
+    const profile = await requirePermission('crm.inbox.write');
     const parsed = sendReplySchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message || 'Invalid input' };
     }
 
-    const employee = await getCurrentEmployee();
+    const employee = profile.employee;
     if (!employee) {
       return { success: false, error: 'Current employee record not found' };
     }
@@ -520,34 +520,39 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
     const supabase = await createClient();
     const admin = createAdminClient();
 
-    // Insert message via session client to verify RLS policy
-    const { data: newMsg, error: msgError } = await supabase
-      .from('messages')
-      .insert({
-        id: parsed.data.id || undefined,
-        conversation_id: parsed.data.conversation_id,
-        direction: 'outbound',
-        sender_type: 'employee',
-        sender_employee_id: employee.id,
-        content: parsed.data.content,
-        media_url: parsed.data.media_url || null,
-        message_type: parsed.data.message_type || 'text',
-        status: 'sending',
-        sent_at: new Date().toISOString(),
-      })
-      .select('*')
-      .single();
+    // 1. Parallelize message creation and conversation identity lookup (1 DB roundtrip)
+    const [msgRes, convRes] = await Promise.all([
+      supabase
+        .from('messages')
+        .insert({
+          id: parsed.data.id || undefined,
+          conversation_id: parsed.data.conversation_id,
+          direction: 'outbound',
+          sender_type: 'employee',
+          sender_employee_id: employee.id,
+          content: parsed.data.content,
+          media_url: parsed.data.media_url || null,
+          message_type: parsed.data.message_type || 'text',
+          status: 'sending',
+          sent_at: new Date().toISOString(),
+        })
+        .select('*')
+        .single(),
+      admin
+        .from('conversations')
+        .select('id, channel, channel_identity_id, lead_id, channel_identities ( external_id, phone )')
+        .eq('id', parsed.data.conversation_id)
+        .single(),
+    ]);
 
-    if (msgError || !newMsg) {
-      return { success: false, error: msgError?.message || 'Failed to send message via RLS policy' };
+    if (msgRes.error || !msgRes.data) {
+      return { success: false, error: msgRes.error?.message || 'Failed to send message via RLS policy' };
     }
 
-    // Check conversation channel & identity for external outbound dispatching
-    const { data: conv } = await admin
-      .from('conversations')
-      .select('id, channel, channel_identity_id, lead_id')
-      .eq('id', parsed.data.conversation_id)
-      .single();
+    const newMsg = msgRes.data;
+    const conv = convRes.data;
+    const rawIdent = conv?.channel_identities;
+    const channelIdent = Array.isArray(rawIdent) ? rawIdent[0] : (rawIdent as unknown as { external_id?: string; phone?: string } | null);
 
     let externalMsgId: string | null = null;
     let finalStatus: 'sent' | 'failed' = 'sent';
@@ -556,12 +561,6 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
     if (conv?.channel === 'messenger') {
       const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
       const apiVersion = process.env.META_API_VERSION?.trim() || 'v21.0';
-
-      const { data: channelIdent } = await admin
-        .from('channel_identities')
-        .select('external_id')
-        .eq('id', conv.channel_identity_id)
-        .single();
 
       if (!pageToken) {
         finalStatus = 'failed';
@@ -602,13 +601,6 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
       const whatsappToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || process.env.META_PAGE_ACCESS_TOKEN?.trim();
       const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
       const apiVersion = process.env.META_API_VERSION?.trim() || 'v21.0';
-
-      const { data: channelIdent } = await admin
-        .from('channel_identities')
-        .select('external_id, phone')
-        .eq('id', conv.channel_identity_id)
-        .single();
-
       const recipientPhone = channelIdent?.phone || channelIdent?.external_id;
 
       if (!whatsappToken) {
@@ -668,30 +660,32 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
       }
     }
 
-    // Update message status & external_message_id
-    const { data: updatedMsg } = await admin
-      .from('messages')
-      .update({
-        status: finalStatus,
-        external_message_id: externalMsgId,
-        error_detail: errorDetail,
-      })
-      .eq('id', newMsg.id)
-      .select('*')
-      .single();
+    // 2. Parallelize message status update & conversation timestamp update (1 DB roundtrip)
+    const [updateMsgRes] = await Promise.all([
+      admin
+        .from('messages')
+        .update({
+          status: finalStatus,
+          external_message_id: externalMsgId,
+          error_detail: errorDetail,
+        })
+        .eq('id', newMsg.id)
+        .select('*')
+        .single(),
+      admin
+        .from('conversations')
+        .update({
+          last_message_at: new Date().toISOString(),
+          last_message_preview: parsed.data.content.slice(0, 100),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', parsed.data.conversation_id),
+    ]);
 
-    // Update conversation last message details
-    await admin
-      .from('conversations')
-      .update({
-        last_message_at: new Date().toISOString(),
-        last_message_preview: parsed.data.content.slice(0, 100),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', parsed.data.conversation_id);
+    const updatedMsg = updateMsgRes.data;
 
-    // Audit log
-    await writeAuditLog({
+    // 3. Fire-and-forget background side effects (Audit log & notifications) - Non-blocking
+    void writeAuditLog({
       actor_id: employee.id,
       action: 'inbox.message_sent',
       module: 'crm',
@@ -705,19 +699,14 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
         status: finalStatus,
         error_detail: errorDetail,
       },
-    });
+    }).catch((err) => console.warn('[Inbox Audit Log Error]:', err));
 
-    // If conversation is linked to a lead, automatically mark its follow-up notifications as read
     if (conv?.lead_id) {
-      try {
-        await admin
-          .from('notifications')
-          .update({ is_read: true })
-          .eq('entity_id', conv.lead_id)
-          .eq('type', 'follow_up_reminder');
-      } catch (notifUpdateErr) {
-        console.warn('[Inbox] Failed marking lead follow-up notification as read:', notifUpdateErr);
-      }
+      void admin
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('entity_id', conv.lead_id)
+        .eq('type', 'follow_up_reminder');
     }
 
     if (finalStatus === 'failed') {
@@ -1173,7 +1162,7 @@ export async function finalizeOutboundMediaReply(input: {
 }): Promise<ActionResult<Message>> {
   try {
     const profile = await requirePermission('crm.inbox.write');
-    const employee = await getCurrentEmployee();
+    const employee = profile.employee;
     if (!employee) {
       return { success: false, error: 'Current employee record not found' };
     }
@@ -1529,7 +1518,7 @@ export async function sendOutboundMediaReply(
 ): Promise<ActionResult<Message>> {
   try {
     const profile = await requirePermission('crm.inbox.write');
-    const employee = await getCurrentEmployee();
+    const employee = profile.employee;
     if (!employee) {
       return { success: false, error: 'Current employee record not found' };
     }

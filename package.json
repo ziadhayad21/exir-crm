@@ -12,7 +12,8 @@
     "seed:clean-accounts": "tsx scripts/seed_clean_accounts.ts",
     "check:colors": "tsx scripts/check_colors.ts",
     "test:chat-perf": "tsx --conditions=react-server scripts/test_chat_perf.ts",
-    "test:security": "tsx --conditions=react-server scripts/test_security_suite.ts"
+    "test:security": "tsx --conditions=react-server scripts/test_security_suite.ts",
+    "wipe:admin-only": "tsx scripts/wipe_all_except_admin.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
