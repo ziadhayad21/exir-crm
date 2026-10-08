@@ -629,6 +629,55 @@ async function dispatchMetaOutboundMessageAsync(params: {
         console.error('[Outbound WhatsApp] Network exception:', errorDetail);
       }
     }
+  } else if (conv?.channel === 'instagram') {
+    const pageToken =
+      process.env.INSTAGRAM_PAGE_ACCESS_TOKEN?.trim() ||
+      process.env.META_PAGE_ACCESS_TOKEN?.trim();
+    const apiVersion = process.env.META_API_VERSION?.trim() || 'v21.0';
+    const igsid = channelIdent?.external_id;
+
+    if (!pageToken) {
+      finalStatus = 'failed';
+      errorDetail = 'META_PAGE_ACCESS_TOKEN (or INSTAGRAM_PAGE_ACCESS_TOKEN) is missing in server environment variables';
+    } else if (!igsid) {
+      finalStatus = 'failed';
+      errorDetail = 'Missing customer Instagram external ID for Instagram reply';
+    } else {
+      try {
+        const metaUrl = `https://graph.facebook.com/${apiVersion}/me/messages?access_token=${encodeURIComponent(pageToken)}`;
+        const metaRes = await fetch(metaUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
+          body: JSON.stringify({
+            recipient: { id: igsid },
+            message: { text: content },
+          }),
+        });
+
+        const metaJson = (await metaRes.json()) as {
+          message_id?: string;
+          id?: string;
+          error?: { message?: string };
+        };
+
+        const returnedMsgId = metaJson.message_id || metaJson.id || null;
+
+        if (metaRes.ok && returnedMsgId) {
+          externalMsgId = returnedMsgId;
+          finalStatus = 'sent';
+          console.log('[Outbound Instagram] Message dispatched successfully:', returnedMsgId);
+        } else {
+          finalStatus = 'failed';
+          errorDetail = metaJson?.error?.message || 'Failed to dispatch Instagram message via Meta Graph API';
+          console.error('[Outbound Instagram] Meta API error:', metaJson?.error?.message || metaJson);
+        }
+      } catch (err: unknown) {
+        finalStatus = 'failed';
+        errorDetail = err instanceof Error ? err.message : 'Network error dispatching Instagram reply';
+        console.error('[Outbound Instagram] Network exception:', errorDetail);
+      }
+    }
   }
 
   // Update DB row with final delivery status (Triggers Supabase Realtime update to client UI)
@@ -731,8 +780,8 @@ export async function sendOutboundReply(input: SendReplyInput): Promise<ActionRe
       employeeId: employee.id,
     });
 
-    // 3. Return immediate success ACK to UI (~15ms ultra-low latency)
-    return { success: true, data: newMsg };
+    // 3. Return immediate success ACK to UI (~15ms ultra-low latency with optimistic sent status)
+    return { success: true, data: { ...newMsg, status: 'sent' } };
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : 'Unexpected error' };
   }

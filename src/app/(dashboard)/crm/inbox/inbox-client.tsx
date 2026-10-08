@@ -1049,7 +1049,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
               ? {
                 ...m,
                 ...res.data!,
-                status: res.data!.status || 'sent',
+                status: 'sent' as const,
               }
               : m
           );
