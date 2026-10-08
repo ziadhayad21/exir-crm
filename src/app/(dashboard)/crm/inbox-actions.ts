@@ -631,6 +631,7 @@ async function dispatchMetaOutboundMessageAsync(params: {
     }
   } else if (conv?.channel === 'instagram') {
     const pageToken =
+      process.env.INSTAGRAM_ACCESS_TOKEN?.trim() ||
       process.env.INSTAGRAM_PAGE_ACCESS_TOKEN?.trim() ||
       process.env.META_PAGE_ACCESS_TOKEN?.trim();
     const apiVersion = process.env.META_API_VERSION?.trim() || 'v21.0';
@@ -638,13 +639,17 @@ async function dispatchMetaOutboundMessageAsync(params: {
 
     if (!pageToken) {
       finalStatus = 'failed';
-      errorDetail = 'META_PAGE_ACCESS_TOKEN (or INSTAGRAM_PAGE_ACCESS_TOKEN) is missing in server environment variables';
+      errorDetail = 'INSTAGRAM_ACCESS_TOKEN is missing in server environment variables';
     } else if (!igsid) {
       finalStatus = 'failed';
       errorDetail = 'Missing customer Instagram external ID for Instagram reply';
     } else {
       try {
-        const metaUrl = `https://graph.facebook.com/${apiVersion}/me/messages?access_token=${encodeURIComponent(pageToken)}`;
+        const isInstagramToken = pageToken.startsWith('IGAA') || !!process.env.INSTAGRAM_ACCESS_TOKEN;
+        const metaUrl = isInstagramToken
+          ? `https://graph.instagram.com/${apiVersion}/me/messages?access_token=${encodeURIComponent(pageToken)}`
+          : `https://graph.facebook.com/${apiVersion}/me/messages?access_token=${encodeURIComponent(pageToken)}`;
+
         const metaRes = await fetch(metaUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1493,7 +1498,10 @@ export async function finalizeOutboundMediaReply(input: {
         }
       }
     } else if (conv.channel === 'instagram') {
-      const pageToken = process.env.META_PAGE_ACCESS_TOKEN?.trim();
+      const pageToken =
+        process.env.INSTAGRAM_ACCESS_TOKEN?.trim() ||
+        process.env.INSTAGRAM_PAGE_ACCESS_TOKEN?.trim() ||
+        process.env.META_PAGE_ACCESS_TOKEN?.trim();
       const igsid = channelIdent?.external_id;
 
       if (mediaType === 'document') {
@@ -1504,7 +1512,10 @@ export async function finalizeOutboundMediaReply(input: {
         errorDetail = 'Missing credentials or Instagram sender ID';
       } else {
         try {
-          const metaUrl = `https://graph.facebook.com/v21.0/me/messages?access_token=${encodeURIComponent(pageToken)}`;
+          const isInstagramToken = pageToken.startsWith('IGAA') || !!process.env.INSTAGRAM_ACCESS_TOKEN;
+          const metaUrl = isInstagramToken
+            ? `https://graph.instagram.com/v21.0/me/messages?access_token=${encodeURIComponent(pageToken)}`
+            : `https://graph.facebook.com/v21.0/me/messages?access_token=${encodeURIComponent(pageToken)}`;
           const metaRes = await fetch(metaUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

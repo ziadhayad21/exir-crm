@@ -1025,7 +1025,7 @@ export function InboxClient({ initialConversations, customers, user }: InboxClie
           }
         })
         .catch(() => { });
-    }, 3000);
+    }, 15000);
 
     return () => {
       clearInterval(syncInterval);
